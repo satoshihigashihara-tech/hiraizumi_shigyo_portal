@@ -1,0 +1,502 @@
+# ひらいずみ志業ポータル ルーティング設計書
+
+> 平泉町志業シェアハウス利用申請・管理システム
+
+| 項目 | 内容 |
+|---|---|
+| 文書版 | 1.0 |
+| 作成日 | 2026年9月9日 |
+| 対象 | スパルタキャンプ自主制作として開発する試作版 |
+| フレームワーク | Next.js App Router 16.3.4 |
+| 言語 | JavaScript（`page.js`） |
+| 文書の位置付け | `requirements.md` に基づく、実装予定の採用ルーティング設計 |
+
+## 1. この文書の目的
+
+本書は、ひらいずみ志業ポータルの画面、URL、App Routerのフォルダ、認証・認可、Server / Client Componentの境界、データ取得・更新方法、主な画面遷移を定める。
+
+本書は実装進捗表ではない。各ルートの実装状況はGitおよびタスク管理で追跡する。上位の業務要件は `requirements.md` を正とし、本書に記載のない状態遷移、権限、入力条件を省略してよいものとはしない。
+
+## 2. 設計方針
+
+1. プロジェクト直下の `app` を使用し、`src` ディレクトリは使用しない。
+2. Route Groupは使用せず、URLと `app` 配下のフォルダを一致させる。
+3. 未ログイン画面はURL直下、一般利用者は `/user`、町職員は `/staff` に分ける。
+4. `/user` 自体を利用者ホーム、`/staff` 自体を職員ホーム兼全申請横断検索画面とする。`/user/dashboard` は設けない。
+5. `page.js` と `layout.js` はServer Componentを基本とする。ブラウザ操作が必要な部分だけを小さなClient Componentに分ける。
+6. UIからの更新はServer Actionsを基本とする。Route Handlerは、ブラウザ以外からHTTPで受ける必要がある処理だけに限定する。
+7. 動的URLには推測困難なUUIDを使用する。利用者向けの受付番号 `SG-西暦-連番` は別に発行・表示し、URLのUUIDで代用しない。
+8. URLが推測困難であることを認可の代わりにしない。ページ、データ取得、Server Action、Supabase Row Level Securityの各層で権限を確認する。
+9. 画面表示のためのGETではデータを作成・更新しない。下書きは、利用者が最初に「下書き保存」または「確認へ進む」を実行した時点で作成する。
+10. 本システムが扱うのは「予約」ではなく「使用許可申請」である。提出完了を利用確定と表現しない。
+
+## 3. URLと識別子の規則
+
+| 表記 | 内容 |
+|---|---|
+| `[applicationId]` | 個人申請または団体参加者の個別申請を識別するUUID |
+| `[groupId]` | 団体全体を識別するUUID |
+| `[campId]` | スパルタキャンプを識別するUUID |
+| `[blockedPeriodId]` | 利用停止期間を識別するUUID |
+| `[token]` | 団体招待専用の推測困難なトークン。団体UUIDとは別の値 |
+| `community-activity` | 「地域活動利用・個人」のURL用スラッグ |
+| `community` | 町職員画面で地域活動利用をまとめるURL用スラッグ |
+| `blocked-periods` | 画面表示名「利用停止期間」のURL用スラッグ |
+
+動的セグメント名は、実装時も `[id]` に省略せず、`[applicationId]` のように対象を明示する。Next.js 16では `params` と `searchParams` はPromiseとして扱い、Server Component内で `await` して使用する。
+
+## 4. App Routerのフォルダ構成
+
+```text
+app/
+├── layout.js
+├── page.js                                      # /
+├── loading.js
+├── error.js
+├── not-found.js
+├── calendar/
+│   └── page.js                                  # /calendar
+├── login/
+│   └── page.js                                  # /login
+├── signup/
+│   └── page.js                                  # /signup
+├── forgot-password/                             # 任意機能
+│   └── page.js                                  # /forgot-password
+├── reset-password/                              # 任意機能
+│   └── page.js                                  # /reset-password
+├── auth/
+│   └── callback/                                # 任意認証機能で使用
+│       └── route.js                             # /auth/callback
+├── invite/
+│   ├── page.js                                  # /invite
+│   └── [token]/
+│       └── page.js                              # /invite/[token]
+├── forbidden/
+│   └── page.js                                  # /forbidden
+├── user/
+│   ├── layout.js
+│   ├── page.js                                  # /user
+│   ├── profile/
+│   │   └── page.js                              # /user/profile
+│   ├── applications/
+│   │   ├── page.js                              # /user/applications
+│   │   ├── new/
+│   │   │   ├── page.js                          # /user/applications/new
+│   │   │   ├── camp/
+│   │   │   │   └── page.js                      # /user/applications/new/camp
+│   │   │   └── community-activity/
+│   │   │       └── page.js                      # /user/applications/new/community-activity
+│   │   └── [applicationId]/
+│   │       ├── page.js                          # /user/applications/[applicationId]
+│   │       ├── edit/page.js
+│   │       ├── confirm/page.js
+│   │       ├── complete/page.js
+│   │       ├── cancel/page.js
+│   │       └── extension/page.js
+│   └── groups/
+│       ├── page.js                              # /user/groups
+│       ├── new/page.js                          # /user/groups/new
+│       └── [groupId]/
+│           ├── page.js                          # /user/groups/[groupId]
+│           ├── edit/page.js
+│           ├── participants/page.js
+│           ├── confirm/page.js
+│           ├── complete/page.js
+│           └── cancel/page.js
+└── staff/
+    ├── layout.js
+    ├── page.js                                  # /staff
+    ├── camps/
+    │   ├── page.js                              # /staff/camps
+    │   ├── new/page.js                          # /staff/camps/new
+    │   └── [campId]/
+    │       ├── page.js                          # /staff/camps/[campId]
+    │       ├── edit/page.js
+    │       ├── eligible-users/page.js
+    │       └── applications/
+    │           ├── page.js
+    │           └── [applicationId]/page.js
+    ├── community/
+    │   ├── page.js                              # /staff/community
+    │   ├── applications/
+    │   │   ├── page.js
+    │   │   └── [applicationId]/page.js
+    │   └── groups/
+    │       ├── page.js
+    │       └── [groupId]/page.js
+    ├── calendar/
+    │   ├── page.js                              # /staff/calendar
+    │   └── blocked-periods/
+    │       ├── page.js
+    │       ├── new/page.js
+    │       └── [blockedPeriodId]/edit/page.js
+    └── settings/
+        └── page.js                              # /staff/settings
+```
+
+## 5. 公開・認証ルート
+
+| URL | App Router | 画面・処理の目的 | 認証 | Component / 更新方法 | 主な遷移 |
+|---|---|---|---|---|---|
+| `/` | `app/page.js` | サービス概要、対象者、利用条件、料金、必要書類、申請開始への2つの入口を表示する | 不要 | Server。公開情報だけを取得 | `/calendar`、`/login`、`/signup`、認証後の申請開始 |
+| `/calendar` | `app/calendar/page.js` | 個人・団体を特定できない公開可能な空き状況を月単位で表示する | 不要 | Serverで月データを取得。月移動と日程選択だけClient | 地域活動の申請開始。未ログインなら認証後に選択日程を復元 |
+| `/login` | `app/login/page.js` | 一般利用者と町職員のログイン | 不要 | Server ActionでSupabase Authへログイン | 通常利用者は `/user`、町職員は `/staff`、招待経由は元の招待URL |
+| `/signup` | `app/signup/page.js` | 一般利用者の新規登録 | 不要 | Server Actionで一般利用者だけを登録 | 安全な `returnTo`、なければ `/user` |
+| `/invite` | `app/invite/page.js` | 団体招待コードを手入力する | 不要 | Serverでコードを検証。参加確定は認証後のServer Action | 有効な `/invite/[token]`、認証が必要なら `/login` |
+| `/invite/[token]` | `app/invite/[token]/page.js` | 共通招待リンクの確認、認証、団体参加、個別申請開始 | 閲覧入口は不要、参加は必要 | Serverでトークン状態を検査。参加はServer Action | 未ログインは `/login?returnTo=...`、参加後は本人の `/user/applications/[applicationId]/edit` |
+| `/forbidden` | `app/forbidden/page.js` | 認証済みだが役割により領域へ入れないことを表示する | 必要 | Server。ページ自身でセッションを確認し、個別データは取得しない | 利用者は `/user`、町職員は `/staff` |
+
+### 5.1 招待ルートの表示制限
+
+- 認証前はトークンの有効性を検査するが、団体名、参加者名、申請状態などの個人・団体情報を表示しない。
+- 無効、期限切れ、満員、無効化済み、または本人が参加済みの場合も `/invite/[token]` 上で状態に応じた案内と問い合わせ導線を表示する。
+- 認証後もトークンを保持し、元の招待画面へ戻す。
+- 団体参加を確定するServer Actionで、期限、団体状態、予定人数、重複参加を再検査する。
+- 団体代表者が招待リンクを再発行した場合は、古いトークンを無効にする。
+
+### 5.2 任意の認証ルート
+
+パスワード再設定は `requirements.md` の「時間があれば追加」に該当し、MVP必須ルートへは含めない。実装する場合は次を一組として追加する。
+
+| URL | App Router | 目的 | Component / 更新方法 |
+|---|---|---|---|
+| `/forgot-password` | `app/forgot-password/page.js` | 再設定メールの送信を依頼する | Server Action |
+| `/auth/callback` | `app/auth/callback/route.js` | Supabaseから受け取った認証コードをサーバーで交換する | Route Handler |
+| `/reset-password` | `app/reset-password/page.js` | 新しいパスワードを設定する | Server Action |
+
+コールバック後の遷移先は同一オリジンの許可済みパスだけに制限する。一般利用者が新規登録時に町職員の役割を選択する機能は設けない。
+
+## 6. 一般利用者ルート
+
+### 6.1 ホーム・プロフィール
+
+| URL | App Router | 画面の目的 | Component / データ | 主な遷移 |
+|---|---|---|---|---|
+| `/user` | `app/user/page.js` | 自分の申請・団体の状態、期限、次に必要な操作をまとめて表示する | Serverで本人が閲覧できる概要だけを取得 | 申請一覧、新規申請、団体一覧、招待、プロフィール |
+| `/user/profile` | `app/user/profile/page.js` | 氏名、住所、電話番号、緊急連絡先を閲覧・更新する | Serverで取得、Server Actionで更新 | 保存後は同画面または `/user` |
+
+プロフィールでは認証メールアドレスと役割を変更しない。プロフィールを更新しても、提出済み申請が保持する申請時点の情報の写しは書き換えない。
+
+### 6.2 個人申請・団体参加者の個別申請
+
+`/user/applications` は、スパルタキャンプ利用、地域活動利用・個人、団体参加者の個別申請を共通して扱う。団体全体は `/user/groups` で扱う。
+
+| URL | App Router | 画面の目的 | Component / 更新方法 | 主な遷移 |
+|---|---|---|---|---|
+| `/user/applications` | `app/user/applications/page.js` | 本人の進行中・過去の個別申請一覧 | Serverで本人分だけ取得 | 詳細、新規申請 |
+| `/user/applications/new` | `app/user/applications/new/page.js` | スパルタキャンプ利用、地域活動利用・個人、団体作成の入口を選ぶ | Server。GETでは下書きを作らない | `/user/applications/new/camp`、`/user/applications/new/community-activity`、`/user/groups/new` |
+| `/user/applications/new/camp` | `app/user/applications/new/camp/page.js` | 対象メールと一致する申請可能なキャンプを確認・選択する | Serverで対象資格を確認。「下書き保存」または「確認へ進む」でUUID付き下書きを作成 | `/user/applications/[applicationId]/edit` |
+| `/user/applications/new/community-activity` | `app/user/applications/new/community-activity/page.js` | 地域活動利用・個人の日程と開始条件を確認する | Serverで日程条件を確認。「下書き保存」または「確認へ進む」でUUID付き下書きを作成 | `/user/applications/[applicationId]/edit` |
+| `/user/applications/[applicationId]` | `app/user/applications/[applicationId]/page.js` | 申請内容、受付番号、3種類の状態、履歴、料金、納付、部屋、滞在、必要時の町連絡先を表示する | Serverで本人の申請だけ取得 | 状態に応じて編集、キャンセル、延長 |
+| `/user/applications/[applicationId]/edit` | `app/user/applications/[applicationId]/edit/page.js` | 下書きまたは修正依頼中の申請を入力・修正し、同意書を添付する | Serverで初期値取得。Clientは条件分岐入力。Server Actionで下書き保存と非公開Storageへの保存 | `/confirm`、保存後は同画面または詳細 |
+| `/user/applications/[applicationId]/confirm` | `app/user/applications/[applicationId]/confirm/page.js` | 提出前に全入力内容、期間、料金見込みを確認する | Serverで最新の下書きを再取得。提出はServer Action | 成功時 `/complete`、競合・入力不備時 `/edit` |
+| `/user/applications/[applicationId]/complete` | `app/user/applications/[applicationId]/complete/page.js` | 提出成功後の受付番号、提出日時、状態を表示する | Serverで実際の提出済み状態を確認 | 申請詳細、利用者ホーム |
+| `/user/applications/[applicationId]/cancel` | `app/user/applications/[applicationId]/cancel/page.js` | 対象となる地域活動利用のキャンセル理由と影響を確認する | Serverで状態を確認し、「許可」の場合だけ滞在状態が「入居前」かも確認する。Server Actionでキャンセル申請 | 申請詳細 |
+| `/user/applications/[applicationId]/extension` | `app/user/applications/[applicationId]/extension/page.js` | 元申請を変更せず、追加期間の別申請を開始する | Serverで元申請とプロフィールを取得。明示操作で元申請に紐づく新規下書きを作成 | 新しい申請の `/edit` |
+
+初回表示だけでは下書きを作成しない。通常申請は `/user/applications/new/...` の「下書き保存」または「確認へ進む」、団体は `/user/groups/new` の初回保存、招待参加者は `/invite/[token]` の参加確定という明示操作でUUIDを発行する。UUID発行後の `/edit` は既存の下書きを更新する。この時点では受付番号を発行せず、日程・定員も確保しない。受付番号は提出成功時に発行する。
+
+`/edit`、`/confirm`、`/cancel`、`/extension` を直接開いた場合も、所有者、申請種別、状態、期限、滞在状態をサーバーで検査する。本人の申請だが現在の状態では操作できない場合は詳細へ戻して理由を表示し、本人以外の申請は404として扱う。
+
+### 6.3 団体
+
+| URL | App Router | 画面の目的 | Component / 更新方法 | 主な遷移 |
+|---|---|---|---|---|
+| `/user/groups` | `app/user/groups/page.js` | 代表・参加している進行中および過去の団体一覧 | Serverで本人が関係する団体だけ取得 | 団体詳細、新規団体 |
+| `/user/groups/new` | `app/user/groups/new/page.js` | 団体共通情報、日程、予定人数の初回入力 | Serverで条件・空き状況を確認。最初の「下書き保存」または「確認へ進む」でUUID付き団体下書きを作成 | `/user/groups/[groupId]/edit` |
+| `/user/groups/[groupId]` | `app/user/groups/[groupId]/page.js` | 団体共通情報、団体状態、期限、参加者の氏名と提出・審査状態、見込料金・納付済み人数を表示する | Serverで代表者・参加者の表示範囲を分けて取得 | 編集、参加者管理、キャンセル |
+| `/user/groups/[groupId]/edit` | `app/user/groups/[groupId]/edit/page.js` | 許可された状態・期限内で団体共通情報を編集する | Serverで取得、Server Actionで下書き保存 | `/confirm`、団体詳細 |
+| `/user/groups/[groupId]/participants` | `app/user/groups/[groupId]/participants/page.js` | 代表者が参加者の氏名・提出状態を管理し、共通招待リンクとコードを確認・再発行する | Serverで代表者権限を確認。追加・削除・再発行はServer Actions | 団体詳細、参加者の個別申請状態 |
+| `/user/groups/[groupId]/confirm` | `app/user/groups/[groupId]/confirm/page.js` | 団体情報、予定人数、利用期間、提出期限への影響を提出前に確認する | Serverで最新下書きを取得。提出はトランザクションを呼ぶServer Action | 成功時 `/complete`、不備・競合時 `/edit` |
+| `/user/groups/[groupId]/complete` | `app/user/groups/[groupId]/complete/page.js` | 団体受付番号、提出日時、団体状態、日程確保を表示する | Serverで実際の提出状態を確認 | 団体詳細、参加者管理 |
+| `/user/groups/[groupId]/cancel` | `app/user/groups/[groupId]/cancel/page.js` | 代表者が団体全体のキャンセル理由と全参加者・日程への影響を確認する | Serverで代表者、団体状態、滞在開始前を確認。Server Actionでキャンセル申請 | 団体詳細 |
+
+団体代表者が閲覧できる参加者情報は、氏名、参加状態、提出・審査状態に限定する。参加者の住所、電話番号、個人の緊急連絡先、保護者同意書は、団体詳細・参加者管理の取得結果へ含めない。団体参加者には、他の参加者の氏名を含む個人情報を表示しない。
+
+団体の初回表示だけでは下書きや日程枠を作成しない。代表者の明示操作で下書きを作成し、団体を「申請中」にする提出処理でのみ、最新の競合を再検査して日程を確保する。
+
+## 7. 町職員ルート
+
+すべての `/staff` ルートは町職員だけが利用できる。職員権限はSupabase側でのみ付与し、`app/staff/layout.js` の共通確認に加えて、各データ取得とServer Actionでも役割を再確認する。
+
+### 7.1 職員ホーム・全申請横断検索
+
+| URL | App Router | 画面の目的 | Component / 更新方法 | 主な遷移 |
+|---|---|---|---|---|
+| `/staff` | `app/staff/page.js` | 全申請を氏名、団体名、利用期間で横断検索し、利用区分・申請・納付・滞在状態で絞り込む。各領域の要対応件数も表示する | Serverで検索条件に一致する必要最小限の概要を取得。検索フォームはGET | キャンプ申請、地域活動の個人申請、団体の各詳細 |
+
+キャンプと地域活動の詳細ルートは分離するが、`requirements.md` が求める全申請の横断検索は `/staff` に残す。検索結果は対象の種別に応じた詳細URLへリンクする。
+
+### 7.2 スパルタキャンプ
+
+| URL | App Router | 画面の目的 | Component / 更新方法 | 主な遷移 |
+|---|---|---|---|---|
+| `/staff/camps` | `app/staff/camps/page.js` | キャンプ一覧と申請期限・期間の概要を表示する | Serverで一覧取得 | 新規登録、キャンプ詳細 |
+| `/staff/camps/new` | `app/staff/camps/new/page.js` | キャンプ名、固定期間、申請期限を登録する | Server Action。日程競合を検査 | 作成したキャンプ詳細 |
+| `/staff/camps/[campId]` | `app/staff/camps/[campId]/page.js` | キャンプ設定、対象者数、申請状況、日程への影響を表示する | Serverでキャンプ単位に取得 | 編集、対象者、申請一覧 |
+| `/staff/camps/[campId]/edit` | `app/staff/camps/[campId]/edit/page.js` | キャンプ名、固定期間、申請期限を編集し、条件を満たす場合はキャンプ期間を削除する | Server Action。競合申請と影響を表示し、未解決の競合がある編集・削除は実行しない | キャンプ詳細 |
+| `/staff/camps/[campId]/eligible-users` | `app/staff/camps/[campId]/eligible-users/page.js` | 対象メールを登録・編集し、形式不正・重複を表示する | Serverで一覧取得、Server Actionで一括登録・更新 | キャンプ詳細、申請一覧 |
+| `/staff/camps/[campId]/applications` | `app/staff/camps/[campId]/applications/page.js` | 対象キャンプの個人申請を検索・絞り込みする | Serverでキャンプに属する申請だけ取得 | 申請詳細 |
+| `/staff/camps/[campId]/applications/[applicationId]` | `app/staff/camps/[campId]/applications/[applicationId]/page.js` | キャンプ個人申請の審査、部屋割り、料金・納付、入退去、メモ、履歴を扱う | Serverで取得。各更新は権限・状態・更新日時を検査するServer Actions | キャンプ詳細、申請一覧 |
+
+`campId` と `applicationId` の関連を必ず検証し、別キャンプの申請を誤って表示・更新しない。スパルタキャンプ利用者には本人によるキャンセル申請画面を表示せず、本人から町への連絡後に職員が申請詳細から処理する。
+
+### 7.3 地域活動利用
+
+| URL | App Router | 画面の目的 | Component / 更新方法 | 主な遷移 |
+|---|---|---|---|---|
+| `/staff/community` | `app/staff/community/page.js` | 地域活動利用・個人と団体の件数、期限、要対応項目を表示する | Serverで集計 | 個人申請一覧、団体一覧 |
+| `/staff/community/applications` | `app/staff/community/applications/page.js` | 地域活動利用・個人と団体参加者の個別申請を検索・絞り込みする | Serverで対象種別だけ取得 | 個別申請詳細 |
+| `/staff/community/applications/[applicationId]` | `app/staff/community/applications/[applicationId]/page.js` | 個別申請の審査、料金・納付、入退去、メモ、履歴を扱う。地域活動利用・個人の場合だけ個人単位の部屋割りを扱う | Serverで取得。更新はServer Actions | 一覧、関連団体 |
+| `/staff/community/groups` | `app/staff/community/groups/page.js` | 地域活動利用・団体を検索・絞り込みする | Serverで団体一覧を取得 | 団体詳細 |
+| `/staff/community/groups/[groupId]` | `app/staff/community/groups/[groupId]/page.js` | 団体目的の審査、参加者個別申請、期限、部屋別人数、見込料金、納付状況、入退去、メモ、履歴を関連付けて扱う | Serverで職員向け情報を取得。更新はServer Actions | 団体一覧、各参加者の個別申請詳細 |
+
+申請詳細と団体詳細は、審査、料金・納付、滞在、内部メモ、履歴を同じページ内のセクションとして表示する。地域活動利用・個人の申請詳細では個人単位の部屋割りを扱う。団体参加者の個別申請では部屋割りを閲覧・更新せず、関連する団体詳細で部屋別人数を管理する。MVPではこれらを別URLに分割しない。画面を閲覧しただけでは「審査中」に変更せず、明示的な審査開始操作でのみ状態を更新する。`/staff/community/applications/[applicationId]` でキャンプ申請を指定した場合は、そのキャンプ配下の正規URLへ送る。
+
+### 7.4 カレンダー・利用停止期間・設定
+
+| URL | App Router | 画面の目的 | Component / 更新方法 | 主な遷移 |
+|---|---|---|---|---|
+| `/staff/calendar` | `app/staff/calendar/page.js` | キャンプ、地域活動の個人・団体、利用停止期間を区別して表示する | Serverで指定月を取得。カレンダー操作だけClient | 各申請・団体・キャンプ、利用停止期間一覧 |
+| `/staff/calendar/blocked-periods` | `app/staff/calendar/blocked-periods/page.js` | 利用停止期間と内部理由を一覧表示する | Serverで取得 | 新規登録、編集、職員カレンダー |
+| `/staff/calendar/blocked-periods/new` | `app/staff/calendar/blocked-periods/new/page.js` | 利用停止期間と内部理由を登録する | Server Action。既存申請との競合を検査 | 一覧、競合時は入力画面 |
+| `/staff/calendar/blocked-periods/[blockedPeriodId]/edit` | `app/staff/calendar/blocked-periods/[blockedPeriodId]/edit/page.js` | 利用停止期間を編集・削除する | Server Action。影響申請を表示し、競合時は保存しない | 一覧、職員カレンダー |
+| `/staff/settings` | `app/staff/settings/page.js` | 町の緊急連絡先名、電話番号、対応時間を管理する | Serverで取得、Server Actionで更新 | 職員ホーム |
+
+料金単価、月上限、部屋名、部屋定員、施設定員、申請状態、受付条件、職員権限は固定の業務ルールまたはSupabase側の管理対象であり、`/staff/settings` から変更しない。
+
+## 8. 認証・認可とルートガード
+
+| 状況 | 挙動 |
+|---|---|
+| 未ログインで `/user` または `/staff` を開く | `/login` へ送り、安全な `returnTo` に元の内部パスを保持する |
+| 未ログインで `/forbidden` を直接開く | ページ自身のセッション確認により `/login` へ送る |
+| 通常ログイン | 一般利用者は `/user`、町職員は `/staff` へ送る |
+| 招待リンク経由のログイン | 認証後に元の `/invite/[token]` へ戻す |
+| ログイン済み利用者が `/staff` を開く | `/forbidden` を表示する |
+| ログイン済み町職員が一般利用者用の開始画面を開く | `/staff` へ送る |
+| 他人の申請・無関係な団体・存在しないUUID | `notFound()` を使用し、存在の有無を推測させない |
+| 本人のデータだが状態・期限上その操作ができない | 詳細へ戻し、操作できない理由と次に可能な操作を表示する |
+| ログアウト | Server Actionでセッションを破棄し、公開トップ `/` へ送る |
+
+`returnTo` は相対パスかつ許可済みの内部ルートだけを受け付ける。完全URL、プロトコル相対URL、`javascript:`、外部ドメインは拒否し、オープンリダイレクトを防ぐ。
+
+### 8.1 多層防御
+
+1. `app/user/layout.js` と `app/staff/layout.js` でセッションと役割を確認する。
+2. 各Server Componentで、対象レコードを現在の利用者または町職員の権限範囲に絞って取得する。
+3. 各Server Actionで、セッション、役割、所有者、状態、期限、`updated_at` を更新直前に再検査する。
+4. Supabase RLSで、一般利用者、団体代表者、団体参加者、町職員の閲覧・更新範囲を制限する。
+5. 管理用秘密鍵が必要なアカウント停止・初期化処理はサーバー側だけで実行し、ブラウザへ秘密鍵を渡さない。
+
+## 9. Server / Client Componentとデータ処理
+
+### 9.1 Server Componentを基本とする画面
+
+- 公開トップ、利用案内、一覧、詳細、確認、完了、設定画面
+- 認証・役割・所有者を確認するすべてのページ
+- 個人情報、職員情報、内部理由、内部メモを取得する画面
+- URLクエリを使った検索・絞り込み結果
+
+### 9.2 Client Componentに分ける部分
+
+- カレンダーの月移動、日付範囲選択
+- 申請種別や入力値に応じて表示が変わるフォーム部分
+- ファイル選択、アップロード前の形式・容量表示
+- 送信中のボタン無効化と進行表示
+- 職員画面の部屋割りなど、操作性のために局所的な状態が必要な部分
+- `app/error.js`。エラー境界の仕様上Client Componentとする
+
+Client Componentへ渡すpropsは表示に必要な最小限とし、団体代表者や他参加者へ見せてはならない個人情報をServer Componentから渡さない。
+
+### 9.3 データ取得・更新
+
+| 処理 | 方針 |
+|---|---|
+| 表示データ取得 | Server Componentからサーバー用Supabaseクライアントで取得し、RLSを適用する |
+| フォーム更新 | Server Actionで入力検証、認証・認可、状態検査、更新を行う |
+| 日程・定員の枠確保 | Server ActionからDBトランザクションまたはRPCを呼び、空き確認と確保を不可分にする |
+| 二重送信防止 | Client側で送信中を無効化し、Server / DB側でも一意制約や冪等性を持たせる |
+| 更新競合 | `updated_at` を比較し、古い画面からの上書きを拒否して再読込みを案内する |
+| 表示更新 | 成功後に必要な `revalidatePath` を実行し、GET可能な画面へ `redirect` する |
+| 同意書アップロード | `/user/applications/[applicationId]/edit` のServer Actionで形式・5MB上限・所有者を検証し、非公開Storageへ保存する |
+| 同意書参照 | 専用ファイル管理ルートを設けず、申請詳細のServer Actionで本人または町職員を検証して短時間の参照手段を発行する |
+
+同意書のDB項目には公開URLではなくStorage上のパスを保持する。団体代表者や他参加者へパスや参照手段を返さない。
+
+## 10. URLクエリ
+
+| 対象 | クエリ例 | 用途・検証 |
+|---|---|---|
+| 公開カレンダー | `/calendar?month=2026-09` | 日本時間の表示月。未指定・不正値は日本時間の当月へ正規化する |
+| 職員カレンダー | `/staff/calendar?month=2026-09` | 公開情報に加えて業務詳細を取得する |
+| 公開カレンダーから個人申請 | `/user/applications/new/community-activity?start=2026-09-10&end=2026-09-12` | 認証後に初期値として復元する。空き・受付条件はサーバーで再検査する |
+| 公開カレンダーから団体作成 | `/user/groups/new?start=2026-09-10&end=2026-09-12` | 認証後に初期値として復元する。空き・人数・受付条件はサーバーで再検査する |
+| 職員横断検索 | `/staff?q=...&usageType=...&applicationStatus=...&paymentStatus=...&stayStatus=...&from=...&to=...` | 全申請の氏名、団体名、利用期間と各状態を検索・絞り込みする |
+| 領域別一覧 | 各一覧に `q`、状態、`from`、`to` | 対象領域内の検索・絞り込み。許可したキーと値だけを使用する |
+| 認証後の復帰 | `/login?returnTo=%2Finvite%2F...` | 同一オリジンの許可済み内部パスだけに制限する |
+
+検索・絞り込みはGETフォームで行い、共有、再読込み、戻る・進むで条件が維持されるようにする。クエリ値をSQL文字列へ直接連結しない。
+
+## 11. 状態に応じた表示・遷移
+
+### 11.1 個別申請
+
+- 編集できるのは「下書き」または「修正依頼」の本人だけとする。
+- 確認画面を直接開いた場合も、最新の下書き、所有者、入力完了状態を検査する。
+- 提出時に入力、日程、定員、重複、利用資格を再検査する。地域活動利用の枠確保は提出と同じトランザクションで行う。
+- 完了画面は実際に提出が成功した申請だけを表示し、受付番号、提出日時、状態をサーバーから取得する。
+- 地域活動利用のキャンセル申請は、申請状態が「申請済み」「審査中」「修正依頼」の場合、または「許可」かつ滞在状態が「入居前」の場合に表示する。「滞在中」は町への連絡と早期退去を案内する。
+- スパルタキャンプ利用者にはキャンセル申請操作を表示しない。
+- 期間延長は元申請を変更せず、元申請に紐づく追加期間の別申請として作成する。
+
+### 11.2 団体
+
+- 団体の「申請中」への提出時に、期間、人数、既存申請との競合を再検査し、日程を確保する。
+- 参加者の追加・削除、交代、キャンセルは団体状態と提出・修正期限に従って表示する。
+- 全参加者の個別申請が提出されたときだけ、団体全体を自動で「審査中」へ進める。
+- 団体全体を「不許可」にする場合は、未終了の参加者個別申請も同じトランザクションまたはRPCで「不許可」にし、共通理由を記録する。
+- 参加者の個別申請を「不許可」にする場合は、団体全体も同じ処理で「修正依頼」にする。
+- 団体全体のキャンセル確定では、未終了の参加者申請と日程枠を同じトランザクションまたはRPCで更新する。
+- 滞在開始後は団体キャンセル申請を表示せず、町への電話連絡と早期退去を案内する。
+
+### 11.3 町職員
+
+- 詳細を閲覧しただけでは審査状態を変更しない。「審査開始」の明示操作でのみ「審査中」へ進める。
+- 修正依頼と不許可では理由を必須とし、許可コメントは任意とする。
+- スパルタキャンプ利用と地域活動利用・個人の許可前に、本人の部屋割りを完了させる。団体参加者の個別申請には個人単位の部屋割りを行わない。
+- 団体全体の許可前に、全参加者の個別許可、人数一致、部屋別定員、施設定員を確認する。
+- キャンプ期間または利用停止期間の変更時は、競合する申請と影響を表示し、未解決の競合があれば保存しない。
+- 複数職員の更新競合時は保存を拒否し、最新情報の再読込みを案内する。
+- 不許可またはキャンセル済みで退去処理がない利用者のアカウント停止は、本人から町への連絡を確認したうえで、関連する申請詳細から確認付きServer Actionとして実行し、操作履歴へ記録する。独立した利用者管理ルートは設けない。
+
+## 12. 主な画面遷移
+
+### 12.1 通常ログインと申請
+
+```mermaid
+flowchart LR
+    A["公開トップ /"] --> B["ログイン /login"]
+    A --> C["新規登録 /signup"]
+    B -->|一般利用者| D["利用者ホーム /user"]
+    B -->|町職員| E["職員ホーム /staff"]
+    C --> D
+    D --> F["申請種別 /user/applications/new"]
+    F --> G["キャンプ /user/applications/new/camp"]
+    F --> H["地域活動・個人 /user/applications/new/community-activity"]
+    G -->|明示的に下書き作成| I["入力 /user/applications/[applicationId]/edit"]
+    H -->|明示的に下書き作成| I
+    I --> J["確認 /user/applications/[applicationId]/confirm"]
+    J -->|提出成功| K["完了 /user/applications/[applicationId]/complete"]
+    K --> L["申請詳細 /user/applications/[applicationId]"]
+```
+
+### 12.2 公開カレンダーと地域活動利用
+
+```mermaid
+flowchart LR
+    A["公開カレンダー /calendar"] --> B["日程を選択"]
+    B --> C["個人 /user/applications/new/community-activity?start=...&end=..."]
+    B --> D["団体 /user/groups/new?start=...&end=..."]
+    C --> E{"ログイン済み?"}
+    D --> E
+    E -->|いいえ| F["/login?returnTo=選択した開始URL"]
+    F --> G["認証後に選択した開始URLへ復帰"]
+    E -->|はい| G
+    G -->|条件を再検査し、明示操作でUUID発行| H["個人は /user/applications/[applicationId]/edit、団体は /user/groups/[groupId]/edit"]
+```
+
+### 12.3 団体招待
+
+```mermaid
+flowchart LR
+    A["代表者: /user/groups/[groupId]/participants"] --> B["招待リンクまたはコードを共有"]
+    B --> C["参加者: /invite/[token]"]
+    C --> D{"ログイン済み?"}
+    D -->|いいえ| E["/login?returnTo=/invite/[token]"]
+    E --> C
+    D -->|はい| F["招待条件を再検査"]
+    F -->|参加確定| G["/user/applications/[applicationId]/edit"]
+    G --> H["/user/applications/[applicationId]/confirm"]
+    H --> I["/user/applications/[applicationId]/complete"]
+```
+
+### 12.4 町職員
+
+```mermaid
+flowchart LR
+    A["職員ホーム・横断検索 /staff"] --> B["キャンプ /staff/camps/..."]
+    A --> C["地域活動・個人 /staff/community/applications/..."]
+    A --> D["地域活動・団体 /staff/community/groups/..."]
+    A --> E["職員カレンダー /staff/calendar"]
+    B --> F["申請詳細・審査"]
+    C --> F
+    D --> G["団体詳細・審査"]
+    G --> F
+    E --> B
+    E --> C
+    E --> D
+```
+
+## 13. 特殊ファイル
+
+| ファイル | 役割 |
+|---|---|
+| `app/layout.js` | 全画面共通のHTML、メタデータ、言語設定を持つ。`lang="ja"` とサービス名を設定する |
+| `app/loading.js` | 全体用の読み込み表示。状態を文字でも伝える |
+| `app/error.js` | 全体用のエラー境界。Client Componentとし、再試行と安全な戻り先を示す |
+| `app/not-found.js` | 存在しないURL、存在しないデータ、閲覧権限のない個別データを扱う |
+| `app/user/layout.js` | 一般利用者セッションの確認と利用者ナビゲーション |
+| `app/staff/layout.js` | 町職員の役割確認と職員ナビゲーション |
+
+MVPでは `app/user` と `app/staff` 配下に個別の `loading.js`、`error.js` を置かない。全体用で不足が生じた時点で追加を検討する。
+
+## 14. 画面ルートにしない処理とMVP対象外
+
+### 14.1 画面ルートにしない必須処理
+
+| 項目 | 方針 |
+|---|---|
+| ログアウト | 専用ページを作らず、共通ヘッダー等からServer Actionを実行する |
+| 保護者同意書 | 専用の `/api/files/...`、ファイル一覧、テンプレート配布ルートを作らない。申請詳細から認可済みの短時間の参照手段を発行する |
+| 自動期限処理 | 公開Cron Route Handlerを作らない。ただし期限切れ時の自動キャンセル・枠解放という必須要件は削除しない |
+| アカウント自動初期化 | 退去・申請終了・団体終了時に条件を再判定する必須のバックエンド処理とし、画面ルートは設けない |
+
+### 14.2 実装方式を別途決める必須処理
+
+自動期限処理とアカウント初期化の実装方式は、データベース設計・バックエンド設計で決める。Supabase Edge Functions、Cronなどの採否はカリキュラム範囲外のため本書では確定しない。これは職員の手作業へ変更してよいという意味ではない。団体全体、参加者申請、カレンダー枠を一貫して更新する処理方式を別設計で必ず定める。
+
+### 14.3 任意・対象外機能
+
+| 項目 | 方針 |
+|---|---|
+| CSV出力 | 「時間があれば追加」の機能で項目も未確定のため、MVPルートへ含めない |
+| メール通知 | パスワード再設定以外の任意通知を画面ルートへ追加しない。団体招待メールと期限前通知メールは対象外 |
+| 正式文書 | 使用許可通知書・納付書のPDF生成、電子交付、ダウンロードルートは対象外 |
+
+## 15. 実装時の確認項目
+
+- [ ] 画面URLと `app` 配下のフォルダが一致している
+- [ ] 一般利用者、団体代表者、団体参加者、町職員の取得範囲が分かれている
+- [ ] 町職員の役割を新規登録画面から取得できない
+- [ ] `/staff` で全利用区分の申請を横断検索できる
+- [ ] UUIDと受付番号を別の値として扱っている
+- [ ] ページ表示だけで下書きや審査状態を作成・変更しない
+- [ ] 入力、確認、完了の各URLで所有者と状態を再検査している
+- [ ] 申請提出時に空き確認と枠確保を同じトランザクションで処理している
+- [ ] 団体代表者へ参加者の非公開個人情報を返していない
+- [ ] 同意書が非公開Storageに保存され、本人と町職員だけが参照できる
+- [ ] Server Actionで認証、認可、入力、状態、期限、更新競合を再検査している
+- [ ] 一覧とカレンダーが必要な期間・件数だけを取得している
+- [ ] エラー、状態、利用可否が色だけに依存せず文字で分かる
+- [ ] スマートフォンとパソコンの双方で主要操作を完了できる
+- [ ] 自動期限処理のバックエンド方式を別設計で確定している
+
+## 16. 参照資料
+
+| 資料 | 本書で参照した内容 |
+|---|---|
+| [要件定義書](./requirements.md) | 対象範囲、役割、申請・団体フロー、状態、権限、職員機能、画面要件、非機能要件 |
+| [画面設計・ルーティング設計をAIと作る](./curriculum/AI駆動開発ハンズオン：写真共有アプリ/5.画面設計・ルーティング設計をAIと作る.txt) | App RouterのURL対応、画面目的、認証、Server / Client Component、取得・更新、画面遷移の確認項目 |
+| [Next.js基礎](./curriculum/Next.js%20%26%20Supabase（アプリの形へ）/1.Next.js基礎.txt) | `app`、`page.js`、`layout.js`、`loading.js`、`error.js`、`not-found.js` の基本 |
+

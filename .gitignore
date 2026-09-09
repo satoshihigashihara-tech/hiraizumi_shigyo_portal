@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/.codex-*/
+~$*
+
+/docs/curriculum/
+/docs/*.pdf
+/docs/設定.txt
+/docs/課題.txt
+/output/
