@@ -153,10 +153,11 @@ export async function uploadGuardianConsent(formData) {
     redirect(withQuery(editPath, { error: "upload-failed" }));
   }
 
-  const { data: previousObjectPath, error: metadataError } = await supabase.rpc(
+  const { data: previousObjectPath, error: metadataError } = await admin.rpc(
     "register_guardian_consent_document",
     {
       target_application_id: applicationId,
+      expected_user_id: user.id,
       target_object_path: objectPath,
       target_mime_type: file.type,
       target_size_bytes: file.size,
