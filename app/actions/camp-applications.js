@@ -88,7 +88,7 @@ export async function createCampApplicationDraft(formData) {
   }
 
   revalidatePath("/user");
-  redirect(`/user/applications/${applicationId}`);
+  redirect(`/user/applications/${applicationId}/edit`);
 }
 
 export async function saveCampApplicationDraft(formData) {
@@ -99,8 +99,11 @@ export async function saveCampApplicationDraft(formData) {
   }
 
   const applicationPath = `/user/applications/${applicationId}`;
-  const supabase = await getAuthenticatedClient(applicationPath);
+  const editPath = `${applicationPath}/edit`;
+  const confirmPath = `${applicationPath}/confirm`;
+  const supabase = await getAuthenticatedClient(editPath);
   const roomPreference = getText(formData, "requestedRoomPreference");
+  const intent = getText(formData, "intent");
 
   const { error } = await supabase.rpc("save_camp_application_draft", {
     target_application_id: applicationId,
@@ -124,7 +127,7 @@ export async function saveCampApplicationDraft(formData) {
 
   if (error) {
     redirect(
-      withQuery(applicationPath, {
+      withQuery(editPath, {
         error: databaseErrorCode(error),
       }),
     );
@@ -132,7 +135,12 @@ export async function saveCampApplicationDraft(formData) {
 
   revalidatePath(applicationPath);
   revalidatePath("/user");
-  redirect(withQuery(applicationPath, { saved: "1" }));
+
+  if (intent === "confirm") {
+    redirect(confirmPath);
+  }
+
+  redirect(withQuery(editPath, { saved: "1" }));
 }
 
 export async function submitCampApplication(formData) {
@@ -143,14 +151,17 @@ export async function submitCampApplication(formData) {
   }
 
   const applicationPath = `/user/applications/${applicationId}`;
-  const supabase = await getAuthenticatedClient(applicationPath);
+  const editPath = `${applicationPath}/edit`;
+  const confirmPath = `${applicationPath}/confirm`;
+  const completePath = `${applicationPath}/complete`;
+  const supabase = await getAuthenticatedClient(confirmPath);
   const { data, error } = await supabase.rpc("submit_camp_application", {
     target_application_id: applicationId,
   });
 
   if (error) {
     redirect(
-      withQuery(applicationPath, {
+      withQuery(editPath, {
         error: databaseErrorCode(error),
       }),
     );
@@ -162,8 +173,7 @@ export async function submitCampApplication(formData) {
   revalidatePath(applicationPath);
   revalidatePath("/user");
   redirect(
-    withQuery(applicationPath, {
-      submitted: "1",
+    withQuery(completePath, {
       receptionNumber,
     }),
   );
