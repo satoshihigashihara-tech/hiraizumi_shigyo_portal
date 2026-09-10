@@ -34,6 +34,7 @@
 | P05 | 実装済み | キャンプ下書き作成・保存・提出ActionとRPC、料金計算・採番・提出時の15人制限 | `app/actions/camp-applications.js`、`supabase/migrations/202609100003_camp_application_actions.sql` | バックエンド | 下書きでは採番せず、提出の再送で同じ受付結果を返し、料金・状態履歴が一致する | フォーム接続候補あり。ただしT04・T05の検証と補完が必要 |
 | P06 | 実装済み | 職員のキャンプ新規作成・対象メール一括追加ActionとRPC | `app/actions/staff-camps.js`、`supabase/migrations/202609100004_staff_camp_actions.sql` | バックエンド | 職員以外を拒否し、別キャンプとの期間重複・メール形式を検査する | 新規登録・追加のみ接続候補。編集・削除は未実装 |
 | P07 | 実装済み | 同意書保存・差し替え・60秒の閲覧URL発行、PDF/JPEG/PNG・5MiB検査、提出時の同意書メタデータ確認 | `app/actions/guardian-consent.js`、SQL `005`〜`007`、`next.config.mjs` | バックエンド | 実ファイルの保存・閲覧・差し替え・不正提出拒否を確認する | 添付UI接続候補。非公開バケット設定とT06の確認が引き渡し条件 |
+| P08 | 実装済み | 有効な利用者・職員を確認する共通ガードと、本人プロフィール保存Action | `utils/auth/guards.js`、`app/actions/profile.js` | バックエンド | 未ログイン・停止中・職員以外を拒否し、本人のプロフィールだけを保存できる | 保護対象のServer Componentから共通ガードを呼び、プロフィールフォームを `saveProfile` へ接続する |
 
 SQLは `001` から `007` の順で確認します。`006` が提出処理を変更し、`007` がロック処理と同意書登録権限を修正しているため、古いSQLだけで現状を判断しないでください。
 
@@ -44,8 +45,8 @@ SQLは `001` から `007` の順で確認します。`006` が提出処理を変
 | ID | 状態 | 作業・現在地 | 担当 | 完了条件 | フロント担当への引き渡し |
 |---|---|---|---|---|---|
 | T01 | 作業中 | SQL 001〜007、環境変数、非公開Storage、架空の職員・対象者アカウント、テスト用キャンプは設定済み。画面経由の疎通と公開環境は未確認 | バックエンド | SQLの関数を実際に呼び、架空アカウントで認証・権限・保存・添付を確認する。Vercelにも同じ環境変数を安全に設定する | 起動手順、デモ用ログイン手順、利用可能な処理と未確認事項を渡す。秘密鍵は画面・文書・Gitに含めない |
-| T02 | 作業中 | 認証と役割別アクセス制御。Action・一部RLSあり、画面・保護layoutなし | 共同（処理：バックエンド／画面：フロント） | `/login`、`/signup`、`/forbidden`、利用者・職員layoutを作り、未ログイン・別役割・停止中アカウント・他人のURLを拒否する。安全な戻り先も確認する | P02とエラーコードを渡す。ログアウト先など第5章の差分を先に解消する |
-| T03 | 作業中 | プロフィール再利用。テーブル・本人更新権限あり、保存Action・画面・申請への初期表示なし | 共同 | `/user/profile` で氏名・住所・電話・緊急連絡先を保存し、次回申請へ初期表示する。提出済みの写しは変更しない | 保存処理と項目名を確定後、プロフィール・申請入力へ接続する |
+| T02 | 作業中 | 認証Action・RLS・共通ガードあり。画面・保護layoutは未作成 | 共同（処理：バックエンド／画面：フロント） | `/login`、`/signup`、`/forbidden`、利用者・職員layoutを作り、未ログイン・別役割・停止中アカウント・他人のURLを拒否する。安全な戻り先も確認する | P02・P08とエラーコードを渡す。Server Componentで `requireActiveUser`／`requireStaff` を利用する |
+| T03 | 作業中 | プロフィール用テーブル・本人更新権限・保存Actionあり。画面と申請への初期表示は未作成 | 共同 | `/user/profile` で氏名・住所・電話・緊急連絡先を保存し、次回申請へ初期表示する。提出済みの写しは変更しない | `saveProfile` と第4章の入力名をプロフィール・申請入力へ接続する |
 | T04 | 作業中 | キャンプ設定と対象者管理。新規作成・メール追加のみあり | 共同 | 一覧・詳細・新規・編集・削除・期限延長・対象者変更ができる。重複／形式不正を表示し、既存申請に影響する変更を防ぐ | `/staff/camps` 配下へP06を接続。未実装の編集・削除Actionはバックエンドから追加引き渡し |
 | T05 | 作業中 | キャンプ申請。下書き・提出処理あり、画面と一部要件が未完成 | 共同 | 対象キャンプ選択→入力→保存→確認→提出→完了→詳細を操作できる。固定期間、必須項目、期限、同意書、確認同意、二重送信、修正再提出を確認する | P05、第4章のフォーム項目・遷移先を渡す。完了情報はDBから取得し、提出＝利用確定と表示しない |
 | T06 | 作業中 | 同意書添付。Action・メタデータSQLあり、UI・実環境検証・直接RPC対策が残る | 共同（保存と権限：バックエンド） | 申請ごとに1ファイルを保存・差し替えでき、本人と職員だけ閲覧できる。空ファイル、形式偽装、5MiB超過、実ファイルなしの提出を拒否する | `guardianConsentFile` の入力、添付済み表示、エラー、閲覧ボタン。バケット設定と直接API検証完了を伝えてから接続する |
@@ -95,6 +96,7 @@ SQLは `001` から `007` の順で確認します。`006` が提出処理を変
 |---|---|---|
 | `app/actions/auth.js`：`login` / `signUp` | `email`、`password`、任意の `returnTo` | 利用者は `/user`、職員ログインは `/staff`、条件を満たす招待経由は招待先へ戻る |
 | 同上：`logout` | 引数なし | `/login` へ移動する（設計では `/`） |
+| `app/actions/profile.js`：`saveProfile` | `fullName`、`address`、`phone`、`emergencyName`、`emergencyAddress`、`emergencyPhone` | `/user/profile?saved=1`。全項目は空欄保存も可能 |
 | `app/actions/staff-camps.js`：`createStaffCamp` | `campName`、`startDate`、`endDate`、`applicationDeadline` | `/staff/camps/[campId]` へ移動。期限入力は `YYYY-MM-DDTHH:mm` を日本時間として変換 |
 | 同上：`addCampEligibleUsers` | `campId`、`eligibleEmails` | 対象者画面へ登録件数などをクエリで返す。メールは改行・空白・カンマ・セミコロン区切りに対応 |
 | `app/actions/camp-applications.js`：`createCampApplicationDraft` | `campId` | `/user/applications/[applicationId]/edit` へ移動 |
