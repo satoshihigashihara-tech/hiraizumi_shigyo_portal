@@ -2,18 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/utils/supabase/server";
+import { requireStaff } from "@/utils/auth/guards";
+import {
+  getText, isUuid, isUpdatedAt, toTokyoDeadline, periodError, reasonError,
+  calendarErrorCode, calendarFailure,
+} from "@/utils/calendar/validation";
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const DATETIME_LOCAL_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function getText(formData, name) {
-  const value = formData.get(name);
-  return typeof value === "string" ? value.trim() : "";
-}
 
 function withQuery(path, values) {
   const searchParams = new URLSearchParams();
@@ -28,97 +23,72 @@ function withQuery(path, values) {
   return query ? `${path}?${query}` : path;
 }
 
-function staffDatabaseErrorCode(error) {
-  const message = error?.message ?? "";
-
-  if (message.includes("職員")) return "forbidden";
-  if (message.includes("重複")) return "date-conflict";
-  if (message.includes("見つかりません")) return "not-found";
-  if (message.includes("メールアドレス")) return "invalid-emails";
-  if (message.includes("1000件")) return "too-many-emails";
-  if (message.includes("キャンプ名")) return "invalid-name";
-  if (message.includes("期間") || message.includes("開始日")) {
-    return "invalid-period";
+function revalidateCamp(campId) {
+  for (const path of ["/calendar", "/staff/calendar", "/staff", "/staff/camps", "/user", "/user/applications",
+    `/staff/camps/${campId}`, `/staff/camps/${campId}/edit`, `/staff/camps/${campId}/applications`]) {
+    revalidatePath(path);
   }
-
-  return "unexpected";
+  revalidatePath("/user/applications/[applicationId]", "page");
+  revalidatePath("/user/applications/[applicationId]/edit", "page");
+  revalidatePath("/user/applications/[applicationId]/confirm", "page");
 }
 
-function toTokyoTimestamp(value) {
-  if (!DATETIME_LOCAL_PATTERN.test(value)) {
-    return null;
+async function runCampAction(formData, operation) {
+  const { supabase } = await requireStaff("/staff/camps");
+  const fields = Object.fromEntries([
+    "campId", "campName", "startDate", "endDate", "applicationDeadline", "updatedAt", "reason",
+  ].map((key) => [key, getText(formData, key)]));
+  const editing = operation !== "create";
+  if (editing && !isUuid(fields.campId)) return calendarFailure("not-found", fields);
+  if (editing && !isUpdatedAt(fields.updatedAt)) return calendarFailure("invalid-version", fields);
+  const invalidReason = reasonError(fields.reason, operation === "delete");
+  if (invalidReason) return calendarFailure(invalidReason, fields);
+  const input = editing ? {
+    target_camp_id: fields.campId, expected_updated_at: fields.updatedAt, change_reason: fields.reason || null,
+  } : {};
+  if (operation !== "delete") {
+    const invalidPeriod = periodError(fields.startDate, fields.endDate);
+    if (invalidPeriod) return calendarFailure(invalidPeriod, fields);
+    if (!fields.campName || Array.from(fields.campName).length > 120) return calendarFailure("invalid-name", fields);
+    const deadline = toTokyoDeadline(fields.applicationDeadline);
+    if (!deadline || Date.parse(deadline) > Date.parse(`${fields.startDate}T00:00:00+09:00`)) {
+      return calendarFailure("invalid-deadline", fields);
+    }
+    Object.assign(input, {
+      camp_name: fields.campName, camp_start_date: fields.startDate, camp_end_date: fields.endDate,
+      camp_application_deadline: deadline,
+    });
   }
-
-  const date = new Date(`${value}:00+09:00`);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-}
-
-async function getStaffClient(returnTo) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    redirect(withQuery("/login", { returnTo }));
+  const rpcName = { create: "create_staff_camp", update: "update_staff_camp", delete: "delete_staff_camp" }[operation];
+  const { data, error } = await supabase.rpc(rpcName, input);
+  if (error) return calendarFailure(error, fields);
+  const result = Array.isArray(data) ? data[0] : null;
+  const campId = editing ? result?.result_id : data;
+  if (!isUuid(campId) || (editing && (campId !== fields.campId || !isUpdatedAt(result?.result_updated_at)))) {
+    return calendarFailure("update-failed", fields);
   }
-
-  const { data: staffRole, error: roleError } = await supabase
-    .from("staff_roles")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (roleError || !staffRole) {
-    redirect("/forbidden");
-  }
-
-  return supabase;
+  revalidateCamp(campId);
+  if (operation === "delete") redirect("/staff/camps?updated=deleted");
+  redirect(`/staff/camps/${campId}${operation === "update" ? "?updated=saved" : ""}`);
 }
 
 export async function createStaffCamp(formData) {
-  const formPath = "/staff/camps/new";
-  const name = getText(formData, "campName");
-  const startDate = getText(formData, "startDate");
-  const endDate = getText(formData, "endDate");
-  const deadline = toTokyoTimestamp(
-    getText(formData, "applicationDeadline"),
-  );
+  return runCampAction(formData, "create");
+}
 
-  if (
-    !name ||
-    !DATE_PATTERN.test(startDate) ||
-    !DATE_PATTERN.test(endDate) ||
-    !deadline
-  ) {
-    redirect(withQuery(formPath, { error: "required" }));
-  }
+export async function updateStaffCamp(formData) {
+  return runCampAction(formData, "update");
+}
 
-  const supabase = await getStaffClient(formPath);
-  const { data: campId, error } = await supabase.rpc("create_staff_camp", {
-    camp_name: name,
-    camp_start_date: startDate,
-    camp_end_date: endDate,
-    camp_application_deadline: deadline,
-  });
-
-  if (error || !UUID_PATTERN.test(campId ?? "")) {
-    redirect(
-      withQuery(formPath, {
-        error: staffDatabaseErrorCode(error),
-      }),
-    );
-  }
-
-  revalidatePath("/staff/camps");
-  redirect(`/staff/camps/${campId}`);
+export async function deleteStaffCamp(formData) {
+  return runCampAction(formData, "delete");
 }
 
 export async function addCampEligibleUsers(formData) {
+  const { supabase } = await requireStaff("/staff/camps");
   const campId = getText(formData, "campId");
 
-  if (!UUID_PATTERN.test(campId)) {
+  if (!isUuid(campId)) {
     redirect(withQuery("/staff/camps", { error: "invalid-camp" }));
   }
 
@@ -151,7 +121,6 @@ export async function addCampEligibleUsers(formData) {
 
   const uniqueEmails = [...new Set(submittedEmails)];
   const duplicateCount = submittedEmails.length - uniqueEmails.length;
-  const supabase = await getStaffClient(pagePath);
   const { data: registeredCount, error } = await supabase.rpc(
     "add_camp_eligible_users",
     {
@@ -163,7 +132,7 @@ export async function addCampEligibleUsers(formData) {
   if (error) {
     redirect(
       withQuery(pagePath, {
-        error: staffDatabaseErrorCode(error),
+        error: calendarErrorCode(error),
       }),
     );
   }

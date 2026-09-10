@@ -1,4 +1,4 @@
--- SQL 009 / 010 / 011 concurrency checks. TEST PROJECT WITHOUT USER TRAFFIC ONLY.
+-- SQL 009 / 010 / 011 / 012 concurrency checks. TEST PROJECT WITHOUT USER TRAFFIC ONLY.
 -- Run this whole file ONCE as postgres to prepare fictional, COMMITTED fixtures.
 -- It does not run the workers. Then prepare two separate SQL Editor tabs:
 --   A: call t12_concurrency_test.worker_a();
@@ -20,6 +20,7 @@
 -- Fixtures survive a failed worker and require explicit cleanup. Cleanup checks
 -- their UUIDs and marker, refuses unexpected references, then removes only them.
 -- Receipt counters are NOT reset; numbers consumed by tests become unused gaps.
+-- Camp fixture writes also maintain 012 calendar claims; cleanup removes those claims.
 -- Business functions, RLS policies, room masters and existing records are not
 -- replaced or deleted. This file is a test harness, NOT a production migration.
 -- References: https://www.postgresql.org/docs/current/plpgsql-transactions.html
@@ -38,9 +39,10 @@ begin
   if to_regnamespace('t12_concurrency_test') is not null then
     raise exception 'A test run already exists. Verify/clean it up before retrying.';
   end if;
-  if to_regprocedure('public.assign_camp_application_room(uuid,uuid,timestamptz,text)') is null
+  if to_regclass('public.calendar_claims') is null
+    or to_regprocedure('public.assign_camp_application_room(uuid,uuid,timestamptz,text)') is null
     or to_regprocedure('public.review_camp_application(uuid,text,timestamptz,text)') is null then
-    raise exception 'Apply migrations 001 through 011 first.';
+    raise exception 'Apply migrations 001 through 012 first.';
   end if;
 end;
 $$;
@@ -280,6 +282,7 @@ insert into t12_concurrency_test.run (id, base_date)
 select 1, greatest(
   (clock_timestamp() at time zone 'Asia/Tokyo')::date + 30,
   (select max(end_date) + 30 from public.camps),
+  (select max(end_date) + 30 from public.blocked_periods),
   (select max(end_date) + 30 from public.applications),
   (select max(end_date) + 30 from public.room_allocations)
 );
@@ -676,6 +679,7 @@ begin
   delete from public.audit_logs where entity_type = 'application' and entity_id = any(app_ids);
   -- Related room/stay/charge/month/receipt/event rows cascade from these UUIDs.
   delete from public.applications where id = any(app_ids);
+  delete from public.calendar_claims where camp_id = any(camp_ids);
   delete from public.camps where id = any(camp_ids);
   delete from auth.users where id = any(user_ids);
   perform t12_concurrency_test.check_true(not exists (select 1 from public.applications a where a.id = any(app_ids))
@@ -683,6 +687,8 @@ begin
     and not exists (select 1 from auth.users u where u.id = any(user_ids))
     and not exists (select 1 from public.audit_logs l where l.entity_type = 'application' and l.entity_id = any(app_ids)),
     'fixture cleanup completed');
+  perform t12_concurrency_test.check_true(not exists (select 1 from public.calendar_claims where camp_id = any(camp_ids)),
+    'fixture calendar claims removed');
   return jsonb_build_object('removed_users', cardinality(user_ids), 'removed_camps', cardinality(camp_ids),
     'removed_applications', cardinality(app_ids), 'receipt_counters', 'preserved; no number reuse');
 end;

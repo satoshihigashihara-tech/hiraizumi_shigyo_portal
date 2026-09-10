@@ -38,6 +38,9 @@ function withQuery(path, values) {
 function databaseErrorCode(error) {
   const message = error?.message ?? "";
 
+  if (error?.code === "40001" || error?.code === "40P01") return "stale-update";
+  if (message === "calendar-unavailable" || message === "calendar-inconsistent") return "calendar-unavailable";
+
   if (message.includes("ログイン")) return "login-required";
   if (message.includes("期限")) return "deadline-passed";
   if (message.includes("対象者")) return "not-eligible";
@@ -169,6 +172,11 @@ export async function submitCampApplication(formData) {
 
   const result = Array.isArray(data) ? data[0] : null;
   const receptionNumber = result?.reception_number ?? "";
+
+  revalidatePath("/staff/calendar");
+  revalidatePath("/staff");
+  revalidatePath("/staff/camps/[campId]/applications", "page");
+  revalidatePath("/staff/camps/[campId]", "page");
 
   revalidatePath(applicationPath);
   revalidatePath("/user");

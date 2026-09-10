@@ -324,6 +324,51 @@ Client Componentへ渡すpropsは表示に必要な最小限とし、団体代�
 
 同意書のDB項目には公開URLではなくStorage上のパスを保持する。団体代表者や他参加者へパスや参照手段を返さない。
 
+### 9.4 T09バックエンドの接続契約（SQL 012）
+
+以下の処理はコード作成・ローカル検証済み。SQL 012はSupabase適用成功をユーザーが確認した。適用後はanon権限による公開カレンダー取得の表示形式・エラーなしをユーザーが確認済み。単一接続328項目（T09の110＋既存218）と別接続20ケース、検証用データの後片付けも、SQL 012適用後のSupabaseで成功をユーザーが確認した。画面接続は未実施で、対応する画面・保護layoutは未作成。カレンダーは当面キャンプと利用停止を扱い、地域活動の個人・団体は後続タスクで追加する。
+
+`utils/calendar/queries.js` はサーバー専用。ページの月クエリは本書10章の規則で正規化した後に渡す。取得関数自身は不正値をエラーにし、当月へ自動補正しない。
+
+| 取得関数 | 入力 | 返却 |
+|---|---|---|
+| `getPublicCalendar` | `YYYY-MM` | `{ error, days }`。各日は `date / availability` の2項目だけ |
+| `getStaffCalendar` | `YYYY-MM` | `{ error, entries }`。各行は `entry_type / entry_id / start_date / end_date / title / people_count / internal_reason / updated_at` |
+| `getStaffCalendarDay` | `YYYY-MM-DD` | `{ error, entries }`。各行は `entry_type / entry_id / camp_id / reception_number / display_name / people_count / status / start_date / end_date / internal_reason / updated_at` |
+| `getStaffBlockedPeriods` | `YYYY-MM` | `{ error, periods }`。職員月取得のうち利用停止だけ。同じ行形式 |
+| `getStaffBlockedPeriod` | 利用停止UUID | `{ error, period }`。単一の `id / start_date / end_date / internal_reason / updated_at`。削除済みは取得対象外 |
+
+成功時の `error` はNULL。失敗時は `invalid-month / invalid-period / not-found / load-failed` と空配列またはNULLを返す。職員用の全関数は入力検査前に `requireStaff` を呼ぶ。未ログイン・権限不足の遷移は既存ガードに従う。
+
+公開値の表示は `available → 申請可能`、`unavailable → 利用不可`、`not_yet_open → 受付開始前`。職員の日別取得にはキャンプの合計行と個別申請行が含まれるため、両方の人数を加算しない。内部理由・職員応答を公開側のpropsや共有キャッシュへ流用しない。
+
+| Action | フォームの入力名 | 成功時の遷移 |
+|---|---|---|
+| `createStaffCamp` | `campName / startDate / endDate / applicationDeadline` | `/staff/camps/[campId]` |
+| `updateStaffCamp` | 上記＋ `campId / updatedAt / reason` | `/staff/camps/[campId]?updated=saved` |
+| `deleteStaffCamp` | `campId / updatedAt / reason` | `/staff/camps?updated=deleted` |
+| `createStaffBlockedPeriod` | `startDate / endDate / internalReason` | `/staff/calendar/blocked-periods?updated=saved` |
+| `updateStaffBlockedPeriod` | 上記＋ `blockedPeriodId / updatedAt / reason` | 同上 |
+| `deleteStaffBlockedPeriod` | `blockedPeriodId / updatedAt / reason` | `/staff/calendar/blocked-periods?updated=deleted` |
+
+キャンプのActionは `app/actions/staff-camps.js`、利用停止は `app/actions/staff-calendar.js`。期間は日付文字列、期限は日本時間の `YYYY-MM-DDTHH:mm`。期限の指定分を含め、次の分の00秒をDB境界へ変換する。編集用表示ではDB境界の1分前を日本時間に直す。既存DBの期限値はSQL 012で書き換えない。
+
+`updatedAt` は取得した元レコードの `updated_at` の文字列をそのままhidden入力等で渡す。JavaScriptのDateを経由させず、マイクロ秒を保持する。変更理由は編集・削除で必須（最新日時かつ完全に同じ内容の編集だけ省略可）。キャンプ名は1〜120文字、内部理由・変更理由は1〜2000文字。
+
+**これら6つのActionは、入力・DBエラー時に遷移せず `{ error, fields, conflicts }` を返す。** `fields` に入力を保持して同じ画面へ表示する。既存 `createStaffCamp` のエラー時クエリ遷移からの変更点であり、フォーム接続時に対応する。フォームActionの入力は `FormData` 1引数。`useActionState` を使う場合は `(previousState, formData)` を受けるアダプターで1引数のActionへ渡す。成功時は表示更新後に遷移する。
+
+| 主なエラー | 表示する内容・対応 |
+|---|---|
+| `invalid-period / invalid-name / invalid-deadline / invalid-version` | 日付・名称・期限・更新情報の不備を修正。期限は開始日の00:00を越えない |
+| `reason-required / reason-too-long` | 理由を入力、または2000文字以内に修正 |
+| `date-conflict / camp-has-applications` | `conflicts` の必要概要を職員だけに表示。影響する申請・日程を確認後、再操作 |
+| `stale-update` | 別の更新が先に完了したため保存されなかったと案内。入力を保持し、再読込み後に利用者が判断。自動上書きしない |
+| `not-found / invalid-status / forbidden / update-failed` | 対象不存在・削除済み・権限不足・保存失敗を案内。DB内部エラーは表示しない |
+
+`conflicts` は `type / id / campId / name / receptionNumber / status / startDate / endDate` の配列。日程競合・既存申請による変更拒否以外は空配列。住所・電話・メール・生のDBエラーは含めない。
+
+`addCampEligibleUsers` の入力・クエリ返却は従来どおり。キャンプ申請Actionにも `stale-update / calendar-unavailable` を追加し、提出後の職員カレンダー等を再取得対象にする。既存の個人審査・部屋割当Actionの契約は維持する。
+
 ## 10. URLクエリ
 
 | 対象 | クエリ例 | 用途・検証 |
@@ -499,4 +544,3 @@ MVPでは `app/user` と `app/staff` 配下に個別の `loading.js`、`error.js
 | [要件定義書](./requirements.md) | 対象範囲、役割、申請・団体フロー、状態、権限、職員機能、画面要件、非機能要件 |
 | [画面設計・ルーティング設計をAIと作る](./curriculum/AI駆動開発ハンズオン：写真共有アプリ/5.画面設計・ルーティング設計をAIと作る.txt) | App RouterのURL対応、画面目的、認証、Server / Client Component、取得・更新、画面遷移の確認項目 |
 | [Next.js基礎](./curriculum/Next.js%20%26%20Supabase（アプリの形へ）/1.Next.js基礎.txt) | `app`、`page.js`、`layout.js`、`loading.js`、`error.js`、`not-found.js` の基本 |
-
