@@ -79,5 +79,6 @@ export async function saveProfile(formData) {
 
   revalidatePath("/user/profile");
   revalidatePath("/user/applications/new/camp");
+  revalidatePath("/user/applications/new/community-activity");
   redirect(profilePath({ saved: "1" }));
 }

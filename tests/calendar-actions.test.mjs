@@ -242,3 +242,19 @@ test("missing and failed blocked-period reads use stable error responses", async
     assert.deepEqual(copy(await api.getStaffBlockedPeriod(ID)), { error: expected, period: null });
   }
 });
+
+test("individual calendar entries preserve type/ID and strip contact information", async () => {
+  const row = { entry_type: "individual", entry_id: ID, camp_id: null, start_date: FORM.startDate, end_date: FORM.endDate,
+    title: "架空利用者", people_count: 1, updated_at: VERSION, status: "revision_requested", reception_number: "SG-2026-0001",
+    display_name: "架空利用者", user_address: "private", user_phone: "private", object_path: "private" };
+  const { api, calls } = await harness("utils/calendar/queries.js", { response: { data: [row] } });
+  const month = await api.getStaffCalendar("2028-02");
+  row.entry_type = "application";
+  const day = await api.getStaffCalendarDay("2028-02-29");
+  assert.equal(month.entries[0].entry_type, "individual");
+  assert.equal(day.entries[0].entry_type, "application");
+  assert.equal(day.entries[0].camp_id, null);
+  assert.equal(day.entries[0].entry_id, ID);
+  assert.ok(!JSON.stringify([month, day]).includes("private"));
+  assert.ok(calls.every(c => c[0] === "auth" || c[0] === "rpc" && c[1].startsWith("get_")));
+});

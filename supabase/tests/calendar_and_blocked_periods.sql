@@ -1,5 +1,5 @@
 -- T09 single-connection regression, Supabase TEST project, postgres role.
--- Requires 001-012. Fictional records only; run the WHOLE file without traffic.
+-- Requires 001-013. Fictional records only; run the WHOLE file without traffic.
 -- Final ROLLBACK removes fixtures and failure-injection triggers. On failure,
 -- issue ROLLBACK in the same connection before retrying. No Auth/Storage API.
 begin;
@@ -195,8 +195,8 @@ begin
     perform pg_temp.t09_check(row_value #>> '{0,availability}' = case
       when shifted_date > ctx.today + 60 then 'not_yet_open'
       when shifted_date < ctx.today + 14 then 'unavailable'
-      when exists(select 1 from public.calendar_claims q where shifted_date between q.start_date and q.end_date
-        and (q.released_from is null or shifted_date < q.released_from)) then 'unavailable'
+      when exists(select 1 from public.calendar_claims q where q.claim_type in ('camp','blocked') and shifted_date between q.start_date and q.end_date
+        and (q.released_from is null or shifted_date < q.released_from)) or private.community_occupancy(shifted_date)>=15 then 'unavailable'
       else 'available' end, 'JST boundary ' || (shifted_date - ctx.today)::text);
   end loop;
   baseline := pg_temp.t09_ok(pg_temp.t09_call(null, format('select * from public.get_public_calendar(%L::date)', date_trunc('month', ctx.today + 20)::date)));
