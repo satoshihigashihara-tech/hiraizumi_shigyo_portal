@@ -1,5 +1,5 @@
--- SQL 009 / 010 / 011 regression checks for a Supabase TEST database.
--- Prerequisite: migrations 001 through 011, run as the postgres SQL Editor role.
+-- SQL 009 / 010 / 011 / 012 regression checks for a Supabase TEST database.
+-- Prerequisite: migrations 001 through 012, run as the postgres SQL Editor role.
 -- Run this WHOLE file in one connection. It creates only fictional records,
 -- temporary helpers, and a failure-injection trigger, then ROLLS BACK everything.
 -- Do not run selected fragments or change the final ROLLBACK to COMMIT.
@@ -21,8 +21,9 @@ begin
   end if;
   if to_regprocedure('public.assign_camp_application_room(uuid,uuid,timestamptz,text)') is null
     or to_regprocedure('public.review_camp_application(uuid,text,timestamptz,text)') is null
-    or to_regclass('public.audit_logs') is null then
-    raise exception 'Apply migrations 001 through 011 before running this file.';
+    or to_regclass('public.audit_logs') is null
+    or to_regclass('public.calendar_claims') is null then
+    raise exception 'Apply migrations 001 through 012 before running this file.';
   end if;
 end;
 $$;
@@ -105,6 +106,7 @@ select pg_temp.fixture_user('staff'), pg_temp.fixture_user('staff'),
   pg_temp.fixture_user('disabled_staff'), greatest(
     (clock_timestamp() at time zone 'Asia/Tokyo')::date + 30,
     (select max(end_date) + 30 from public.camps),
+  (select max(end_date) + 30 from public.blocked_periods),
     (select max(end_date) + 30 from public.applications),
     (select max(end_date) + 30 from public.room_allocations)
   );
