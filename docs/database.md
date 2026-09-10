@@ -12,9 +12,9 @@
 | 上位資料 | [要件定義書](./requirements.md)、[ルーティング設計書](./routes.md) |
 | 成果物の範囲 | 全利用区分の目標設計。実装・適用済みの範囲は下記と [tasks.md](tasks.md) を参照 |
 
-2026年9月10日現在、SQL 001〜012はSupabase適用済み。SQL 012適用成功、公開取得、単一接続328項目、別接続20ケースの成功と検証用データの後片付けをユーザーが確認した。ローカルPostgreSQLでも検証済み。詳細・確認根拠は [tasks.md 第4.6節](tasks.md#46-t09日程管理バックエンドの検証と引き渡しsql-012) を参照。実ログイン・画面接続は未確認。
+2026年9月11日現在、SQL 001〜013はSupabase適用済み。013適用後は、ローカル・Supabaseとも単一接続558項目（T10の230＋カレンダー110＋キャンプ218）・別接続40ケース（T10の20＋キャンプ7＋カレンダー13）が成功し、全テスト用スキーマと架空データの後片付けも完了。Supabaseの適用・集約結果・3つの `cleanup_completed = true` はユーザー確認に基づく。SQL 012時点の結果は [tasks.md 第4.6節](tasks.md#46-t09日程管理バックエンドの検証と引き渡しsql-012)、013適用後の確認根拠は [第4.7節](tasks.md#47-t10地域活動個人の実装と検証sql-013) を参照。画面接続・実ログイン・実Storageの受入確認は未実施。
 
-今回実装した日程枠はキャンプ・利用停止のみ。`applications` はキャンプ専用、`room_allocations` は1申請1部屋1人のまま。以下に記載する団体の表・地域活動の個人申請・自動処理は、設計だけの部分を含む。
+SQL 012時点の日程枠はキャンプ・利用停止のみ。SQL 013で地域活動個人の申請・個人枠・最小審査を追加し、ローカル検証済み（Supabase適用成功をユーザー確認済み）。`room_allocations` は1申請1部屋1人のまま、地域活動の割当／許可APIは未実装。以下の団体の表・自動処理などは目標設計であり、実装済みとは限らない。013の範囲は5.3節、検証は [tasks.md 第4.7節](tasks.md#47-t10地域活動個人の実装と検証sql-013) を参照。
 
 ## 1. 設計の考え方
 
@@ -162,6 +162,37 @@ erDiagram
 区分とcamp/groupの組み合わせをCHECKで固定する。個人・キャンプは本人を申請者兼使用者とし、同じ氏名・住所を二重保存しない。団体参加者の申請者は団体共通情報の代表者となる。
 
 提出済みの写しをプロフィール同期で更新しない。修正依頼で変更する場合は、更新前後を監査履歴に保存する。団体参加者の日程・目的は団体情報を正とし、参加者による個別変更を禁止する。共通情報の修正はDB関数で関連申請・料金・枠を同時更新する。すでに個別許可がある状態で許可内容が変わる修正は職員による再審査を必要とし、過去の内容は監査履歴に残す。
+
+**T10の実装範囲（SQL 013・Supabase適用済み）**
+
+SQL 013では `usage_type` を `camp / community_individual` に限定し、団体の値・`group_id` は追加しない。campは `camp_id` 必須、community_individualは `camp_id / room_preference` がNULL。新規下書きのUUIDは明示保存前に用意してRPCへ渡し、同一UUIDの再送は既存の本人行を返す。表示目的のGETで下書きを作らない。
+
+| 追加列 | 目的 |
+|---|---|
+| `revision_start_date / revision_end_date` | 修正保存中の候補日程。元の提出日程と枠は再提出成功まで維持。個人だけに使用 |
+| `last_submission_key` | 直近の成功した提出操作を識別するUUID |
+| `last_submission_version` | その提出が受け付けた更新日時。同一キー・同一版の通信再送は番号・料金・履歴を再作成しない |
+
+個人の日程は両方未入力または実在する2〜15日。修正候補も両方未設定または同じ構造条件。開始14日後以降・終了60日以内は初回提出と日程変更再提出で、ロック取得後のJST現在日を用いて検査する。職員指定の修正期限は任意で、団体の標準期限・自動取消は適用しない。下書き保存は受付窓・満員でも入力を保持できる。
+
+作成・保存・提出・添付差替・最小審査は施設ロックを共有し、activeな本人または職員を待機後も確認する。申請行と関連行をロックし、保存・提出・添付・審査に元の `updated_at` を要求する。初回採番は関連更新の後に共通カウンターを更新する。40001／40P01は自動再送せず、古い画面として返す。SQL 012までのキャンプ保存／添付RPCにも区分検査を加え、個人を更新日時なしで更新する迂回を防ぐ（旧ファイル・引数は変更しない）。
+
+| 公開RPC | 入力・責務 |
+|---|---|
+| `create_community_application_draft` | UUID、任意の `draft_fields jsonb`。プロフィール初期値・本人固定・下書き作成 |
+| `save_community_application_draft` | UUID、元の更新日時、編集可能な全項目のJSON。下書き／修正依頼だけ保存 |
+| `submit_community_application` | UUID、元の更新日時、提出キーUUID、確認同意true。必須・同意書・日程・日別定員を再検査し、枠・料金・採番・提出履歴を一括確定 |
+| `review_community_application` | UUID、`start_review / request_revision / reject`、元の更新日時、理由、任意修正期限。active職員だけ |
+| `get_community_application` | UUID。active本人だけの読取専用JSON。確認時の問題も返し、業務更新しない |
+| `register_community_guardian_consent_document` | UUID、想定所有者・更新日時、パス・MIME・サイズ。サービス権限だけ。本人・状態を再確認し親の版を進める |
+
+通常RPCはauthenticatedのみ実行可で、内部ヘルパーは利用者・anon・service_roleから直接実行できない。個人情報の本人／職員RLS、職員専用監査の分離を維持する。利用者の直接INSERT／UPDATE／DELETE権限は追加しない。
+
+個人枠は `calendar_claims.claim_type = individual` とUQの `application_id`（FK RESTRICT）で1申請1行。キャンプ・停止・個人の参照先はCHECKで一つに限定する。submitted／under_review／revision_requested／approved／cancellation_requestedを有効に数え、拒否・取消の終了状態は解放する。取消への操作はT17で実装予定。日程変更再提出では同じ行を新期間に置き換える。
+
+定員は個人の各日を1人と数え、`released_from` 当日以降を除く。個人同士は各日15人まで共存でき、キャンプ・停止との重複は端点を含めて拒否する。個人の枠が欠落しても元申請を数え、書込時は枠の日程不整合を拒否する。職員のキャンプ・停止編集にも `camp_id IS NULL` の個人を含める。公開応答は日付・可否だけ、職員月はindividual行、職員日は既存application行（camp_idがNULL）として返す。
+
+料金は初回と日程変更再提出だけ更新し、同日程なら確定額・内訳を維持する。日程変更でも納付状態・納付期限は維持する。番号と初回提出日時は再提出で変えず、最終提出日時を更新する。申請・枠・部屋行（存在時）・料金・月別内訳・添付の前後を職員監査に残す。提出済みの旧同意書は差替後も削除せず、当時のパスを監査に残す。下書きだけの旧ファイルはDBが `delete_previous` を許した場合に既存Storage Actionで削除する。
 
 ### 5.4 団体・参加者・招待
 
@@ -322,7 +353,7 @@ DBとStorageは同じトランザクションにならない。新しいラン�
 
 **account_cleanup_jobs** — `user_id uuid`（Auth削除後も再試行記録を残すためFKなし）、`status text (queued / processing / done / failed / cancelled)`、`attempts integer >= 0`、`next_attempt_at timestamptz` は必須。`locked_until timestamptz`、`last_error text`、`completed_at timestamptz` は任意。user_idに未完了ジョブの部分UQ。内部処理だけが読み書きする。
 
-**facility_guard** — `id smallint PK CHECK (id = 1)` の1行のみ。施設全体が15人の試作版なので、日程・人数・部屋・参加者・アカウント初期化準備の更新はこの行をロックしてから検査する。SQL 010・012の入口は `UPDATE ... SET id = id` による実更新を使い、REPEATABLE READの古いスナップショットもSQLSTATE `40001` で拒否する。これは短いDBトランザクション内だけのロックで、職員の画面編集ロックではない。後続機能も同じ順序にそろえる。
+**facility_guard** — `id smallint PK CHECK (id = 1)` の1行のみ。施設全体が15人の試作版なので、日程・人数・部屋・参加者・アカウント初期化準備の更新はこの行をロックしてから検査する。SQL 010・012・013の入口は `UPDATE ... SET id = id` による実更新を使い、REPEATABLE READの古いスナップショットもSQLSTATE `40001` で拒否する。これは短いDBトランザクション内だけのロックで、職員の画面編集ロックではない。後続機能も同じ順序にそろえる。
 
 ## 6. 状態と更新の契約
 

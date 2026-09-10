@@ -121,7 +121,7 @@ export async function signUp(formData) {
   }
 
   revalidatePath("/", "layout");
-  redirect(returnTo?.startsWith("/invite/") ? returnTo : "/user");
+  redirect(destinationForRole(returnTo, false));
 }
 
 export async function logout() {

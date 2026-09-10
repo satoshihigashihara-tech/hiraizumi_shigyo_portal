@@ -4,6 +4,8 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
+import { requireActiveUser } from "@/utils/auth/guards";
+import { isUpdatedAt, communityErrorCode } from "@/utils/community-applications/validation";
 
 const BUCKET_NAME = "guardian-consents";
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -80,6 +82,7 @@ function documentErrorCode(error) {
 }
 
 export async function uploadGuardianConsent(formData) {
+  const { supabase, user } = await requireActiveUser("/user/applications");
   const applicationId = getText(formData, "applicationId");
 
   if (!UUID_PATTERN.test(applicationId)) {
@@ -107,24 +110,21 @@ export async function uploadGuardianConsent(formData) {
     redirect(withQuery(editPath, { error: "invalid-content" }));
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    redirect(withQuery("/login", { returnTo: editPath }));
-  }
-
   const { data: application, error: applicationError } = await supabase
     .from("applications")
-    .select("id, status, revision_due_at")
+    .select("id, usage_type, status, revision_due_at, updated_at")
     .eq("id", applicationId)
+    .eq("user_id", user.id)
     .maybeSingle();
 
   if (applicationError || !application) {
     redirect(withQuery(editPath, { error: "not-found" }));
+  }
+
+  const community = application.usage_type === "community_individual";
+  const updatedAt = getText(formData, "updatedAt");
+  if (community && !isUpdatedAt(updatedAt)) {
+    redirect(withQuery(editPath, { error: "invalid-version" }));
   }
 
   if (!['draft', 'revision_requested'].includes(application.status)) {
@@ -153,14 +153,15 @@ export async function uploadGuardianConsent(formData) {
     redirect(withQuery(editPath, { error: "upload-failed" }));
   }
 
-  const { data: previousObjectPath, error: metadataError } = await admin.rpc(
-    "register_guardian_consent_document",
+  const { data: metadata, error: metadataError } = await admin.rpc(
+    community ? "register_community_guardian_consent_document" : "register_guardian_consent_document",
     {
       target_application_id: applicationId,
       expected_user_id: user.id,
       target_object_path: objectPath,
       target_mime_type: file.type,
       target_size_bytes: file.size,
+      ...(community ? { expected_updated_at: updatedAt } : {}),
     },
   );
 
@@ -168,16 +169,19 @@ export async function uploadGuardianConsent(formData) {
     await admin.storage.from(BUCKET_NAME).remove([objectPath]);
     redirect(
       withQuery(editPath, {
-        error: documentErrorCode(metadataError),
+        error: community ? communityErrorCode(metadataError) : documentErrorCode(metadataError),
       }),
     );
   }
 
-  if (previousObjectPath && previousObjectPath !== objectPath) {
+  const previousObjectPath = community ? metadata?.[0]?.previous_object_path : metadata;
+  const deletePrevious = community ? metadata?.[0]?.delete_previous === true : true;
+  if (deletePrevious && previousObjectPath && previousObjectPath !== objectPath) {
     await admin.storage.from(BUCKET_NAME).remove([previousObjectPath]);
   }
 
   revalidatePath(editPath);
+  revalidatePath(`/user/applications/${applicationId}`);
   revalidatePath(`/user/applications/${applicationId}/confirm`);
   redirect(withQuery(editPath, { uploaded: "1" }));
 }
