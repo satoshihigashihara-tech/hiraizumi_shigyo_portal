@@ -60,8 +60,9 @@ import styles from "./page.module.css";
  * Object.hasOwn で自前のキーに限定する（status-labels.js と同じ対策）。
  * USAGE_TYPE_LABELS[value] だけでは "toString" などが関数として返る。
  *
- * 同じ関数が app/user/page.js にもある。統合一覧の取得契約（T08/T16）が決まると
- * 一覧の項目自体が変わるため、その時点で共通化する。
+ * TODO（T08/T16）: 同じ関数が app/user/page.js にもある。統合一覧の取得契約が
+ * 決まると一覧の項目自体が変わるため、その時点で共通化する。共通化の判断材料は
+ * このコメントに集約する（app/user/page.js 側からはここを参照する）。
  *
  * @param {string|null|undefined} usageType
  * @returns {string}
@@ -73,21 +74,23 @@ function usageTypeLabel(usageType) {
 }
 
 /**
- * 受付番号の欄に出す文字列。
+ * 受付番号の欄に出す文字列。出す内容が無ければ null（欄ごと出さない）。
  *
  * 受付番号は提出が成功したときに発行される（docs/routes.md 6.2）。提出前は
  * 未発行であることを明示し、URLのUUIDで代用しない（docs/routes.md 3章7項・
  * app/components/README.md「特に間違えやすい3点」の3つ目）。
  *
- * 一覧の取得契約に reception_number は含まれないため、提出済みの申請は
- * 詳細へ誘導する。契約に追加されたら、その値をそのまま表示する。
+ * 受付番号は詳細の表示項目で（docs/routes.md 6.2 の [applicationId] 行）、
+ * 一覧の取得契約には含まれない。提出済みの申請に毎回「詳細で確認できます」と
+ * 出しても分かることが増えないため、欄自体を出さずカード下部の詳細リンクに任せる。
+ * 契約に追加されたら、その値をそのまま表示する。
  *
  * @param {object} row 一覧1件分
- * @returns {string}
+ * @returns {string|null}
  */
 function receptionNumberText(row) {
   if (!row.submitted_at) return "提出前のため、まだ発行されていません";
-  return row.reception_number ?? "申請の詳細で確認できます";
+  return row.reception_number ?? null;
 }
 
 /**
@@ -105,9 +108,20 @@ function ApplicationListItem({ row }) {
   const resubmitted =
     row.last_submitted_at !== null && row.last_submitted_at !== row.submitted_at;
 
+  const receptionNumber = receptionNumberText(row);
+
   return (
     <li className={styles.card}>
-      <h3 className={styles.cardTitle}>{usageTypeLabel(row.usage_type)}</h3>
+      {/*
+       * 見出しの利用区分。usage_type は getCommunityApplications() の返却列に
+       * 含まれない（一覧は usage_type = "community_individual" で絞り込み済み）。
+       * 既定値を与えないと、接続した途端に全カードの見出しが
+       * 「利用区分未設定」になる。統合一覧の取得契約（T08/T16）で区分が
+       * 返るようになったら、その値がそのまま使われる。
+       */}
+      <h3 className={styles.cardTitle}>
+        {usageTypeLabel(row.usage_type ?? "community_individual")}
+      </h3>
 
       {/*
        * 一覧で分かるのは申請状態だけ。納付状態・滞在状態は別の状態であり、
@@ -126,10 +140,12 @@ function ApplicationListItem({ row }) {
           </dd>
         </div>
 
-        <div className={styles.fact}>
-          <dt className={styles.factKey}>受付番号</dt>
-          <dd className={styles.factValue}>{receptionNumberText(row)}</dd>
-        </div>
+        {receptionNumber && (
+          <div className={styles.fact}>
+            <dt className={styles.factKey}>受付番号</dt>
+            <dd className={styles.factValue}>{receptionNumber}</dd>
+          </div>
+        )}
 
         {row.submitted_at && (
           <div className={styles.fact}>
@@ -227,13 +243,19 @@ export default async function UserApplicationsPage({ searchParams }) {
           title="申請はまだありません"
           description="スパルタキャンプ利用と地域活動利用の申請を、ここから始められます。提出前の下書きもこの画面に表示されます。"
           action={
-            <LinkButton
-              href="/user/applications/new"
-              variant="primary"
-              fullWidthOnMobile
-            >
-              新しく申請する
-            </LinkButton>
+            /* 0件のときも、件数ありのときと同じ導線（新規申請・ホーム）を出す */
+            <div className={styles.actions}>
+              <LinkButton
+                href="/user/applications/new"
+                variant="primary"
+                fullWidthOnMobile
+              >
+                新しく申請する
+              </LinkButton>
+              <LinkButton href="/user" fullWidthOnMobile>
+                利用者ホームへ戻る
+              </LinkButton>
+            </div>
           }
         />
       ) : (
@@ -256,14 +278,25 @@ export default async function UserApplicationsPage({ searchParams }) {
               申請の一覧
             </h2>
 
-            {/* 件数は色や並びではなく文字で示す。読み上げでも件数が伝わる */}
+            {/*
+             * 件数は色や並びではなく文字で示す。読み上げでも件数が伝わる。
+             *
+             * 並び順には触れない。仮データ（MOCK_APPLICATION_LIST）は定義順のまま
+             * 並ぶため、いまの画面は新しい順になっていない。接続後は
+             * created_at の降順で返る（docs/routes.md 9.5）ので、そのときに
+             * 「新しく登録したものから順に表示しています」を添える。
+             */}
             <p className={styles.note}>
-              {applications.length}件の申請があります。新しく登録したものから順に
-              表示しています。料金・納付の状態、部屋や滞在の情報は、各申請の詳細で
-              確認できます。
+              {applications.length}件の申請があります。料金・納付の状態、部屋や滞在の
+              情報は、各申請の詳細で確認できます。
             </p>
 
-            <ul className={styles.cardList}>
+            {/*
+             * list-style: none を当てた <ul> は Safari/VoiceOver でリストとして
+             * 読み上げられないことがある。role="list" を添えて、上の「◯件の申請が
+             * あります」と読み上げの件数を一致させる。
+             */}
+            <ul className={styles.cardList} role="list">
               {applications.map((row) => (
                 <ApplicationListItem key={row.id} row={row} />
               ))}

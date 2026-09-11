@@ -8,6 +8,13 @@
  *
  * 375px対策：.shell * { min-width: 0 } が PageShell 側にあるため、
  * ここでは幅を固定する指定を置かない。横並びは必ず折り返す。
+ *
+ * TODO（T08/T16）: 申請カード周り（.section / .note / .cardList / .card /
+ * .cardTitle / .facts / .fact / .factKey / .factValue / .reason / .reasonKey）は
+ * app/user/page.module.css と同じ内容になっている。片方だけ直すと2画面の見た目が
+ * ずれるため、共通の CSS Module か共通コンポーネント（ApplicationCard）へ
+ * 切り出す候補として記録しておく。統合一覧の取得契約が決まるとカードの項目自体が
+ * 変わるので、切り出しはその時点でまとめて行う。
  */
 
 /* 新規申請・ホームへの導線。375pxでは縦積み、広い画面では横へ並べて折り返す */
