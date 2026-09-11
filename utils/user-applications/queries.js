@@ -59,8 +59,8 @@ function normalize(row) {
   };
 }
 
-export async function getUserApplications() {
-  const { supabase, user } = await requireActiveUser("/user/applications");
+async function loadUserApplications(returnTo) {
+  const { supabase, user } = await requireActiveUser(returnTo);
   const { data, error } = await supabase.from("applications").select(`
     id,usage_type,original_application_id,status,start_date,end_date,updated_at,submitted_at,
     last_submitted_at,revision_due_at,decision_reason,camps(name),reception_numbers(display_number),
@@ -72,4 +72,12 @@ export async function getUserApplications() {
   const applications = data.map(normalize);
   if (applications.some((row) => row === null)) return { error: "load-failed", applications: [] };
   return { error: null, applications };
+}
+
+export function getUserApplications() {
+  return loadUserApplications("/user/applications");
+}
+
+export function getUserHomeApplications() {
+  return loadUserApplications("/user");
 }
