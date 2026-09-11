@@ -151,10 +151,19 @@ function ApplicationListItem({ row }) {
           </div>
         )}
 
+        {/*
+         * 修正依頼中は一覧の利用期間（確保中の枠）と詳細の候補日程
+         * （coalesce(revision_start_date, start_date)）が食い違う
+         * （docs/routes.md 9.5）。片方だけ見せると別の期間を確保できたと
+         * 誤解するため、app/user/page.js の hasDifferentRevisionPeriod() と
+         * 同様に文字で詳細への確認を促す。
+         */}
         <div className={styles.fact}>
           <dt className={styles.factKey}>利用期間</dt>
           <dd className={styles.factValue}>
             {formatPeriod(row.start_date, row.end_date)}
+            {row.status === "revision_requested" &&
+              "（修正中の候補日程は申請の詳細で確認できます）"}
           </dd>
         </div>
 
@@ -299,20 +308,24 @@ export default async function UserApplicationsPage({ searchParams }) {
             {/*
              * 件数は色や並びではなく文字で示す。読み上げでも件数が伝わる。
              *
+             * 「このページに」と書く。getCommunityApplications() は1ページ50件で
+             * ページ送り未対応（docs/routes.md 9.5）のため、「◯件の申請があります」
+             * だと51件以上持つ利用者に実数と異なる案内を出してしまう。
+             *
              * 並び順には触れない。仮データ（MOCK_APPLICATION_LIST）は定義順のまま
              * 並ぶため、いまの画面は新しい順になっていない。接続後は
              * created_at の降順で返る（docs/routes.md 9.5）ので、そのときに
              * 「新しく登録したものから順に表示しています」を添える。
              */}
             <p className={styles.note}>
-              {applications.length}件の申請があります。料金・納付の状態、部屋や滞在の
-              情報は、各申請の詳細で確認できます。
+              このページに{applications.length}件の申請があります。料金・納付の状態、
+              部屋や滞在の情報は、各申請の詳細で確認できます。
             </p>
 
             {/*
              * list-style: none を当てた <ul> は Safari/VoiceOver でリストとして
-             * 読み上げられないことがある。role="list" を添えて、上の「◯件の申請が
-             * あります」と読み上げの件数を一致させる。
+             * 読み上げられないことがある。role="list" を添えて、上の「このページに
+             * ◯件」と読み上げの件数を一致させる。
              */}
             <ul className={styles.cardList} role="list">
               {applications.map((row) => (
