@@ -180,4 +180,8 @@ SQL026をローカル実装中。毎分のSupabase CronがDB関数を直接呼�
 
 ### T22 アカウント初期化（2026年9月11日）
 
-SQL027と`process-account-cleanup` Edge Functionをローカル実装中。退去済み、または宿泊しない代表者として団体終了済みの利用者だけを候補にし、未終了申請・未終了団体・職員を保護する。DBは`cleanup_pending`と再試行ジョブを確定し、Edge Functionだけが秘密鍵でAuthユーザーを削除する。SQL027だけでは自動削除は開始せず、Vaultの`account_cleanup_url`と`account_cleanup_cron_secret`を設定した時点で有効になる。本番SQL027は保存、ROLLBACK検証SQLは保存しない。
+SQL027と`process-account-cleanup` Edge Functionはmain・Supabaseへ適用済みで、実DBの存在確認5項目とROLLBACK検証20項目が成功した。退去済み、または宿泊しない代表者として団体終了済みの利用者だけを候補にし、未終了申請・未終了団体・職員を保護する。DBは`cleanup_pending`と再試行ジョブを確定し、Edge Functionだけが秘密鍵でAuthユーザーを削除する。Vaultは未設定のため自動削除は無効で、案内画面と職員停止操作の接続後に有効化する。本番SQL027は保存、ROLLBACK検証SQLは保存しない。
+
+### T24 受入・デモ準備（2026年9月11日）
+
+`docs/mvp-acceptance.md`、`docs/demo-runbook.md`、`docs/incident-runbook.md`とREADMEを受入の基準にする。架空の5役割だけを使い、DB自動検証と実ブラウザ確認を分ける。未確認項目を成功扱いにせず、発表時の通信障害には事前スクリーンショットで切り替える。誤ったアカウント削除の疑いがある場合は対象Cronだけを停止し、DBやAuthを直接削除しない。
