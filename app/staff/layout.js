@@ -6,6 +6,7 @@ import styles from "./layout.module.css";
 
 const NAV_ITEMS = [
   { href: "/staff", label: "ホーム" },
+  { href: "/staff/camps", label: "キャンプ管理" },
 ];
 
 export const metadata = {
