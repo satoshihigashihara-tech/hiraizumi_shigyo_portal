@@ -338,6 +338,8 @@ try {
   let beforeStayUpgrade;
   let auditUpgrade;
   let beforeAuditUpgrade;
+  let searchUpgrade;
+  let beforeSearchUpgrade;
   for (const file of (await readdir(join(root, 'supabase/migrations'))).filter(x => x.endsWith('.sql')).sort()) {
     stage = file; await c.query(await readFile(join(root, 'supabase/migrations', file), 'utf8'));
     console.log('PASS migration', file);
@@ -370,14 +372,21 @@ try {
       assert.deepEqual(afterAuditUpgrade,beforeAuditUpgrade);
       await cleanupUpgrade(c,auditUpgrade);
       console.log('PASS 016 to 017 upgrade: 16 tables unchanged; no backfilled audit');
+      searchUpgrade=await prepareUpgrade(c); beforeSearchUpgrade=await storedRows(c);
+    }
+    if (file === '202609110018_staff_application_search.sql') {
+      assert.deepEqual(await storedRows(c),beforeSearchUpgrade);
+      await cleanupUpgrade(c,searchUpgrade);
+      console.log('PASS 017 to 018 upgrade: existing rows unchanged');
     }
   }
   const requested = process.argv.slice(2);
   if (requested.includes('--audit-notes-only')) await c.query("select set_config('test.operations_phase','audit-notes',false)");
+  if (requested.includes('--staff-search-only')) await c.query("select set_config('test.operations_phase','staff-search',false)");
   if (requested.includes('--stays-only')) await c.query("select set_config('test.operations_phase','stays',false)");
   const single = ['application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql'];
   const concurrent = ['camp_room_allocations_concurrency.sql', 'calendar_concurrency.sql', 'community_individual_applications_concurrency.sql', 'community_individual_room_allocations_concurrency.sql'];
-  const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.includes('--stays-only') ? ['application_operations.sql', ...(requested.includes('--stays-concurrency') ? ['--stays-concurrency'] : [])] : requested.includes('--audit-notes-only') ? ['application_operations.sql', ...(requested.includes('--audit-notes-concurrency') ? ['--audit-notes-concurrency'] : [])] : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency', '--stays-concurrency', '--audit-notes-concurrency'];
+  const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.includes('--stays-only') ? ['application_operations.sql', ...(requested.includes('--stays-concurrency') ? ['--stays-concurrency'] : [])] : requested.includes('--audit-notes-only') ? ['application_operations.sql', ...(requested.includes('--audit-notes-concurrency') ? ['--audit-notes-concurrency'] : [])] : requested.includes('--staff-search-only') ? ['application_operations.sql'] : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency', '--stays-concurrency', '--audit-notes-concurrency'];
   for (const file of selected) {
     if (file === '--audit-notes-concurrency') { stage=file; await auditNotesConcurrency(c); continue; }
     if (file === '--stays-concurrency') { stage=file; await stayConcurrency(c); continue; }

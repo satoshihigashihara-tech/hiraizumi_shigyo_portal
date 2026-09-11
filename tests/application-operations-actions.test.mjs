@@ -313,3 +313,60 @@ test("audit consent: DB failure compensates uploaded object; submitted old objec
     if(failed) assert.equal(removals[0][1],`applications/${ID}/${KEY}`);
   }
 });
+
+const searchItem = { id: ID, usage_type: "camp", camp_id: CAMP, applicant_name: "架空検索者", camp_name: "架空キャンプ",
+  status: "approved", start_date: "2026-10-01", end_date: "2026-10-03", reception_number: "2026-001",
+  people_count: 1, total_amount: 600, payment_status: "overdue", payment_due_date: "2026-09-01",
+  stay_status: "before_move_in", updated_at: VERSION, detail_path: `/staff/camps/${CAMP}/applications/${ID}` };
+const searchData = (items = [searchItem]) => ({ page: 2, page_size: 50, total_count: 51, has_next: false, items });
+
+test("staff search normalizes GET filters, calls one RPC and allowlists results", async () => {
+  const { api, calls } = await harness(queriesPath, { response: { data: searchData([{ ...searchItem, address: "秘密住所", notes: ["秘密メモ"] }]) } });
+  const output = await api.searchStaffApplications({ q: ["  架空%_  ", "ignored"], usageType: "camp",
+    applicationStatus: "approved", paymentStatus: "overdue", stayStatus: "before_move_in",
+    from: "2026-10-01", to: "2026-10-31", page: "2" });
+  assert.equal(output.error, null);
+  assert.deepEqual(calls[0], ["auth", "staff", "/staff"]);
+  assert.deepEqual(calls.find((call) => call[0] === "rpc"), ["rpc", "search_staff_applications", {
+    search_text: "架空%_", usage_type_filter: "camp", application_status_filter: "approved",
+    payment_status_filter: "overdue", stay_status_filter: "before_move_in",
+    starts_from: "2026-10-01", ends_to: "2026-10-31", page_number: 2,
+  }]);
+  assert.equal(output.pagination.totalCount, 51);
+  assert.ok(!JSON.stringify(output).includes("秘密住所"));
+  assert.ok(!JSON.stringify(output).includes("秘密メモ"));
+});
+
+for (const [input, code] of [
+  [{ q: "あ".repeat(101) }, "invalid-query"], [{ usageType: "group" }, "invalid-usage-type"],
+  [{ applicationStatus: "unknown" }, "invalid-application-status"], [{ paymentStatus: "unknown" }, "invalid-payment-status"],
+  [{ stayStatus: "unknown" }, "invalid-stay-status"], [{ from: "2026-02-30" }, "invalid-period"],
+  [{ from: "2026-10-02", to: "2026-10-01" }, "invalid-period"], [{ page: "0" }, "invalid-page"],
+  [{ page: "10001" }, "invalid-page"],
+]) test(`staff search rejects ${code} before RPC`, async () => {
+  const { api, calls } = await harness(queriesPath);
+  assert.equal((await api.searchStaffApplications(input)).error, code);
+  assert.ok(!calls.some((call) => call[0] === "rpc"));
+});
+
+for (const [error, code] of [[{ code: "42501" }, "forbidden"], [{ message: "invalid-page" }, "invalid-page"],
+  [{ message: "private SQL", details: "secret" }, "load-failed"]]) test(`staff search DB ${code} fails closed`, async () => {
+  const { api } = await harness(queriesPath, { response: { error } });
+  const output = await api.searchStaffApplications();
+  assert.equal(output.error, code);
+  assert.ok(!JSON.stringify(output).includes("private SQL"));
+  assert.ok(!JSON.stringify(output).includes("secret"));
+});
+
+for (const data of [null, { ...searchData(), page: 3 }, { ...searchData(), items: [{ ...searchItem, camp_id: null }] },
+  { ...searchData(), items: [{ ...searchItem, detail_path: "https://evil.example" }] },
+  { ...searchData(), items: [{ ...searchItem, people_count: 15 }] }]) test("staff search rejects malformed response", async () => {
+  const { api } = await harness(queriesPath, { response: { data } });
+  assert.equal((await api.searchStaffApplications({ page: "2" })).error, "load-failed");
+});
+
+test("staff search requires staff before validating input", async () => {
+  const { api, calls } = await harness(queriesPath, { denied: true });
+  await assert.rejects(api.searchStaffApplications({ page: "bad" }), /AUTH_REDIRECT/);
+  assert.equal(calls.length, 1);
+});
