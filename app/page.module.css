@@ -1,150 +1,84 @@
+/*
+ * トップ画面（/）のスタイル。
+ *
+ * 余白・文字サイズ・色・ダークモードは PageShell.module.css の
+ * CSS基準値（--sg-*）を使う。ここでは「この画面だけの幅と並び」と、
+ * app/globals.css のリセット（* { margin: 0; padding: 0 })で失われた
+ * 見出し・段落・箇条書きの間隔の復元だけを持つ。
+ * app/globals.css は「事前に相談」対象のため変更しない
+ * （docs/frontend-handoff.md）。
+ */
+
+/*
+ * PageShell は最大960pxだが、読み物中心の画面なので1行が長くなりすぎない
+ * 720pxへ絞る（ログイン画面の480pxより広い）。内側の .shell は width:100%
+ * なので、この親の幅に収まる。
+ *
+ * この要素は .shell の外側にあり --sg-* を受け取れないため、
+ * ここだけは実数値で書く（32px = --sg-space-6 と同じ値）。
+ */
 .page {
-  --background: #fafafa;
-  --foreground: #fff;
-
-  --text-primary: #000;
-  --text-secondary: #666;
-
-  --button-primary-hover: #383838;
-  --button-secondary-hover: #f2f2f2;
-  --button-secondary-border: #ebebeb;
-
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-geist-sans);
-  background-color: var(--background);
-}
-
-.main {
-  display: flex;
-  flex: 1;
   width: 100%;
-  max-width: 800px;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  background-color: var(--foreground);
-  padding: 120px 60px;
+  max-width: 720px;
+  margin-inline: auto;
 }
 
-.intro {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  gap: 24px;
-}
-
-.intro h1 {
-  max-width: 320px;
-  font-size: 40px;
-  font-weight: 600;
-  line-height: 48px;
-  letter-spacing: -2.4px;
-  text-wrap: balance;
-  color: var(--text-primary);
-}
-
-.intro p {
-  max-width: 440px;
-  font-size: 18px;
-  line-height: 32px;
-  text-wrap: balance;
-  color: var(--text-secondary);
-}
-
-.intro a {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.ctas {
-  display: flex;
-  flex-direction: row;
-  width: 100%;
-  max-width: 440px;
-  gap: 16px;
-  font-size: 14px;
-}
-
-.ctas a {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 128px;
-  border: 1px solid transparent;
-  transition: 0.2s;
-  cursor: pointer;
-  width: fit-content;
-  font-weight: 500;
-}
-
-a.primary {
-  background: var(--text-primary);
-  color: var(--background);
-  gap: 8px;
-}
-
-a.secondary {
-  border-color: var(--button-secondary-border);
-}
-
-/* Enable hover only on non-touch devices */
-@media (hover: hover) and (pointer: fine) {
-  a.primary:hover {
-    background: var(--button-primary-hover);
-    border-color: transparent;
-  }
-
-  a.secondary:hover {
-    background: var(--button-secondary-hover);
-    border-color: transparent;
-  }
-}
-
-@media (max-width: 600px) {
-  .main {
-    padding: 48px 24px;
-  }
-
-  .intro {
-    gap: 16px;
-  }
-
-  .intro h1 {
-    font-size: 32px;
-    line-height: 40px;
-    letter-spacing: -1.92px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .logo {
-    filter: invert();
-  }
-
+/* 375pxでは余白を足さず、内容を上へ詰める */
+@media (min-width: 768px) {
   .page {
-    --background: #000;
-    --foreground: #000;
-
-    --text-primary: #ededed;
-    --text-secondary: #999;
-
-    --button-primary-hover: #ccc;
-    --button-secondary-hover: #1a1a1a;
-    --button-secondary-border: #1a1a1a;
+    padding-block: 32px;
   }
 }
 
-.code {
-  font-family: var(--font-geist-mono);
-  font-size: 0.9em;
-  background: color-mix(in srgb, currentColor 8%, transparent);
-  padding: 0.1em 0.4em;
-  border-radius: 6px;
+/*
+ * セクション内の間隔。セクション同士の間隔は PageShell の .body
+ * （24px間隔）が持つため、ここでは中身だけを整える。
+ */
+.page h2 {
+  font-size: var(--sg-font-xl, 20px);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.page h3 {
+  margin-top: var(--sg-space-5, 24px);
+  font-size: var(--sg-font-lg, 18px);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.page h2 + *,
+.page h3 + * {
+  margin-top: var(--sg-space-3, 12px);
+}
+
+.page p + p,
+.page p + ul,
+.page ul + p {
+  margin-top: var(--sg-space-3, 12px);
+}
+
+/*
+ * 箇条書き。globals.css が padding を 0 にしているため、行頭記号が
+ * 外側へはみ出す。記号を内側へ入れたうえで字下げを付け直す。
+ */
+.page ul {
+  padding-left: var(--sg-space-5, 24px);
+  list-style-position: outside;
+}
+
+.page li + li {
+  margin-top: var(--sg-space-2, 8px);
+}
+
+/*
+ * 申請・ログインの入口ボタン。LinkButton は inline-flex なので、
+ * flex で並べて 375px では折り返す（部品側の fullWidthOnMobile と併用し、
+ * 480px以下では1つずつ全幅になる）。
+ */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sg-space-3, 12px);
+  margin-top: var(--sg-space-4, 16px);
 }
