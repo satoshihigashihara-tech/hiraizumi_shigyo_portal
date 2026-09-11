@@ -8,7 +8,7 @@ import styles from "./page.module.css";
  * トップ画面（/）。Server Component（docs/routes.md 5章・141行の一覧）。
  *
  * 未ログインで開かれる前提の公開画面なので、個人・団体を特定できる情報は
- * 一切置かず、データ取得もしない（全て静的な公開情報）。
+ * 一切置かない。公開カレンダーも日付と利用可否だけを表示する。
  *
  * 用語は「使用許可申請」で統一する。「予約」と書くと、申請した時点で
  * 宿泊が確定するように読めるが、docs/requirements.md 4.3 のとおり
@@ -22,9 +22,8 @@ import styles from "./page.module.css";
  * utils/auth/return-to.js の safeReturnTo() が通す「/ で始まる内部パス」の形で
  * ハードコードする。
  *
- * 地域活動の申請入口と公開カレンダー（/calendar）は未実装のため、
- * 押せるように見えるボタンを置かず ComingSoon で案内する
- * （docs/frontend-handoff.md・app/components/ComingSoon.js）。
+ * 地域活動の申請入口は未実装のため、押せるように見えるボタンを置かず
+ * ComingSoon で案内する。公開カレンダーは実データ画面へ接続済み。
  */
 
 /*
@@ -149,7 +148,12 @@ export default function Home() {
 
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>利用状況カレンダー</h2>
-          <ComingSoon description="空き状況の確認は後日この画面でご覧いただけるようになります。" />
+          <p>日付ごとの申請受付状況を、ログインせずに確認できます。</p>
+          <div className={styles.actions}>
+            <LinkButton href="/calendar" variant="secondary" fullWidthOnMobile>
+              カレンダーを見る
+            </LinkButton>
+          </div>
         </section>
       </PageShell>
     </div>
