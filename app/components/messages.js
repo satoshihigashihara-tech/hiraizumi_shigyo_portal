@@ -120,6 +120,17 @@ export const ERROR_MESSAGES = {
   // プロフィール更新の保存失敗（app/actions/profile.js）。update-failed と同義
   "save-failed": "保存できませんでした。時間をおいて、もう一度お試しください。",
   "invalid-page": "ページの指定が正しくありません。",
+  "invalid-query": "検索文字を100文字以内で入力してください。",
+  "invalid-usage-type": "利用区分を選び直してください。",
+  "invalid-application-status": "申請状態を選び直してください。",
+  "invalid-payment-status": "納付状態を選び直してください。",
+  "invalid-stay-status": "滞在状態を選び直してください。",
+  "invalid-payment-deadline": "納付期限の日付を選び直してください。",
+  "charge-not-found": "料金情報が見つかりません。最新の画面を読み込み直してください。",
+  "note-required": "職員メモを入力してください。",
+  "note-too-long": "職員メモは2,000文字以内で入力してください。",
+  "invalid-note": "職員メモの指定が正しくありません。",
+  "note-not-found": "職員メモが見つかりません。最新の画面を読み込み直してください。",
   unexpected: "処理できませんでした。時間をおいて、もう一度お試しください。",
 };
 
@@ -180,6 +191,9 @@ export const FIELD_LABELS = {
   roomId: "部屋",
   reason: "理由",
   approvalComment: "許可コメント",
+  paymentStatus: "納付状態",
+  paymentDueDate: "納付期限",
+  body: "職員メモ",
 };
 
 /**
