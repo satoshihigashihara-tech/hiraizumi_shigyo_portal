@@ -68,6 +68,20 @@ async function updateStay(formData, operation) {
 export async function checkInApplication(formData) { return updateStay(formData, "check_in"); }
 export async function checkOutApplication(formData) { return updateStay(formData, "check_out"); }
 
+// useActionState adapters keep the existing one-argument actions reusable by
+// Server Component forms and avoid changing their tested input contract.
+export async function updateApplicationPaymentState(_previousState, formData) {
+  return updateApplicationPayment(formData);
+}
+
+export async function checkInApplicationState(_previousState, formData) {
+  return checkInApplication(formData);
+}
+
+export async function checkOutApplicationState(_previousState, formData) {
+  return checkOutApplication(formData);
+}
+
 export async function saveApplicationStaffNote(formData) {
   const { supabase } = await requireStaff("/staff");
   const fields = Object.fromEntries(["applicationId", "updatedAt", "noteId", "body"].map((name) => [name, getText(formData, name)]));
@@ -91,4 +105,8 @@ export async function saveApplicationStaffNote(formData) {
   // Refresh parent versions without ever putting the note in an owner response.
   for (const suffix of ["", "/edit", "/confirm"]) revalidatePath(`/user/applications/${fields.applicationId}${suffix}`);
   redirect(`${path}?updated=note-saved`);
+}
+
+export async function saveApplicationStaffNoteState(_previousState, formData) {
+  return saveApplicationStaffNote(formData);
 }
