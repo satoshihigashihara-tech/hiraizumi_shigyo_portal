@@ -133,6 +133,24 @@ function ApplicationListItem({ row }) {
       </StatusRow>
 
       <dl className={styles.facts}>
+        {/*
+         * 延泊表示。original_application_id がnullでない行は「延泊」と表示し、
+         * 元申請への導線を出す（docs/routes.md 697行・イシュー #19）。
+         * 仮データに延泊がないため、接続時に実装する。
+         * TODO(T19): 接続時に original_application_id に応じて延泊フラグを出す
+         */}
+        {row.original_application_id && (
+          <div className={styles.fact}>
+            <dt className={styles.factKey}>申請種別</dt>
+            <dd className={styles.factValue}>
+              延泊（<a href={`/user/applications/${row.original_application_id}`}>
+                元申請
+              </a>
+              を見る）
+            </dd>
+          </div>
+        )}
+
         <div className={styles.fact}>
           <dt className={styles.factKey}>利用期間</dt>
           <dd className={styles.factValue}>
