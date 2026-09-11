@@ -39,6 +39,10 @@
   cursor: not-allowed;
 }
 
+.button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
 @media (max-width: 480px) {
   .fullWidthOnMobile {
     width: 100%;

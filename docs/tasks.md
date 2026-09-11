@@ -62,8 +62,8 @@ SQL 009は初回提出と修正再提出の期限を分け、ロック取得後�
 | T02 | 作業中 | `/login`・`/signup`・`/forbidden`、利用者・職員layoutの認証保護を実装。未ログインのURL直接入力と安全な戻り先をローカルブラウザで確認済み | 共同（処理：バックエンド／画面：フロント） | 架空の一般利用者・職員・停止中アカウントで実ログインし、役割別遷移と案内を確認する。各データ取得とActionの認可も維持する | P02・P08を接続済み。登録確認メールと実アカウントによる受入確認はT24で行う |
 | T03 | 作業中 | プロフィール用テーブル・本人更新権限・保存Actionあり。画面と申請への初期表示は未作成 | 共同 | `/user/profile` で氏名・住所・電話・緊急連絡先を保存し、次回申請へ初期表示する。提出済みの写しは変更しない | `saveProfile` と第4章の入力名をプロフィール・申請入力へ接続する |
 | T04 | 作業中 | キャンプ設定と対象者管理。SQL 012でキャンプ編集・削除を追加しローカル検証済み・Supabase適用済み。対象メールの変更・無効化は未実装 | 共同 | 一覧・詳細・新規・編集・削除・期限延長・対象者変更ができる。重複／形式不正を表示し、既存申請に影響する変更を防ぐ | `/staff/camps` 配下へP06・P11を接続。第4.6節とルート設計9.4節の契約で接続・確認する |
-| T05 | 作業中 | キャンプ申請。`/user/applications/new` と対象キャンプ選択を実データへ接続し、明示操作による下書き作成・期限切れ・対象なし・取得失敗を実装。入力・確認・完了・詳細画面は未完成 | 共同 | 対象キャンプ選択→入力→保存→確認→提出→完了→詳細を操作できる。固定期間、必須項目、期限、同意書、確認同意、二重送信、修正再提出を確認する | P05、第4章のフォーム項目・遷移先を渡す。完了情報はDBから取得し、提出＝利用確定と表示しない |
-| T06 | 作業中 | 同意書添付。Action・メタデータSQLあり、UI・実環境検証・直接RPC対策が残る | 共同（保存と権限：バックエンド） | 申請ごとに1ファイルを保存・差し替えでき、本人と職員だけ閲覧できる。空ファイル、形式偽装、5MiB超過、実ファイルなしの提出を拒否する | `guardianConsentFile` の入力、添付済み表示、エラー、閲覧ボタン。バケット設定と直接API検証完了を伝えてから接続する |
+| T05 | 作業中 | キャンプ申請。入口・対象キャンプ選択・`/edit`を実データへ接続。プロフィール初期値、固定期間、下書き保存、確認前検証、入力保持、修正理由を実装。確認・完了・詳細画面は未完成 | 共同 | 対象キャンプ選択→入力→保存→確認→提出→完了→詳細を操作できる。期限、確認同意、二重送信、修正再提出を確認する | P05、第4章のフォーム項目・遷移先を渡す。完了情報はDBから取得し、提出＝利用確定と表示しない |
+| T06 | 作業中 | 同意書添付。Action・メタデータSQLに加え、本人の`/edit`へ添付済み表示・閲覧・添付・差し替えUIを接続。実Storageの画面受入確認と直接RPC対策が残る | 共同（保存と権限：バックエンド） | 申請ごとに1ファイルを保存・差し替えでき、本人と職員だけ閲覧できる。空ファイル、形式偽装、5MiB超過、実ファイルなしの提出を拒否する | 実アカウントでPDF・JPEG・PNG、空ファイル、形式偽装、5MiB超過、差し替え、他人の閲覧拒否を確認する |
 | T07 | 作業中 | 公開トップに利用案内・条件・料金・必要書類とログイン導線あり。地域活動入口と公開カレンダーは準備中表示 | フロント | 公開カレンダーと地域活動申請入口を実データへ接続し、共通の読み込み・エラー・404表示を確認する | トップ画面はmain反映済み。カレンダーはT09の公開取得契約を使う |
 | T08 | 作業中 | `/user`と`/user/applications`の画面、空表示、状態表示あり。認証保護済みだが申請データは仮表示 | フロント（取得処理はバックエンドと共同） | 本人の実データだけを取得し、状態、理由、期限、次の操作を表示する。仮データ表示を除去する | 既存画面を統合取得へ差し替える。団体を含め、他人の情報を返さない |
 
@@ -118,7 +118,7 @@ SQL 009は初回提出と修正再提出の期限を分け、ロック取得後�
 | `app/actions/staff-camps.js`：`createStaffCamp` | `campName`、`startDate`、`endDate`、`applicationDeadline` | `/staff/camps/[campId]` へ移動。期限入力は `YYYY-MM-DDTHH:mm` を日本時間として変換 |
 | 同上：`addCampEligibleUsers` | `campId`、`eligibleEmails` | 対象者画面へ登録件数などをクエリで返す。メールは改行・空白・カンマ・セミコロン区切りに対応 |
 | `app/actions/camp-applications.js`：`createCampApplicationDraft` | `campId` | `/user/applications/[applicationId]/edit` へ移動 |
-| 同上：`saveCampApplicationDraft` | 下記の入力項目、`applicationId`、`intent` | `intent=confirm` なら `/confirm`、それ以外は `/edit?saved=1` |
+| 同上：`saveCampApplicationDraft` | `useActionState`の前状態、下記の入力項目、`applicationId`、`intent` | 成功時は`intent=confirm`なら`/confirm`、それ以外は`/edit?saved=1`。失敗時は`{ error, fields, fieldErrors }`を返して入力を保持 |
 | 同上：`submitCampApplication` | `applicationId` | `/complete?receptionNumber=...`。受付番号・提出日時・状態は完了ページでDBから取得する |
 | `app/actions/guardian-consent.js`：`uploadGuardianConsent` | `applicationId`、ファイル入力 `guardianConsentFile` | `/edit?uploaded=1` |
 | 同上：`createGuardianConsentDownloadUrl` | フォームではなく、引数に申請UUID文字列 | `{ error, url }` を返す。URLの有効期間は60秒 |
@@ -129,8 +129,8 @@ SQL 009は初回提出と修正再提出の期限を分け、ロック取得後�
 
 ### 4.2 エラーと表示データ
 
-- 現在の更新Actionは主に `?error=...` を付けて移動します。認証には `required`・`invalid`・`short`、キャンプ申請には `deadline-passed`・`not-eligible`・`capacity-full`・`required-fields`・`invalid-phone`・`guardian-consent`、添付には `file-required`・`invalid-size`・`invalid-type`・`invalid-content`・`upload-failed` などがあります。完全な一覧は各Actionの分岐を参照し、コード文字列をそのまま表示せず日本語の案内にします。
-- T09のキャンプ・利用停止Actionは `{ error, fields, conflicts }` を返して入力を保持します（ルート設計9.4節）。それ以外の現方式だけでは、保存に失敗した入力値の保持や項目別エラーを満たしません。T05・T23で、フロントとバックエンドが入力値・項目別エラーの受け渡し方式を決めます。
+- 更新Actionは処理ごとに返却方式が異なります。認証画面や添付は主に`?error=...`で移動し、キャンプ申請の入力保存は`useActionState`用の`{ error, fields, fieldErrors }`を返して入力を保持します。キャンプ申請には`deadline-passed`・`not-eligible`・`capacity-full`・`required-fields`・`invalid-phone`・`guardian-consent`、添付には`file-required`・`invalid-size`・`invalid-type`・`invalid-content`・`upload-failed`などがあります。コード文字列をそのまま表示せず日本語の案内にします。
+- T09のキャンプ・利用停止Actionは `{ error, fields, conflicts }` を返して入力を保持します（ルート設計9.4節）。T05の入力保存も同じ入力保持方式へ接続済みです。提出時の確認エラーはT23で確認画面へ接続します。
 - 読取画面はまだありません。サーバー用SupabaseクライアントとRLSを使い、本人・職員の権限内で必要な列だけを取得します。更新は用意されたAction／RPCを使います。
 - 申請状態、納付状態、滞在状態は別々に表示します。「申請済み」は「許可」ではありません。完了URLの受付番号だけを根拠に提出成功を表示しないでください。
 - 接続に必要な変数名は `NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`。添付保存の管理用 `SUPABASE_SECRET_KEY` はサーバー専用です。値はこの文書に記載しません。
