@@ -257,9 +257,13 @@ test("camp submission authenticates before reading untrusted form input", async 
   assert.deepEqual(calls, [["auth", "/user/applications"]]);
 });
 
-async function loadQuery(responses) {
+async function loadQuery(responses, rpcResponses = {}) {
   const calls = [];
   const supabase = {
+    async rpc(name, args) {
+      calls.push(["rpc", name, copy(args)]);
+      return rpcResponses[name] ?? { data: null, error: { message: "missing-test-response" } };
+    },
     from(table) {
       calls.push(["from", table]);
       return {
@@ -270,6 +274,13 @@ async function loadQuery(responses) {
         eq(...args) {
           calls.push(["eq", table, ...args]);
           return this;
+        },
+        order(...args) {
+          calls.push(["order", table, ...args]);
+          return this;
+        },
+        then(resolve, reject) {
+          return Promise.resolve(responses[table]).then(resolve, reject);
         },
         async maybeSingle() {
           return responses[table];
@@ -283,6 +294,10 @@ async function loadQuery(responses) {
     "@/utils/auth/guards": {
       async requireActiveUser(path) {
         calls.push(["auth", path]);
+        return { supabase, user: { id: USER_ID } };
+      },
+      async requireStaff(path) {
+        calls.push(["staff", path]);
         return { supabase, user: { id: USER_ID } };
       },
     },
@@ -337,6 +352,7 @@ function completeQueryResponses({ status = "draft", submitted = false } = {}) {
         room_preference: "shared_ok",
         revision_due_at: null,
         decision_reason: null,
+        approval_comment: null,
         submitted_at: submitted ? "2026-09-12T01:02:03.000000+00:00" : null,
         last_submitted_at: submitted ? "2026-09-12T01:02:03.000000+00:00" : null,
         updated_at: "2026-09-12T01:02:03.000000+00:00",
@@ -388,6 +404,7 @@ test("camp edit query scopes to the owner and uses profile defaults only for a n
         room_preference: null,
         revision_due_at: null,
         decision_reason: null,
+        approval_comment: null,
         submitted_at: null,
         last_submitted_at: null,
         updated_at: "2026-09-12T00:00:00.000000+00:00",
@@ -479,6 +496,76 @@ test("camp completion reads the receipt and submission time from the database", 
   );
 });
 
+test("camp detail combines public status history, payment and current room without internal fields", async () => {
+  const responses = completeQueryResponses({ status: "approved", submitted: true });
+  responses.applications.data.approval_comment = "利用を許可しました。";
+  responses.application_status_events = {
+    data: [{
+      from_status: "under_review",
+      to_status: "approved",
+      public_reason: "利用を許可しました。",
+      occurred_at: "2026-09-12T02:00:00.000000+00:00",
+      actor_user_id: "private",
+    }],
+    error: null,
+  };
+  const payment = {
+    data: {
+      id: APPLICATION_ID,
+      usage_type: "camp",
+      camp_id: "20000000-0000-4000-8000-000000000001",
+      status: "approved",
+      updated_at: "2026-09-12T02:00:00.000000+00:00",
+      charge: {
+        total_amount: 900,
+        payment_status: "unpaid",
+        payment_due_date: "2099-10-01",
+        paid_at: null,
+        months: [],
+      },
+    },
+    error: null,
+  };
+  const stay = {
+    data: {
+      id: APPLICATION_ID,
+      usage_type: "camp",
+      camp_id: "20000000-0000-4000-8000-000000000001",
+      status: "approved",
+      updated_at: "2026-09-12T02:00:00.000000+00:00",
+      start_date: "2026-09-30",
+      end_date: "2026-10-02",
+      stay: { status: "before_move_in", checked_in_at: null, checked_out_at: null },
+      room_allocation: {
+        room_id: "30000000-0000-4000-8000-000000000001",
+        room_name: "桐",
+        people_count: 1,
+        start_date: "2026-09-30",
+        end_date: "2026-10-02",
+        released_from: null,
+        is_current: true,
+        internal_reason: "private",
+      },
+    },
+    error: null,
+  };
+  const { api, calls } = await loadQuery(responses, {
+    get_application_payment: payment,
+    get_application_stay: stay,
+  });
+  const result = copy(await api.getCampApplicationForDetail(APPLICATION_ID));
+  assert.equal(result.error, null);
+  assert.equal(result.application.charge.total_amount, 900);
+  assert.equal(result.application.roomAllocation.room_name, "桐");
+  assert.equal(result.application.history[0].toStatus, "approved");
+  assert.ok(!JSON.stringify(result).includes("private"));
+  assert.equal(calls.filter((call) => call[0] === "auth").length, 1);
+  assert.match(
+    calls.find((call) => call[0] === "select" && call[1] === "application_status_events")[2],
+    /^from_status,to_status,public_reason,occurred_at$/,
+  );
+});
+
 test("camp edit page keeps the server page and isolates only form state on the client", async () => {
   const page = await readFile(
     new URL("../app/user/applications/[applicationId]/edit/page.js", import.meta.url),
@@ -525,4 +612,22 @@ test("camp confirm and complete routes use awaited params, database values and a
   assert.match(submit, /disabled=\{!confirmed\}/);
   assert.match(styles, /@media \(max-width: 599px\)/);
   assert.doesNotMatch(`${confirmPage}\n${completePage}\n${submit}`, /[—–]/);
+});
+
+test("camp detail page separates application, payment and stay states and only links editable applications", async () => {
+  const page = await readFile(
+    new URL("../app/user/applications/[applicationId]/page.js", import.meta.url),
+    "utf8",
+  );
+  const styles = await readFile(
+    new URL("../app/user/applications/[applicationId]/page.module.css", import.meta.url),
+    "utf8",
+  );
+  assert.match(page, /const \{ applicationId \} = await params/);
+  assert.match(page, /kind="application"/);
+  assert.match(page, /kind="payment"/);
+  assert.match(page, /kind="stay"/);
+  assert.match(page, /\["draft", "revision_requested"\]/);
+  assert.doesNotMatch(page, /cancel|キャンセル.*button/i);
+  assert.match(styles, /@media \(max-width: 599px\)/);
 });

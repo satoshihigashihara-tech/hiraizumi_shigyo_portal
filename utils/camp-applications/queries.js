@@ -2,6 +2,10 @@ import "server-only";
 
 import { requireActiveUser } from "@/utils/auth/guards";
 import {
+  readApplicationPayment,
+  readApplicationStay,
+} from "@/utils/application-operations/readers";
+import {
   isCampApplicationId,
   validateCampDraftFields,
 } from "@/utils/camp-applications/validation";
@@ -86,6 +90,7 @@ const APPLICATION_COLUMNS = [
   "room_preference",
   "revision_due_at",
   "decision_reason",
+  "approval_comment",
   "submitted_at",
   "last_submitted_at",
   "updated_at",
@@ -154,6 +159,7 @@ function isApplicationPayload(application, profile) {
     "room_preference",
     "revision_due_at",
     "decision_reason",
+    "approval_comment",
     "submitted_at",
     "last_submitted_at",
     "updated_at",
@@ -214,8 +220,8 @@ function estimateCampCharge(startDate, endDate) {
   };
 }
 
-async function readCampApplication(applicationId, returnTo) {
-  const { supabase, user } = await requireActiveUser(returnTo);
+async function readCampApplication(applicationId, returnTo, authContext = null) {
+  const { supabase, user } = authContext ?? (await requireActiveUser(returnTo));
 
   if (!isCampApplicationId(applicationId)) {
     return { error: "not-found", application: null };
@@ -288,6 +294,8 @@ async function readCampApplication(applicationId, returnTo) {
         application.status === "revision_requested"
           ? application.decision_reason ?? ""
           : "",
+      decisionReason: application.decision_reason,
+      approvalComment: application.approval_comment,
       updatedAt: application.updated_at,
       submittedAt: application.submitted_at,
       lastSubmittedAt: application.last_submitted_at,
@@ -350,4 +358,84 @@ export async function getCampApplicationForComplete(applicationId) {
   }
 
   return result;
+}
+
+const APPLICATION_STATUSES = [
+  "draft",
+  "submitted",
+  "under_review",
+  "revision_requested",
+  "approved",
+  "rejected",
+  "cancellation_requested",
+  "cancelled",
+];
+
+function isStatusEvent(row) {
+  return (
+    row &&
+    (row.from_status === null || APPLICATION_STATUSES.includes(row.from_status)) &&
+    APPLICATION_STATUSES.includes(row.to_status) &&
+    (row.public_reason === null || typeof row.public_reason === "string") &&
+    typeof row.occurred_at === "string" &&
+    Number.isFinite(Date.parse(row.occurred_at))
+  );
+}
+
+/**
+ * キャンプ申請の本人向け詳細を取得する。
+ * 公開理由だけを選択し、actor_user_idや内部の変更理由は取得しない。
+ */
+export async function getCampApplicationForDetail(applicationId) {
+  const returnTo = isCampApplicationId(applicationId)
+    ? `/user/applications/${applicationId}`
+    : "/user/applications";
+  const authContext = await requireActiveUser(returnTo);
+  const base = await readCampApplication(applicationId, returnTo, authContext);
+  if (base.error || !base.application) return base;
+
+  const [payment, stay, historyResult] = await Promise.all([
+    readApplicationPayment(authContext.supabase, applicationId),
+    readApplicationStay(authContext.supabase, applicationId),
+    authContext.supabase
+      .from("application_status_events")
+      .select("from_status,to_status,public_reason,occurred_at")
+      .eq("application_id", applicationId)
+      .order("occurred_at", { ascending: false }),
+  ]);
+
+  if (
+    payment.error ||
+    stay.error ||
+    historyResult.error ||
+    !payment.application ||
+    !stay.application ||
+    payment.application.id !== applicationId ||
+    stay.application.id !== applicationId ||
+    payment.application.usage_type !== "camp" ||
+    stay.application.usage_type !== "camp" ||
+    !Array.isArray(historyResult.data) ||
+    historyResult.data.some((row) => !isStatusEvent(row))
+  ) {
+    return { error: "load-failed", application: null };
+  }
+
+  return {
+    error: null,
+    application: {
+      ...base.application,
+      charge: payment.application.charge,
+      stay: stay.application.stay,
+      roomAllocation:
+        stay.application.room_allocation?.is_current === true
+          ? stay.application.room_allocation
+          : null,
+      history: historyResult.data.map((row) => ({
+        fromStatus: row.from_status,
+        toStatus: row.to_status,
+        publicReason: row.public_reason,
+        occurredAt: row.occurred_at,
+      })),
+    },
+  };
 }
