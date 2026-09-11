@@ -681,3 +681,9 @@ MVPでは `app/user` と `app/staff` 配下に個別の `loading.js`、`error.js
 成功は `{ error: null, filters, applications, pagination }`。`pagination` は `page / pageSize=50 / totalCount / hasNext`。各applicationは `id / usage_type / camp_id / applicant_name / camp_name / status / start_date / end_date / reception_number / people_count / total_amount / payment_status / payment_due_date / stay_status / updated_at / detail_path` の固定許可リストだけを返す。`detail_path` はキャンプなら `/staff/camps/[campId]/applications/[applicationId]`、地域活動の個人利用なら `/staff/community/applications/[applicationId]`。画面はこの値をリンクに使用できるが、本人向け画面へ同じ結果を渡さない。
 
 MVPのSQL018は現在存在する2区分だけを対象とする。団体テーブル実装後に同じ検索契約へ団体名・人数・団体詳細パスを拡張する。CSV、高度な全文検索、検索履歴保存、検索による状態更新は行わない。
+
+### T17 地域活動の個人利用の取消接続契約（SQL 019）
+
+`getCommunityApplicationCancellation(applicationId)` は本人またはactive職員向けの固定項目 `id / status / updated_at / start_date / end_date / cancel_reason / stay_status / can_request / can_confirm` を返す。本人以外はnot-found。`/user/applications/[applicationId]/cancel` は `can_request=true` の場合だけ表示し、滞在開始後は操作を出さず町への連絡と早期退去を案内する。
+
+本人Action `requestCommunityApplicationCancellation(formData)` と職員Action `confirmCommunityApplicationCancellation(formData)` の入力は `applicationId / updatedAt / reason`。理由は空白除去後1〜2000文字。成功時は本人詳細または職員詳細へ戻る。主なエラーは `reason-required / reason-too-long / invalid-version / stale-update / invalid-status / invalid-stay / stay-started / invalid-allocation / calendar-inconsistent / not-found / forbidden / update-failed`。画面はDBが返した最新状態を再取得し、古い版を自動再送しない。

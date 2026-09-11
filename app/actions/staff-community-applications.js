@@ -51,3 +51,25 @@ export async function requestCommunityApplicationRevision(formData) { return rev
 export async function rejectCommunityApplication(formData) { return review(formData, "reject"); }
 export async function assignCommunityApplicationRoom(formData) { return review(formData, "assign_room"); }
 export async function approveCommunityApplication(formData) { return review(formData, "approve"); }
+
+export async function confirmCommunityApplicationCancellation(formData) {
+  const { supabase } = await requireStaff("/staff/community/applications");
+  const fields = Object.fromEntries(["applicationId", "updatedAt", "reason"].map((key) => [key, getText(formData, key)]));
+  if (!isUuid(fields.applicationId)) return communityFailure("invalid-application", fields);
+  if (!isUpdatedAt(fields.updatedAt)) return communityFailure("invalid-version", fields);
+  const reason = fields.reason.trim();
+  const invalidReason = reasonError(reason, true);
+  if (invalidReason) return communityFailure(invalidReason, fields);
+  const { data, error } = await supabase.rpc("confirm_community_application_cancellation", {
+    target_application_id: fields.applicationId, expected_updated_at: fields.updatedAt,
+    confirmation_reason: reason,
+  });
+  if (error) return communityFailure(error, fields);
+  const result = Array.isArray(data) ? data[0] : null;
+  if (result?.result_id !== fields.applicationId || result?.result_status !== "cancelled"
+    || !isUpdatedAt(result?.result_updated_at)) return communityFailure("update-failed", fields);
+  const path = `/staff/community/applications/${fields.applicationId}`;
+  for (const route of [path, "/staff", "/staff/community", "/staff/community/applications", "/staff/calendar", "/calendar",
+    "/user", "/user/applications", `/user/applications/${fields.applicationId}`]) revalidatePath(route);
+  redirect(`${path}?updated=cancelled`);
+}

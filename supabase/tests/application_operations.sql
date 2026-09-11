@@ -1,4 +1,4 @@
--- SQL 015-018 operations tests. Targeted runners select one phase. ISOLATED TEST PROJECT WITHOUT TRAFFIC.
+-- SQL 015-019 operations tests. Targeted runners select one phase. ISOLATED TEST PROJECT WITHOUT TRAFFIC.
 -- Run this WHOLE file as postgres after the corresponding migration. All fictional records and
 -- temporary helpers roll back. No real Auth login, Storage API or secrets.
 -- On failure ROLLBACK in the same connection. Never replace ROLLBACK with COMMIT.
@@ -577,6 +577,123 @@ begin
   perform pg_temp.t13_check(before_value=jsonb_build_object('applications',(select count(*) from public.applications),
     'charges',(select count(*) from public.application_charges),'stays',(select count(*) from public.stays),
     'audit',(select count(*) from public.audit_logs)),'all searches are read only');
+end; $$;
+
+-- T17 first half: community individual cancellation. This verification SQL is
+-- never a migration and always rolls back its fictional records.
+create function pg_temp.t17_request(x uuid, reason_value text default '架空の利用者取消理由',
+  version_value timestamptz default null, actor uuid default null) returns jsonb language sql as $$
+  select pg_temp.t13_call(coalesce(actor,a.user_id),format(
+    'select * from public.request_community_application_cancellation(%L,%L,%L)',
+    x,coalesce(version_value,a.updated_at),reason_value)) from public.applications a where a.id=x;
+$$;
+create function pg_temp.t17_confirm(x uuid, reason_value text default '架空の職員確認理由',
+  version_value timestamptz default null, actor uuid default null) returns jsonb language sql as $$
+  select pg_temp.t13_call(coalesce(actor,c.staff_id),format(
+    'select * from public.confirm_community_application_cancellation(%L,%L,%L)',
+    x,coalesce(version_value,pg_temp.t13_version(x)),reason_value)) from pg_temp.t13_context c;
+$$;
+create function pg_temp.t17_fail_audit() returns trigger language plpgsql as $$ begin
+  if new.action='confirm_cancellation' and current_setting('test.fail_cancellation_audit',true)='on' then
+    raise exception 'test-audit-failure'; end if;
+  return new;
+end; $$;
+create trigger t17_test_audit_failure before insert on public.audit_logs
+for each row execute function pg_temp.t17_fail_audit();
+
+do $$ declare c pg_temp.t13_context%rowtype; x uuid; approved_id uuid; started_id uuid;
+  v timestamptz; snap jsonb; protected_value jsonb; r jsonb; room_id uuid; charge_value jsonb;
+begin
+  if to_regprocedure('public.request_community_application_cancellation(uuid,timestamptz,text)') is null then return; end if;
+  select * into c from pg_temp.t13_context;
+  select id into room_id from public.rooms where name='桐';
+
+  x:=pg_temp.t13_draft(c.owner_id,c.today+44,c.today+46);
+  snap:=pg_temp.t13_snapshot(x);
+  perform pg_temp.t13_error(pg_temp.t17_request(x),'invalid-status','draft cannot request cancellation');
+  perform pg_temp.t13_check(pg_temp.t13_snapshot(x)=snap,'failed draft cancellation is atomic');
+  perform pg_temp.t13_ok(pg_temp.t13_submit(x),'cancellation submitted fixture');
+  select to_jsonb(ch) into charge_value from public.application_charges ch where application_id=x;
+  v:=pg_temp.t13_version(x);
+  perform pg_temp.t13_error(pg_temp.t17_request(x,null),'reason-required','request reason required');
+  perform pg_temp.t13_error(pg_temp.t17_request(x,repeat('あ',2001)),'reason-too-long','request reason bounded');
+  perform pg_temp.t13_error(pg_temp.t17_request(x,'架空理由',null,c.other_id),'not-found','other owner denied');
+  perform pg_temp.t13_ok(pg_temp.t17_request(x,'  架空の利用者取消理由  '),'request cancellation');
+  perform pg_temp.t13_check((select status='cancellation_requested' and cancel_reason='架空の利用者取消理由'
+    from public.applications where id=x),'request stores status and trimmed reason');
+  perform pg_temp.t13_check((select released_from is null from public.calendar_claims where application_id=x),
+    'request retains calendar capacity');
+  perform pg_temp.t13_check((select to_jsonb(ch)=charge_value from public.application_charges ch where application_id=x),
+    'request retains charge exactly');
+  perform pg_temp.t13_check(exists(select 1 from public.application_status_events where application_id=x
+    and from_status='submitted' and to_status='cancellation_requested' and public_reason='架空の利用者取消理由'),
+    'request public status event');
+  perform pg_temp.t13_check(exists(select 1 from public.audit_logs where entity_id=x and action='request_cancellation'
+    and actor_kind='user' and actor_user_id=c.owner_id and reason='架空の利用者取消理由'
+    and before_data#>>'{application,status}'='submitted' and after_data#>>'{application,status}'='cancellation_requested'),
+    'request audit before and after');
+  perform pg_temp.t13_check(not exists(select 1 from public.audit_logs where entity_id=x and action='request_cancellation'
+    and (before_data::text||after_data::text) like '%架空住所%'),'cancellation audit excludes personal details');
+  perform pg_temp.t13_error(pg_temp.t17_request(x,'再送',v),'stale-update','stale request rejected');
+  r:=pg_temp.t13_ok(pg_temp.t13_call(c.owner_id,format('select public.get_community_application_cancellation(%L) as data',x)),'owner cancellation context');
+  perform pg_temp.t13_check(r->0->'data'->>'status'='cancellation_requested'
+    and (r->0->'data'->>'can_request')::boolean=false and (r->0->'data'->>'can_confirm')::boolean=false,
+    'owner context flags');
+  r:=pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format('select public.get_community_application_cancellation(%L) as data',x)),'staff cancellation context');
+  perform pg_temp.t13_check((r->0->'data'->>'can_confirm')::boolean=true,'staff context can confirm');
+  perform pg_temp.t13_error(pg_temp.t13_call(c.other_id,format('select public.get_community_application_cancellation(%L)',x)),'not-found','other context denied');
+  perform pg_temp.t13_error(pg_temp.t17_confirm(x,'架空理由',null,c.owner_id),'staff-required','owner cannot confirm','42501');
+  perform pg_temp.t13_error(pg_temp.t17_confirm(x,null),'reason-required','confirmation reason required');
+  perform pg_temp.t13_error(pg_temp.t17_confirm(x,repeat('あ',2001)),'reason-too-long','confirmation reason bounded');
+  snap:=pg_temp.t13_snapshot(x); perform set_config('test.fail_cancellation_audit','on',true);
+  perform pg_temp.t13_error(pg_temp.t17_confirm(x),'test-audit-failure','confirmation audit failure');
+  perform set_config('test.fail_cancellation_audit','',true);
+  perform pg_temp.t13_check(pg_temp.t13_snapshot(x)=snap,'failed confirmation rolls back releases and status');
+  perform pg_temp.t13_ok(pg_temp.t17_confirm(x),'confirm cancellation');
+  perform pg_temp.t13_check((select status='cancelled' and cancel_reason='架空の利用者取消理由'
+    from public.applications where id=x),'confirmation preserves user reason');
+  perform pg_temp.t13_check((select released_from=start_date from public.calendar_claims where application_id=x),
+    'confirmation releases calendar entirely');
+  perform pg_temp.t13_check((select to_jsonb(ch)=charge_value from public.application_charges ch where application_id=x),
+    'confirmation retains charge exactly');
+  perform pg_temp.t13_check(exists(select 1 from public.audit_logs where entity_id=x and action='confirm_cancellation'
+    and actor_kind='staff' and actor_user_id=c.staff_id and reason='架空の職員確認理由'),
+    'confirmation staff audit');
+  perform pg_temp.t13_error(pg_temp.t17_confirm(x),'invalid-status','double confirmation rejected');
+
+  approved_id:=pg_temp.t13_draft(c.owner_id,c.today+50,c.today+52);
+  perform pg_temp.t13_ok(pg_temp.t13_submit(approved_id),'approved cancellation submit');
+  perform pg_temp.t13_ok(pg_temp.t13_review(approved_id,'start_review'),'approved cancellation review');
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format(
+    'select * from public.assign_community_application_room(%L,%L,%L)',approved_id,room_id,pg_temp.t13_version(approved_id))),
+    'approved cancellation room');
+  perform pg_temp.t13_ok(pg_temp.t13_review(approved_id,'approve'),'approved cancellation approval');
+  protected_value:=jsonb_build_object('charge',(select to_jsonb(ch) from public.application_charges ch where application_id=approved_id),
+    'stay',(select to_jsonb(s) from public.stays s where application_id=approved_id));
+  perform pg_temp.t13_ok(pg_temp.t17_request(approved_id),'approved cancellation request');
+  perform pg_temp.t13_check((select released_from is null from public.calendar_claims where application_id=approved_id)
+    and (select released_from is null from public.room_allocations where application_id=approved_id),
+    'approved request retains calendar and room');
+  perform pg_temp.t13_ok(pg_temp.t17_confirm(approved_id),'approved cancellation confirm');
+  perform pg_temp.t13_check((select released_from=start_date from public.calendar_claims where application_id=approved_id)
+    and (select released_from=start_date from public.room_allocations where application_id=approved_id),
+    'approved confirmation releases calendar and room');
+  perform pg_temp.t13_check(protected_value=jsonb_build_object(
+    'charge',(select to_jsonb(ch) from public.application_charges ch where application_id=approved_id),
+    'stay',(select to_jsonb(s) from public.stays s where application_id=approved_id)),
+    'approved cancellation preserves charge and before-move-in stay');
+
+  started_id:=pg_temp.t13_draft(c.other_id,c.today+56,c.today+58);
+  perform pg_temp.t13_ok(pg_temp.t13_submit(started_id),'started cancellation submit');
+  perform pg_temp.t13_ok(pg_temp.t13_review(started_id,'start_review'),'started cancellation review');
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format(
+    'select * from public.assign_community_application_room(%L,%L,%L)',started_id,room_id,pg_temp.t13_version(started_id))),
+    'started cancellation room');
+  perform pg_temp.t13_ok(pg_temp.t13_review(started_id,'approve'),'started cancellation approval');
+  update public.stays set status='staying',checked_in_at=clock_timestamp() where application_id=started_id;
+  snap:=pg_temp.t13_snapshot(started_id);
+  perform pg_temp.t13_error(pg_temp.t17_request(started_id),'stay-started','started stay must use early checkout');
+  perform pg_temp.t13_check(pg_temp.t13_snapshot(started_id)=snap,'started rejection is atomic');
 end; $$;
 select count(*) as passed_checks, bool_and(passed) as all_passed from pg_temp.t13_results;
 rollback;

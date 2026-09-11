@@ -91,8 +91,12 @@ const ACTIONS = [
  ["app/actions/community-applications.js", "createCommunityApplicationDraft", "create_community_application_draft", SAVED],
  ["app/actions/community-applications.js", "saveCommunityApplicationDraft", "save_community_application_draft", SAVED],
  ["app/actions/community-applications.js", "submitCommunityApplication", "submit_community_application", SUBMITTED],
+ ["app/actions/community-applications.js", "requestCommunityApplicationCancellation", "request_community_application_cancellation",
+  [{ ...SAVED[0], result_status: "cancellation_requested" }]],
  ...[["startCommunityApplicationReview", "under_review"], ["requestCommunityApplicationRevision", "revision_requested"], ["rejectCommunityApplication", "rejected"]]
   .map(([action, status]) => ["app/actions/staff-community-applications.js", action, "review_community_application", [{ ...SAVED[0], result_status: status }]]),
+ ["app/actions/staff-community-applications.js", "confirmCommunityApplicationCancellation", "confirm_community_application_cancellation",
+  [{ ...SAVED[0], result_status: "cancelled" }]],
 ];
 for (const [file, action, rpc, data] of ACTIONS) {
  test(`${action} guards first, sends exact version, refreshes then redirects`, async () => {
@@ -119,11 +123,34 @@ for (const [file, action, rpc, data] of ACTIONS) {
   assert.ok(!calls.some(c => ["redirect", "revalidate"].includes(c[0])));
  });
 }
-test("only T10 and approved T12 actions are exported", async () => {
+test("only approved community application actions are exported", async () => {
  for (const file of ["app/actions/community-applications.js", "app/actions/staff-community-applications.js"]) {
   const { api } = await harness(file);
   const extra = file.includes("staff-community") ? ["assignCommunityApplicationRoom", "approveCommunityApplication"] : [];
   assert.deepEqual(Object.keys(api).sort(), [...ACTIONS.filter(a => a[0] === file).map(a => a[1]), ...extra].sort());
+ }
+});
+test("cancellation actions send only normalized reason and concurrency fields", async () => {
+ for (const [file, action, rpc, reasonKey] of [
+  ["app/actions/community-applications.js", "requestCommunityApplicationCancellation", "request_community_application_cancellation", "cancellation_reason"],
+  ["app/actions/staff-community-applications.js", "confirmCommunityApplicationCancellation", "confirm_community_application_cancellation", "confirmation_reason"],
+ ]) {
+  const status = action.startsWith("request") ? "cancellation_requested" : "cancelled";
+  const { api, calls } = await harness(file, { response: { data: [{ ...SAVED[0], result_status: status }] } });
+  await assert.rejects(api[action](form({ reason: "  架空の取消理由  ", status: "cancelled", userId: OTHER_ID })), /REDIRECT/);
+  assert.deepEqual(calls.find((call) => call[0] === "rpc").slice(1), [rpc, {
+    target_application_id: ID, expected_updated_at: VERSION, [reasonKey]: "架空の取消理由",
+  }]);
+ }
+});
+test("cancellation actions reject missing or oversized reasons before RPC", async () => {
+ for (const [file, action] of [["app/actions/community-applications.js", "requestCommunityApplicationCancellation"],
+  ["app/actions/staff-community-applications.js", "confirmCommunityApplicationCancellation"]]) {
+  for (const [reason, expected] of [["   ", "reason-required"], ["あ".repeat(2001), "reason-too-long"]]) {
+   const { api, calls } = await harness(file);
+   assert.equal((await api[action](form({ reason }))).error, expected);
+   assert.equal(calls.filter((call) => call[0] === "rpc").length, 0);
+  }
  }
 });
 test("empty creation preserves profile defaults, explicit empty fields clear them", async () => {
@@ -218,6 +245,15 @@ test("owner list explicitly scopes user/type, paginates and returns fixed column
  assert.ok(calls.some(c => c[0] === "eq" && c[1] === "user_id" && c[2] === USER));
  assert.ok(calls.some(c => c[0] === "eq" && c[1] === "usage_type" && c[2] === "community_individual"));
  assert.deepEqual(calls.find(c => c[0] === "range"), ["range", 50, 99]);
+});
+test("cancellation context is guarded, fixed-field and read-only", async () => {
+ const data = { id: ID, status: "approved", updated_at: VERSION, start_date: "2028-02-29", end_date: "2028-03-01",
+  cancel_reason: null, stay_status: "before_move_in", can_request: true, can_confirm: false, private: "PRIVATE" };
+ const { api, calls } = await harness("utils/community-applications/queries.js", { response: { data } });
+ const result = copy(await api.getCommunityApplicationCancellation(ID));
+ assert.equal(result.error, null); assert.equal(result.application.can_request, true);
+ assert.ok(!JSON.stringify(result).includes("PRIVATE"));
+ assert.deepEqual(calls.map((call) => call[0]), ["auth", "rpc"]);
 });
 test("owner reads guard before invalid arguments", async () => {
  for (const [name, argument] of [["getCommunityApplication", "bad"], ["getCommunityApplications", -1]]) {
