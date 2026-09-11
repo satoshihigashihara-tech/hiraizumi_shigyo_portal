@@ -453,3 +453,20 @@ SQL 014適用後のSupabase別接続の結果は以下のとおり。4種類と�
 ユーザー操作は想定結果を説明して1つずつ案内し、SQL Editorでは毎回「New query／既存クエリ置換」と「保存／確認後に削除可」を明記する。014適用クエリは保存。今回のテスト用クエリは検証・後片付け・記録が完了したため削除可。プロジェクトのマイグレーション・テストファイルは保持する。
 
 今回の対象外はキャンセル・延長・納付更新・入退去・早期退去・団体。テスト内の状態変更用fixtureは製品APIではない。Supabase検証は完了しており、後続では業務画面接続・実ログイン・実Storageの受入確認を行う。
+
+### T13 Phase 1：納付操作（2026年9月11日・ローカル実装済み）
+
+承認範囲はPhase 1だけ。納付期限設定／解除、未納／納付済み更新、未納差戻し理由、納付更新の監査、本人・職員の取得、JST期限超過フラグを追加。既存申請Actionの入力契約は維持。Phase 2の入退去とPhase 3のキャンプ監査補完・職員メモは未着手。
+
+新規6ファイル：`supabase/migrations/202609110015_application_payments.sql`、`app/actions/staff-application-operations.js`、`utils/application-operations/validation.js`、`utils/application-operations/queries.js`、`tests/application-operations-actions.test.mjs`、`supabase/tests/application_operations.sql`。変更は既存の地域活動取得、ローカルDBテスト実行スクリプト、この資料・ai_context・database・routesのみ。同時操作4ケースは既存ローカル実行スクリプトへ追加し、専用の新規SQLファイルは作らなかった。
+
+検証結果：対象Node 24テスト成功、DB単一接続91項目成功、別接続4ケース（同じ版で納付更新、納付と審査、待機中の職員停止、REPEATABLE READ）成功。別接続は異なる接続IDとpg_blocking_pidsで実待機を検査し、失敗側の部分更新なしも確認。SQL014→015適用前後の16テーブル完全一致、入居前・滞在中・退去済みの納付更新で滞在・金額等が不変、一時ローカルDBと架空データの後片付けを確認。ローカルAuthは代替実装であり、実Supabase/JWT/画面の受入を代替しない。
+
+再現（Phase 1だけ）：
+```bash
+node --experimental-vm-modules --test tests/application-operations-actions.test.mjs
+node scripts/test-community-applications-db.mjs application_operations.sql --payments-concurrency
+```
+既存ローカルPostgreSQL runtimeを使用し、.envやSupabase接続先は読まない。実行スクリプトの引数なしは全回帰になるため、Phase 3終了まで実行しない。変更JS6ファイルの対象ESLintも成功（元プロジェクトの既存node_modulesを参照）。初回のSQL権限テストは検証用UPDATEにRETURNINGがなくカーソルエラーになったため、検証SQLを修正して成功。lint初回の依存解決エラーも既存node_modulesのNODE_PATH指定で解消。
+
+Supabase適用、commit、push、全回帰・全体lint・buildは未実施。T13は画面未接続・Supabase未適用のため引き続き作業中。SQL015を本番でまだ実行しない。
