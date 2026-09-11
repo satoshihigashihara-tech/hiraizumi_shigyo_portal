@@ -185,3 +185,6 @@ SQL027と`process-account-cleanup` Edge Functionはmain・Supabaseへ適用済�
 ### T24 受入・デモ準備（2026年9月11日）
 
 `docs/mvp-acceptance.md`、`docs/demo-runbook.md`、`docs/incident-runbook.md`とREADMEを受入の基準にする。架空の5役割だけを使い、DB自動検証と実ブラウザ確認を分ける。未確認項目を成功扱いにせず、発表時の通信障害には事前スクリーンショットで切り替える。誤ったアカウント削除の疑いがある場合は対象Cronだけを停止し、DBやAuthを直接削除しない。
+### フロント引き継ぎ：認証画面（2026年9月11日）
+
+`codex/frontend-auth-screens`でフロント作業を引き継いだ。`/signup`、`/forbidden`、`/staff`と職員layoutを追加し、既存の利用者layoutへ`requireActiveUser`を接続。職員layoutは`requireStaff`を使う。新規登録の失敗・確認メール案内は`/signup`内に留め、ログアウトは設計どおり公開トップへ戻す。未完成URLへのリンクは表示しない。ローカルでは対象Action 60件、lint、buildが成功し、PCと375pxのログイン・新規登録表示、未ログインでの`/user`・`/staff`・`/forbidden`の遷移を確認した。実アカウントによる役割別ログイン、停止中の表示、登録確認メールは未確認。Supabase・Vercelは変更していない。

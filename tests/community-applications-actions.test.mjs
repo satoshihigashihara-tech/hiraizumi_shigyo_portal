@@ -38,6 +38,7 @@ async function harness(path, { response = { data: SAVED, error: null }, denied =
       async signUp(args) { calls.push(["signup", copy(args)]); return authResponse; },
       async signInWithPassword(args) { calls.push(["login", copy(args)]); return authResponse; },
       async getUser() { calls.push(["getUser"]); return authResponse; },
+      async signOut() { calls.push(["logout"]); return { error: null }; },
     },
     async rpc(name, args) { calls.push(["rpc", name, copy(args)]); return response; },
     from(table) {
@@ -351,7 +352,17 @@ test("signup and login retain community dates and reject external redirects", as
   }
  }
  const { api } = await harness("app/actions/auth.js", { authResponse: { data: { session: null } } });
- await assert.rejects(api.signUp(new Map(Object.entries({ email: "fictional@example.invalid", password: "fictional-password", returnTo: target }))), e => new URL(e.url, "http://local").searchParams.get("returnTo") === target);
+ await assert.rejects(api.signUp(new Map(Object.entries({ email: "fictional@example.invalid", password: "fictional-password", returnTo: target }))), e => {
+  const url = new URL(e.url, "http://local");
+  return url.pathname === "/signup" && url.searchParams.get("notice") === "confirm" && url.searchParams.get("returnTo") === target;
+ });
+});
+test("signup validation stays on signup and logout returns to the public top", async () => {
+ const { api, calls } = await harness("app/actions/auth.js");
+ await assert.rejects(api.signUp(new Map(Object.entries({ email: "", password: "" }))), e => e.url === "/signup?error=required");
+ await assert.rejects(api.signUp(new Map(Object.entries({ email: "fictional@example.invalid", password: "12345" }))), e => e.url === "/signup?error=short");
+ await assert.rejects(api.logout(), e => e.url === "/");
+ assert.ok(calls.some(c => c[0] === "logout"));
 });
 test("profile update invalidates community creation defaults", async () => {
  const { api, calls } = await harness("app/actions/profile.js", { readResponse: {} });

@@ -1,0 +1,13 @@
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-4, 16px);
+}
+
+.actions h2 {
+  font-size: var(--sg-font-xl, 20px);
+}
+
+.actions p {
+  color: var(--sg-color-text-muted, #4d5358);
+}
