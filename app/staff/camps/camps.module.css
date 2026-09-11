@@ -1,0 +1,11 @@
+.actions{display:flex;flex-wrap:wrap;gap:var(--sg-space-3,12px)}
+.sectionTitle{margin-bottom:var(--sg-space-4,16px);font-size:var(--sg-font-xl,20px)}
+.cardList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sg-space-4,16px);list-style:none}
+.card,.form{display:flex;flex-direction:column;gap:var(--sg-space-4,16px);padding:var(--sg-space-5,24px);border:1px solid var(--sg-color-border,#c9ced4);border-radius:var(--sg-radius,8px);background:var(--sg-color-surface,#fff)}
+.card h2,.card h3{font-size:var(--sg-font-xl,20px)}
+.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sg-space-3,12px)}
+.facts dt{color:var(--sg-color-text-muted,#4d5358);font-size:var(--sg-font-sm,14px)}
+.facts dd{margin-top:var(--sg-space-1,4px);overflow-wrap:anywhere}
+.twoColumns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sg-space-4,16px)}
+.emailList{display:grid;gap:var(--sg-space-2,8px);padding-left:1.25rem;overflow-wrap:anywhere}
+@media(max-width:599px){.cardList,.facts,.twoColumns{grid-template-columns:1fr}.card,.form{padding:var(--sg-space-4,16px)}.actions>*{width:100%}}

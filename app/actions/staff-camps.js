@@ -76,6 +76,10 @@ export async function createStaffCamp(formData) {
   return runCampAction(formData, "create");
 }
 
+export async function createStaffCampState(_previousState, formData) {
+  return runCampAction(formData, "create");
+}
+
 export async function updateStaffCamp(formData) {
   return runCampAction(formData, "update");
 }
