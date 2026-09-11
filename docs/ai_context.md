@@ -173,3 +173,7 @@ SQL022適用済みのmainから`codex/group-participant-submissions`でSQL023を
 SQL024はmain・Supabase反映済みで、実DB検証`7 / true`。`codex/group-changes-cancellation`でSQL025をローカル実装中。対象は参加者の修正再提出、不許可後の削除・招待による交代、団体取消申請・職員確定、許可後減員と部屋人数の一括更新。残り1人は団体専有を維持し、0人で団体を終了する。滞在開始後の取消、古い版、権限外操作を拒否する。
 
 ローカルではSQL001〜025適用、対象DB12項目、関連Node41件が成功。期限切れ自動処理はT21。SQL025のSupabase適用、commit、push、画面接続は未実施。本番SQL025は保存し、ROLLBACK検証SQLは保存しない。
+
+### T21 団体期限処理（2026年9月11日）
+
+SQL026をローカル実装中。毎分のSupabase CronがDB関数を直接呼び、提出・修正期限切れの団体を一括終了する。公開Next.js Cron RouteやEdge Functionは追加しない。本番SQL026は保存、ROLLBACK検証SQLは保存しない。

@@ -653,3 +653,7 @@ T19以降の`group_members / group_invites`、参加者数集計、団体審査�
 代表者の参加者削除は`remove_community_group_participant`、団体取消申請は`request_community_group_cancellation`を使う。職員の参加者不許可は`reject_group_participant`、取消確定は`confirm_community_group_cancellation`、許可後減員は`cancel_approved_group_participant`を使う。いずれも施設→団体→参加者・滞在・部屋の順にロックし、権限と`updated_at`を待機後に再検査する。
 
 許可後減員RPCは対象参加者の取消、active参加者数、団体予定人数、部屋別人数を同時に更新する。残り1人では団体枠を解放せず、0人で団体・部屋・枠を終了する。取消申請だけでは枠を解放せず、職員確定まで保持する。履歴・受付番号・料金・同意書は削除しない。期限切れ処理はSQL025に含めずT21で行う。
+
+### T21 団体期限処理（SQL 026）
+
+`private.expire_due_community_groups`をSupabase Cronから毎分呼ぶ。期限未達の団体、未終了参加者、招待、部屋、日程枠、履歴、system監査を施設ロック配下で更新する。提出とCronも同じ施設ロックで直列化する。全員提出済みなら審査中へ進め、取消申請中は`status_before_cancellation`の期限を判定する。公開カレンダーのGETでは更新せず、期限切れ枠を読取条件で除外する。
