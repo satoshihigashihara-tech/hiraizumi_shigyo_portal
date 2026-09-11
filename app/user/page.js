@@ -100,6 +100,9 @@ function applicationTitle(application) {
 /**
  * 利用区分の日本語ラベル。未知の値でも壊れない。
  *
+ * 同じ関数が app/user/applications/page.js にもある。共通化の判断材料（T08/T16）は
+ * そちらのコメントに集約しているので、まとめるときはそちらを参照する。
+ *
  * @param {string|null|undefined} usageType
  * @returns {string}
  */
@@ -325,7 +328,12 @@ export default async function UserHomePage({ searchParams }) {
                 いま操作が必要な申請はありません。町からの連絡をお待ちください。
               </p>
             ) : (
-              <ul className={styles.actionList}>
+              /*
+               * list-style: none を当てた <ul> は Safari/VoiceOver でリストとして
+               * 読み上げられないことがあるので role="list" を添える
+               * （/user/applications 側も同じ作り）。
+               */
+              <ul className={styles.actionList} role="list">
                 {actionNeeded.map((application) => {
                   const action = nextAction(application, today);
                   const dueText = formatDue(action.due);
@@ -355,7 +363,7 @@ export default async function UserHomePage({ searchParams }) {
             <h2 className={styles.sectionTitle} id="applications-heading">
               申請の状況
             </h2>
-            <ul className={styles.cardList}>
+            <ul className={styles.cardList} role="list">
               {applications.map((application) => (
                 <ApplicationCard
                   application={application}
