@@ -121,7 +121,8 @@ export async function uploadGuardianConsent(formData) {
     redirect(withQuery(editPath, { error: "not-found" }));
   }
 
-  const community = application.usage_type === "community_individual";
+  const community = ["community_individual", "community_group"].includes(application.usage_type);
+  const groupParticipant = application.usage_type === "community_group";
   const updatedAt = getText(formData, "updatedAt");
   if (community && !isUpdatedAt(updatedAt)) {
     redirect(withQuery(editPath, { error: "invalid-version" }));
@@ -154,7 +155,8 @@ export async function uploadGuardianConsent(formData) {
   }
 
   const { data: metadata, error: metadataError } = await admin.rpc(
-    community ? "register_community_guardian_consent_document" : "register_guardian_consent_document",
+    groupParticipant ? "register_group_guardian_consent_document"
+      : community ? "register_community_guardian_consent_document" : "register_guardian_consent_document",
     {
       target_application_id: applicationId,
       expected_user_id: user.id,

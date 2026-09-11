@@ -28,11 +28,15 @@ const LIMITS = {
 };
 
 const ERROR_CODES = new Set([
-  "invalid-group", "invalid-fields", "required-fields", "field-too-long", "invalid-phone",
+  "invalid-group", "invalid-application", "invalid-fields", "required-fields", "field-too-long", "invalid-phone",
   "invalid-place", "invalid-period", "invalid-duration", "invalid-participant-count", "start-too-soon",
   "end-too-late", "invalid-email", "not-found", "not-editable", "not-submittable", "invalid-version",
   "stale-update", "calendar-unavailable", "calendar-inconsistent", "confirmation-required",
   "invalid-submission-key", "forbidden", "load-failed", "invalid-page",
+  "invalid-action", "invalid-status", "invalid-room", "invalid-room-plan", "duplicate-room",
+  "room-required", "room-capacity-full", "facility-capacity-full", "allocation-count-mismatch",
+  "purpose-review-required", "participants-not-approved", "reason-required", "reason-too-long",
+  "invalid-deadline", "staff-required",
 ]);
 
 export function booleanField(value) {
