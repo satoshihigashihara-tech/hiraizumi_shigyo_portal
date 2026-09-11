@@ -1,0 +1,118 @@
+.section,
+.card,
+.cardHeader,
+.facts,
+.form {
+  display: flex;
+  flex-direction: column;
+}
+
+.section {
+  gap: var(--sg-space-3, 12px);
+}
+
+.sectionTitle,
+.cardTitle {
+  font-size: var(--sg-font-lg, 18px);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.sectionNote,
+.periodNote,
+.formNote {
+  max-width: 65ch;
+  color: var(--sg-color-text-muted, #4d5358);
+  font-size: var(--sg-font-sm, 14px);
+}
+
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-4, 16px);
+  list-style: none;
+}
+
+.card {
+  gap: var(--sg-space-4, 16px);
+  padding: var(--sg-space-5, 24px);
+  border: 1px solid var(--sg-color-border, #c9ced4);
+  border-radius: var(--sg-radius, 8px);
+  background: var(--sg-color-surface, #ffffff);
+}
+
+.cardHeader {
+  gap: var(--sg-space-2, 8px);
+}
+
+.fixedPeriod {
+  align-self: flex-start;
+  padding: 2px var(--sg-space-2, 8px);
+  border: 1px solid var(--sg-neutral-border, #5c6670);
+  border-radius: var(--sg-radius-pill, 999px);
+  color: var(--sg-neutral-text, #343a40);
+  background: var(--sg-neutral-bg, #f1f3f5);
+  font-size: var(--sg-font-xs, 12px);
+  font-weight: 700;
+}
+
+.facts {
+  gap: var(--sg-space-2, 8px);
+}
+
+.fact {
+  display: grid;
+  grid-template-columns: 7em minmax(0, 1fr);
+  gap: var(--sg-space-3, 12px);
+}
+
+.fact dt {
+  color: var(--sg-color-text-muted, #4d5358);
+  font-size: var(--sg-font-sm, 14px);
+}
+
+.fact dd {
+  font-size: var(--sg-font-base, 16px);
+  font-weight: 600;
+}
+
+.periodNote {
+  padding: var(--sg-space-3, 12px);
+  border-left: 4px solid var(--sg-info-border, #1f3c88);
+  border-radius: 0 var(--sg-radius, 8px) var(--sg-radius, 8px) 0;
+  color: var(--sg-info-text, #14306e);
+  background: var(--sg-info-bg, #eaf1fb);
+}
+
+.form {
+  align-items: flex-start;
+  gap: var(--sg-space-2, 8px);
+  padding-top: var(--sg-space-4, 16px);
+  border-top: 1px solid var(--sg-color-border, #c9ced4);
+}
+
+.backLink {
+  display: flex;
+  align-items: flex-start;
+}
+
+@media (max-width: 599px) {
+  .card {
+    padding: var(--sg-space-4, 16px);
+  }
+
+  .fact {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .form,
+  .backLink {
+    display: block;
+  }
+
+  .formNote {
+    margin-top: var(--sg-space-2, 8px);
+  }
+}
+
