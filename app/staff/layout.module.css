@@ -1,0 +1,114 @@
+.layout {
+  --sg-space-2: 8px;
+  --sg-space-3: 12px;
+  --sg-space-4: 16px;
+  --sg-space-5: 24px;
+  --sg-radius: 8px;
+  --sg-font-base: 16px;
+  --sg-line-height: 1.6;
+  --sg-color-surface: #ffffff;
+  --sg-color-text: #1b1d1f;
+  --sg-color-text-muted: #4d5358;
+  --sg-color-border: #c9ced4;
+  --sg-color-focus: #1f3c88;
+  --sg-neutral-bg: #f1f3f5;
+  display: flex;
+  flex: 1;
+  min-height: 100%;
+  flex-direction: column;
+  color: var(--sg-color-text);
+  background: var(--sg-color-surface);
+}
+
+.layout :focus-visible {
+  outline: 3px solid var(--sg-color-focus);
+  outline-offset: 2px;
+}
+
+.skipLink {
+  position: absolute;
+  top: 0;
+  left: -9999px;
+  z-index: 10;
+  padding: var(--sg-space-2) var(--sg-space-4);
+  border-radius: 0 0 var(--sg-radius) 0;
+  color: #ffffff;
+  background: #1f3c88;
+}
+
+.skipLink:focus {
+  left: 0;
+}
+
+.header {
+  border-bottom: 1px solid var(--sg-color-border);
+  color: var(--sg-color-text);
+  background: var(--sg-color-surface);
+}
+
+.headerInner {
+  width: 100%;
+  max-width: 960px;
+  margin-inline: auto;
+  padding: var(--sg-space-3) var(--sg-space-4);
+}
+
+.brandRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sg-space-2);
+}
+
+.brand {
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.logoutForm {
+  display: flex;
+}
+
+.nav {
+  margin-top: var(--sg-space-2);
+}
+
+.navList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--sg-space-2);
+  list-style: none;
+}
+
+.navLink {
+  display: inline-block;
+  padding: var(--sg-space-2) var(--sg-space-3);
+  border-radius: var(--sg-radius);
+  color: var(--sg-color-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .navLink:hover {
+    color: var(--sg-color-text);
+    background: var(--sg-neutral-bg);
+  }
+}
+
+.main {
+  flex: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+  .layout {
+    --sg-color-surface: #14171a;
+    --sg-color-text: #ececec;
+    --sg-color-text-muted: #b6bcc2;
+    --sg-color-border: #3a4046;
+    --sg-color-focus: #9db8ff;
+    --sg-neutral-bg: #22262a;
+  }
+}

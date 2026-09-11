@@ -1,0 +1,30 @@
+.page {
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+}
+
+@media (min-width: 768px) {
+  .page {
+    padding-block: 48px;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sg-space-3, 12px);
+}
+
+.actions form {
+  display: flex;
+}
+
+@media (max-width: 480px) {
+  .actions,
+  .actions form {
+    align-items: stretch;
+    width: 100%;
+  }
+}

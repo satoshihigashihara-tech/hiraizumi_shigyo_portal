@@ -1,6 +1,5 @@
 import { login } from "@/app/actions/auth";
 import AlertMessage from "@/app/components/AlertMessage";
-import ComingSoon from "@/app/components/ComingSoon";
 import FormField from "@/app/components/FormField";
 import LinkButton from "@/app/components/LinkButton";
 import PageShell from "@/app/components/PageShell";
@@ -219,16 +218,16 @@ export default async function LoginPage({ searchParams }) {
           </div>
         </form>
 
-        {/*
-         * 新規登録（/signup）とパスワード再設定（/forgot-password）は
-         * この段階の対象外。動くように見えるボタンを置かず、
-         * ComingSoon（<a>も<button>も描画しない部品）で案内する
-         * （docs/frontend-handoff.md・イシュー #17 の注意事項）。
-         */}
-        <ComingSoon
-          title="新規登録・パスワードの再設定"
-          description="現在は準備中です。ログインできないときは、町の担当へお問い合わせください。"
-        />
+        <section className={styles.accountHelp} aria-labelledby="account-help-title">
+          <h2 id="account-help-title">初めて利用する方</h2>
+          <p>利用者アカウントを作成してから申請へ進んでください。</p>
+          <LinkButton
+            href={returnTo ? `/signup?returnTo=${encodeURIComponent(returnTo)}` : "/signup"}
+            fullWidthOnMobile
+          >
+            新規登録
+          </LinkButton>
+        </section>
 
         <div className={styles.footer}>
           <LinkButton href="/" fullWidthOnMobile>

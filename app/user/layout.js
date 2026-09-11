@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { logout } from "@/app/actions/auth";
 import SubmitButton from "@/app/components/SubmitButton";
+import { requireActiveUser } from "@/utils/auth/guards";
 import styles from "./layout.module.css";
 
 /*
@@ -8,27 +9,12 @@ import styles from "./layout.module.css";
  * （docs/routes.md 2章5項・13章「app/user/layout.js：一般利用者セッションの確認と
  *  利用者ナビゲーション」）。
  *
- * 未接続：セッションと役割の確認はまだ入れていない。
- * ------------------------------------------------------------------
- * docs/routes.md 8.1 の多層防御の1段目はこのレイアウトが担う。接続時は
- * このコンポーネントの先頭で
+ * セッションとactive状態は requireActiveUser で確認する。未ログインなら
+ * /login?returnTo=/user、停止中または情報整理中なら
+ * /forbidden?reason=account-unavailable へ送る。各Server Actionとデータ取得も
+ * それぞれ認可するため、このlayoutだけを防御にはしない。
  *
- *     const { user } = await requireActiveUser("/user");
- *
- * を呼ぶ（utils/auth/guards.js に実装済み。未ログインなら
- * /login?returnTo=/user へ、停止中のアカウントなら /forbidden へ送る）。
- * 今この段階で呼ばないのは、イシュー #18 の対象が画面と仮データ表示までで、
- * 本人データの取得はバックエンド担当（東原）が接続するため。加えて、
- * requireActiveUser は Supabase への接続を必要とするので、
- * NEXT_PUBLIC_SUPABASE_URL / ANON_KEY が無い環境では仮データの画面自体を
- * 開けなくなり、イシュー #18 の完了条件（仮データでホームが表示される）を
- * 確認できなくなる。
- *
- * ログアウトは既存の logout（app/actions/auth.js）へ直接つなぐ。
- * 押しても何も起きないボタンを置かないため、案内ではなく実装済みのActionを使う。
- * なお現在の logout の遷移先は /login で、設計上の遷移先 `/` とは異なる
- * （docs/tasks.md 4.1 に既知の差分として記録済み）。Action側の修正は
- * バックエンド担当の範囲なので、この画面からは変更しない。
+ * ログアウトは既存の logout（app/actions/auth.js）へ直接つなぎ、公開トップへ戻る。
  *
  * 現在地の強調（aria-current="page"）は入れていない。判定には usePathname が
  * 必要で、共通ヘッダー全体を Client Component にすることになるため
@@ -49,15 +35,15 @@ import styles from "./layout.module.css";
 const NAV_ITEMS = [
   { href: "/user", label: "ホーム" },
   { href: "/user/applications", label: "申請一覧" },
-  { href: "/user/applications/new", label: "新規申請" },
-  { href: "/user/profile", label: "プロフィール" },
 ];
 
 export const metadata = {
   title: "利用者メニュー｜ひらいずみ志業ポータル",
 };
 
-export default function UserLayout({ children }) {
+export default async function UserLayout({ children }) {
+  await requireActiveUser("/user");
+
   return (
     <div className={styles.layout}>
       {/*

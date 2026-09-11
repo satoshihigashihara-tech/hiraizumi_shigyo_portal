@@ -28,6 +28,16 @@ function loginErrorUrl(code, returnTo) {
   return `/login?${searchParams.toString()}`;
 }
 
+function signUpUrl(parameter, code, returnTo) {
+  const searchParams = new URLSearchParams({ [parameter]: code });
+
+  if (returnTo) {
+    searchParams.set("returnTo", returnTo);
+  }
+
+  return `/signup?${searchParams.toString()}`;
+}
+
 function destinationForRole(returnTo, isStaff) {
   if (!returnTo) {
     return isStaff ? "/staff" : "/user";
@@ -93,22 +103,22 @@ export async function signUp(formData) {
   const returnTo = safeReturnTo(getText(formData, "returnTo"));
 
   if (!email || !password) {
-    redirect(loginErrorUrl("required", returnTo));
+    redirect(signUpUrl("error", "required", returnTo));
   }
 
   if (password.length < 6) {
-    redirect(loginErrorUrl("short", returnTo));
+    redirect(signUpUrl("error", "short", returnTo));
   }
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({ email, password });
 
   if (error) {
-    redirect(loginErrorUrl("signup", returnTo));
+    redirect(signUpUrl("error", "signup", returnTo));
   }
 
   if (!data.session) {
-    redirect(loginErrorUrl("confirm", returnTo));
+    redirect(signUpUrl("notice", "confirm", returnTo));
   }
 
   revalidatePath("/", "layout");
@@ -120,5 +130,5 @@ export async function logout() {
   await supabase.auth.signOut();
 
   revalidatePath("/", "layout");
-  redirect("/login");
+  redirect("/");
 }
