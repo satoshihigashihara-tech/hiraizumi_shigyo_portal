@@ -293,7 +293,11 @@ begin
     perform pg_temp.t13_error(pg_temp.t14_stay(x,'check_out'),'stay-completed','double checkout');
     perform pg_temp.t13_error(pg_temp.t14_stay(x,'check_in'),'stay-completed','cannot reenter');
     perform pg_temp.t13_check(pg_temp.t13_snapshot(x)=snap,'rejected repeats keep history');
-    r:=pg_temp.t13_ok(pg_temp.t13_call(owner_id,format('select public.get_application_stay(%L) as data',x)),'owner stay read');
+    perform pg_temp.t13_error(pg_temp.t13_call(owner_id,format('select public.get_application_stay(%L)',x)),
+      'active-user-required','checked-out owner cleanup pending','42501');
+    perform pg_temp.t13_check((select account_state='cleanup_pending' from public.profiles where id=owner_id)
+      and exists(select 1 from public.account_cleanup_jobs where user_id=owner_id and status='queued'),'checkout queues cleanup');
+    r:=pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format('select public.get_application_stay(%L) as data',x)),'staff keeps stay read');
     perform pg_temp.t13_check(r->0->'data'->'stay'->>'status'='moved_out' and r->0->'data'->>'end_date'=(c.today+14)::text,'detail keeps original end date');
     perform pg_temp.t13_check(not ((r->0->'data') ? 'audit_logs') and not ((r->0->'data'->'room_allocation') ? 'reason'),'no internal data');
     perform pg_temp.t13_error(pg_temp.t13_call(c.other_id,format('select public.get_application_stay(%L)',x)),'not-found','other read denied');
@@ -308,10 +312,13 @@ begin
       perform pg_temp.t13_check((select availability='available' from public.get_public_calendar(date_trunc('month',c.today+14)::date) where date=c.today+14),'public capacity reopened');
       r:=pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format('select * from public.get_staff_calendar(%L) where entry_id=%L',date_trunc('month',c.today)::date,x)),'month calendar');
       perform pg_temp.t13_check(r->0->>'end_date'=c.today::text,'month end clipped');
-      -- Actual submission by same owner into the newly free capacity on D+14.
-      candidate:=pg_temp.t13_draft(owner_id,c.today+14,c.today+15);
+      perform pg_temp.t13_error(pg_temp.t13_call(owner_id,format('select public.create_community_application_draft(%L,%L::jsonb)',
+        gen_random_uuid(),jsonb_build_object('start_date',(c.today+14)::text,'end_date',(c.today+15)::text))),
+        'active-user-required','cleanup-pending owner cannot resubmit','42501');
+      -- A different active user can use the newly free capacity on D+14.
+      candidate:=pg_temp.t13_draft(pg_temp.t13_user(),c.today+14,c.today+15);
       extras:=array_append(extras,candidate);
-      perform pg_temp.t13_ok(pg_temp.t13_submit(candidate),'same owner resubmits after release into last capacity');
+      perform pg_temp.t13_ok(pg_temp.t13_submit(candidate),'different owner submits after release into last capacity');
       perform pg_temp.t13_check(private.community_occupancy(c.today+14)=15,'new submission counted once');
       update public.applications set status='rejected' where id=any(extras);
       -- Fixture-only historical claims: fifteen original periods overlap the new camp,
