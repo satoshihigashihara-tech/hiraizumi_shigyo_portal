@@ -29,6 +29,8 @@ import styles from "./Button.module.css";
  * @param {boolean} [props.disabled=false] 送信中以外の理由で無効化する場合
  * @param {boolean} [props.pending] useActionState の pending で上書きする場合に渡す
  * @param {boolean} [props.fullWidthOnMobile=false] 480px以下で全幅にする
+ * @param {string} [props.name] 複数送信ボタンを識別するフォーム名
+ * @param {string} [props.value] 押したボタンから送る値
  */
 export default function SubmitButton({
   children,
@@ -37,6 +39,8 @@ export default function SubmitButton({
   disabled = false,
   pending: pendingProp,
   fullWidthOnMobile = false,
+  name,
+  value,
 }) {
   const { pending } = useFormStatus();
   const isPending = pendingProp ?? pending;
@@ -49,6 +53,8 @@ export default function SubmitButton({
       className={`${styles.button} ${variantClass} ${widthClass}`}
       disabled={isPending || disabled}
       aria-busy={isPending}
+      name={name}
+      value={value}
     >
       {isPending ? pendingLabel : children}
     </button>

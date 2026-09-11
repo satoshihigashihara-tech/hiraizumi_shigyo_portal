@@ -2,6 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { requireActiveUser } from "@/utils/auth/guards";
+import {
+  campBoolean,
+  campDraftFailure,
+  readCampDraftFields,
+  validateCampDraftFields,
+} from "@/utils/camp-applications/validation";
 import { createClient } from "@/utils/supabase/server";
 
 const UUID_PATTERN =
@@ -15,11 +22,6 @@ function getText(formData, name) {
 function getRequiredUuid(formData, name) {
   const value = getText(formData, name);
   return UUID_PATTERN.test(value) ? value : null;
-}
-
-function getCheckbox(formData, name) {
-  const value = formData.get(name);
-  return value === "on" || value === "true" || value === "1";
 }
 
 function withQuery(path, values) {
@@ -95,46 +97,71 @@ export async function createCampApplicationDraft(formData) {
   redirect(`/user/applications/${applicationId}/edit`);
 }
 
-export async function saveCampApplicationDraft(formData) {
+export async function saveCampApplicationDraft(previousState, formData) {
+  const { supabase } = await requireActiveUser("/user/applications");
   const applicationId = getRequiredUuid(formData, "applicationId");
+  const fields = readCampDraftFields(formData);
+  const intent = getText(formData, "intent");
 
   if (!applicationId) {
-    redirect(withQuery("/user", { error: "invalid-application" }));
+    return campDraftFailure("invalid-application", fields);
   }
 
   const applicationPath = `/user/applications/${applicationId}`;
   const editPath = `${applicationPath}/edit`;
   const confirmPath = `${applicationPath}/confirm`;
-  const supabase = await getAuthenticatedClient(editPath);
-  const roomPreference = getText(formData, "requestedRoomPreference");
-  const intent = getText(formData, "intent");
+
+  if (!["save", "confirm"].includes(intent)) {
+    return campDraftFailure("invalid-action", fields);
+  }
+
+  const fieldErrors = validateCampDraftFields(fields, intent);
+  if (Object.keys(fieldErrors).length > 0) {
+    return campDraftFailure(
+      Object.values(fieldErrors)[0],
+      fields,
+      fieldErrors,
+    );
+  }
 
   const { error } = await supabase.rpc("save_camp_application_draft", {
     target_application_id: applicationId,
-    applicant_name: getText(formData, "applicantName"),
-    applicant_address: getText(formData, "applicantAddress"),
-    applicant_phone: getText(formData, "applicantPhone"),
-    emergency_contact_name: getText(formData, "emergencyContactName"),
-    emergency_contact_address: getText(
-      formData,
-      "emergencyContactAddress",
+    applicant_name: fields.applicantName,
+    applicant_address: fields.applicantAddress,
+    applicant_phone: fields.applicantPhone,
+    emergency_contact_name: fields.emergencyContactName,
+    emergency_contact_address: fields.emergencyContactAddress,
+    emergency_contact_phone: fields.emergencyContactPhone,
+    usage_purpose: fields.usagePurpose,
+    notes: fields.notes,
+    guardian_consent_required: campBoolean(
+      fields.guardianConsentRequired,
     ),
-    emergency_contact_phone: getText(formData, "emergencyContactPhone"),
-    usage_purpose: getText(formData, "usagePurpose"),
-    notes: getText(formData, "notes"),
-    guardian_consent_required: getCheckbox(
-      formData,
-      "guardianConsentRequired",
-    ),
-    requested_room_preference: roomPreference || null,
+    requested_room_preference: fields.requestedRoomPreference || null,
   });
 
   if (error) {
-    redirect(
-      withQuery(editPath, {
-        error: databaseErrorCode(error),
-      }),
-    );
+    return campDraftFailure(databaseErrorCode(error), fields);
+  }
+
+  if (
+    intent === "confirm" &&
+    campBoolean(fields.guardianConsentRequired) === true
+  ) {
+    const { data: consent, error: consentError } = await supabase
+      .from("consent_documents")
+      .select("id")
+      .eq("application_id", applicationId)
+      .maybeSingle();
+
+    if (consentError) {
+      return campDraftFailure("load-failed", fields);
+    }
+    if (!consent) {
+      return campDraftFailure("guardian-consent", fields, {
+        guardianConsentFile: "file-required",
+      });
+    }
   }
 
   revalidatePath(applicationPath);
