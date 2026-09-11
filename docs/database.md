@@ -579,3 +579,15 @@ FK参照元には上記と重複しない索引を付ける。機密列への索
 既存の施設実更新ロック・職員active再検査・申請行ロック・申請updated_at照合・料金行ロックを使用する。期限・状態・paid_atだけを変更し、親申請のupdated_atと `audit_logs.action=update_payment` を同一トランザクションで更新する。監査は料金行と親版の変更前後、職員ID、日時、差戻し理由を保持。最新版本の同内容保存は無更新、古い版は拒否。金額・月別内訳・申請状態・滞在・部屋・日程枠・受付番号・本人向け申請状態履歴は不変。
 
 両RPCは空search_pathのsecurity definerで、PUBLIC／anon／service_role実行を拒否し、authenticatedだけに実行権限を付与。取得はactive本人または職員を検査して必要列だけ返す。期限超過は取得側でJST基準に導出し、保存状態を増やさない。SQL 001〜014は変更していない。Supabaseへの015適用は未実施。
+
+### T14 Phase 2 実装補足（SQL 016・未適用）
+
+`202609110016_application_stays.sql` だけを追加。新表・既存行のデータ移行なし。`update_application_stay(uuid,timestamptz,text)` は通常キャンプ／地域活動個人の許可済み申請だけを対象とし、延長元付き・団体は拒否する。既存facility_guard実更新とactive職員再検査、申請版照合、滞在・部屋・個人枠の行ロックを使用。部屋と枠の期間一致・未解放を検査し、入居時は既存の部屋・施設定員・日程条件も再確認する。
+
+check_inは許可期間内に限定。check_outは入居日時との順序を確認し、DBの `clock_timestamp()` をロック待機後に採取。解放日は `least(JST確認日+1, 元の終了日+1)`。個人はroom_allocationsとcalendar_claims、キャンプはroom_allocationsだけにreleased_fromを保存。キャンプ全体の枠は変更しない。申請状態・許可期間・料金・月別内訳・納付・受付番号・既存申請状態履歴は維持する。
+
+滞在、解放日、親申請updated_at、`audit_logs.action=check_in / check_out` を一括保存。監査は滞在・部屋・個人枠・親版の前後を記録する。この操作に必要な監査だけを追加し、キャンプ利用者監査の補完・staff_notesは未実装。再送は旧版ならstale-update、最新版本でも二重遷移・退去後再入居を拒否する。
+
+既存の個人定員・本人重複・公開カレンダー・日程競合判定はindividual枠のreleased_fromを既に参照しているため再実装しない。SQL016でprivate.check_camp_room_capacityの施設人数にも個人解放日を反映し、解放後に作成したキャンプの割当に過去の個人枠を数えない。職員カレンダー月／日の返却期間・人数にも解放日を反映。`get_application_stay(uuid)` は本人／active職員の必要列だけを同一読取スナップショットで返す。
+
+SQL001〜015とrequirements.mdは変更しない。SQL015はmain 434cc63へマージ・Supabase適用・実DB91項目成功済み（ユーザー確認）。SQL016はローカル検証のみで、実Supabase未適用。

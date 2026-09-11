@@ -136,6 +136,102 @@ async function paymentConcurrency(c) {
   }
   console.log('PASS payment concurrency cleanup');
 }
+// Phase 2: real RPC races on separate local connections, with temporary fixtures only.
+async function stayConcurrency(c) {
+  const scenarios = ['double-check-in', 'double-check-out', 'checkout-versus-room', 'room-versus-checkout',
+    'payment-versus-checkout', 'camp-double-checkout', 'staff-disabled', 'repeatable-read', 'checkout-versus-submission'];
+  async function session(client, actor) {
+    await client.query("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: actor,
+      email: `upgrade-${actor}@example.invalid`, role: 'authenticated' })]);
+    await client.query('set role authenticated');
+  }
+  const version = async (id) => (await c.query('select updated_at::text as v from public.applications where id=$1', [id])).rows[0].v;
+  for (const scenario of scenarios) {
+    const fixture = await prepareUpgrade(c);
+    const staffB = randomUUID();
+    await c.query('insert into auth.users(id,email) values($1,$2)', [staffB, `stay-${staffB}@example.invalid`]);
+    await c.query('insert into public.staff_roles(user_id) values($1)', [staffB]);
+    const a = await connect(), b = await connect();
+    try {
+      const camp = scenario === 'camp-double-checkout';
+      const target = fixture.applications[camp ? 0 : 1];
+      if (!camp) {
+        const v = await version(target);
+        await session(c, fixture.owner);
+        await c.query('select * from public.submit_community_application($1,$2,$3,true)', [target,v,randomUUID()]);
+        await c.query('reset role');
+        let next = await version(target); await session(c, fixture.staff);
+        await c.query("select * from public.review_community_application($1,'start_review',$2)", [target,next]);
+        await c.query('reset role'); next = await version(target); await session(c, fixture.staff);
+        await c.query("select * from public.assign_community_application_room($1,(select id from public.rooms where name='桐'),$2)", [target,next]);
+        await c.query('reset role'); next = await version(target); await session(c, fixture.staff);
+        await c.query("select * from public.review_community_application($1,'approve',$2)", [target,next]);
+        await c.query('reset role');
+      }
+      // Date relocation is test setup, not a product operation.
+      if (camp) await c.query("update public.camps set start_date=(clock_timestamp() at time zone 'Asia/Tokyo')::date,end_date=(clock_timestamp() at time zone 'Asia/Tokyo')::date+14 where id=$1", [fixture.camp]);
+      await c.query("update public.applications set start_date=(clock_timestamp() at time zone 'Asia/Tokyo')::date,end_date=(clock_timestamp() at time zone 'Asia/Tokyo')::date+14 where id=$1", [target]);
+      await c.query('update public.room_allocations r set start_date=a.start_date,end_date=a.end_date from public.applications a where a.id=r.application_id and a.id=$1', [target]);
+      const checkout = !['double-check-in','staff-disabled','repeatable-read'].includes(scenario);
+      if (checkout) {
+        const v = await version(target); await session(c, fixture.staff);
+        await c.query("select * from public.update_application_stay($1,$2,'check_in')", [target,v]); await c.query('reset role');
+      }
+      let candidate;
+      if (scenario === 'checkout-versus-submission') {
+        candidate = randomUUID(); fixture.applications.push(candidate);
+        const fields = (await c.query(`select jsonb_build_object('user_name','架空利用者','user_address','架空住所','user_phone','0000000000',
+          'emergency_name','架空連絡先','emergency_address','架空住所','emergency_phone','0000000000','purpose','架空調査',
+          'local_activity','架空調査活動','usage_place','common_and_second_floor','requires_guardian_consent',false,
+          'start_date',(clock_timestamp() at time zone 'Asia/Tokyo')::date+14,'end_date',(clock_timestamp() at time zone 'Asia/Tokyo')::date+15) as f`)).rows[0].f;
+        await session(c,fixture.owner); await c.query('select * from public.create_community_application_draft($1,$2)',[candidate,fields]); await c.query('reset role');
+      }
+      const v = await version(target), candidateVersion = candidate ? await version(candidate) : null;
+      await session(a, fixture.staff); await session(b, candidate ? fixture.owner : staffB);
+      await a.query('begin'); await b.query(scenario === 'repeatable-read' ? 'begin isolation level repeatable read' : 'begin');
+      await b.query("set local statement_timeout='8s'");
+      if (scenario === 'repeatable-read') await b.query('select count(*) from public.applications');
+      if (scenario === 'staff-disabled') {
+        await a.query('reset role'); await a.query('select private.lock_calendar_facility()');
+        await a.query("update public.profiles set account_state='disabled' where id=$1",[staffB]);
+      } else if (scenario === 'room-versus-checkout') {
+        await a.query("select * from public.assign_community_application_room($1,(select id from public.rooms where name='藤'),$2,'架空変更')",[target,v]);
+      } else if (scenario === 'payment-versus-checkout') {
+        await a.query("select * from public.update_application_payment($1,$2,'paid',null)",[target,v]);
+      } else await a.query('select * from public.update_application_stay($1,$2,$3)',[target,v,checkout ? 'check_out' : 'check_in']);
+      const leader = (await a.query('select pg_backend_pid() as pid')).rows[0].pid;
+      const peer = (await b.query('select pg_backend_pid() as pid')).rows[0].pid;
+      const pending = (scenario === 'checkout-versus-room'
+        ? b.query("select * from public.assign_community_application_room($1,(select id from public.rooms where name='藤'),$2,'架空変更')",[target,v])
+        : candidate ? b.query('select * from public.submit_community_application($1,$2,$3,true)',[candidate,candidateVersion,randomUUID()])
+        : b.query('select * from public.update_application_stay($1,$2,$3)',[target,v,checkout ? 'check_out' : 'check_in']))
+        .then(() => ({ ok:true }), error => ({ ok:false,code:error.code,message:error.message }));
+      let waited = false;
+      for (let n=0;n<100;n++) {
+        if ((await c.query('select $2::integer=any(pg_blocking_pids($1)) as waiting',[peer,leader])).rows[0].waiting) { waited=true; break; }
+        await new Promise(resolve => setTimeout(resolve,20));
+      }
+      await a.query('reset role'); const expected = await storedRows(a); await a.query('commit');
+      const outcome = await pending;
+      await b.query(candidate && outcome.ok ? 'commit' : 'rollback'); await b.query('reset role');
+      assert.ok(waited && leader!==peer, `${scenario}: distinct connections and actual waiting`);
+      if (candidate) {
+        assert.equal(outcome.ok,true, JSON.stringify(outcome));
+        assert.equal((await c.query('select status from public.applications where id=$1',[candidate])).rows[0].status,'submitted');
+      } else {
+        assert.equal(outcome.ok,false,scenario);
+        assert.equal(outcome.code, scenario==='repeatable-read' ? '40001' : scenario==='staff-disabled' ? '42501' : 'P0001');
+        if (!['repeatable-read','staff-disabled'].includes(scenario)) assert.equal(outcome.message,'stale-update');
+        assert.deepEqual(await storedRows(c),expected,`${scenario}: no partial writes from losing RPC`);
+      }
+      console.log('PASS stay concurrency',scenario);
+    } finally {
+      await a.query('rollback'); await b.query('rollback'); await c.query('reset role');
+      await cleanupUpgrade(c,fixture); await c.query('delete from auth.users where id=$1',[staffB]);
+    }
+  }
+  console.log('PASS stay concurrency cleanup');
+}
 let stage = 'start';
 let failed = false;
 try {
@@ -167,6 +263,8 @@ try {
   let beforeUpgrade;
   let paymentUpgrade;
   let beforePaymentUpgrade;
+  let stayUpgrade;
+  let beforeStayUpgrade;
   for (const file of (await readdir(join(root, 'supabase/migrations'))).filter(x => x.endsWith('.sql')).sort()) {
     stage = file; await c.query(await readFile(join(root, 'supabase/migrations', file), 'utf8'));
     console.log('PASS migration', file);
@@ -185,13 +283,21 @@ try {
       assert.deepEqual(await storedRows(c), beforePaymentUpgrade);
       await cleanupUpgrade(c, paymentUpgrade);
       console.log('PASS 014 to 015 upgrade: 16 tables unchanged; fictional fixtures removed');
+      stayUpgrade = await prepareUpgrade(c); beforeStayUpgrade = await storedRows(c);
+    }
+    if (file === '202609110016_application_stays.sql') {
+      assert.deepEqual(await storedRows(c), beforeStayUpgrade);
+      await cleanupUpgrade(c, stayUpgrade);
+      console.log('PASS 015 to 016 upgrade: 16 tables unchanged; fictional fixtures removed');
     }
   }
   const requested = process.argv.slice(2);
+  if (requested.includes('--stays-only')) await c.query("select set_config('test.operations_phase','stays',false)");
   const single = ['application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql'];
   const concurrent = ['camp_room_allocations_concurrency.sql', 'calendar_concurrency.sql', 'community_individual_applications_concurrency.sql', 'community_individual_room_allocations_concurrency.sql'];
-  const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency'];
+  const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.includes('--stays-only') ? ['application_operations.sql', ...(requested.includes('--stays-concurrency') ? ['--stays-concurrency'] : [])] : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency', '--stays-concurrency'];
   for (const file of selected) {
+    if (file === '--stays-concurrency') { stage=file; await stayConcurrency(c); continue; }
     if (file === '--payments-concurrency') { stage = file; await paymentConcurrency(c); continue; }
     assert.ok([...single, ...concurrent].includes(file), 'Unknown test file'); stage = file;
     const result = await c.query(await readFile(join(root, 'supabase/tests', file), 'utf8'));

@@ -651,3 +651,15 @@ MVPでは `app/user` と `app/staff` 配下に個別の `loading.js`、`error.js
 `utils/application-operations/queries.js` の `getApplicationPayment(applicationId)` はactive本人（職員権限もDBで認可）、`getStaffApplicationPayment(applicationId)` はactive職員。1回の読取RPCで `{ error, application }` を返す。applicationは `id / usage_type / camp_id / status / updated_at / charge`。chargeは `total_amount / payment_status / payment_due_date / paid_at / is_overdue / months`、下書き等で料金行がなければnull。monthsは既存の月別内訳5項目。内部理由・監査・職員IDは返さない。
 
 `is_overdue` は取得時点の日本時間で「未納かつ期限翌日以降」を計算する。共有キャッシュへ保存しない。既存 `getCommunityApplication` のchargeにも同項目だけ追加（既存項目は維持）。期限超過は表示用の派生値であり、DBの納付状態は未納のまま。画面は未実装。
+
+### T14 Phase 2：入退去（SQL 016・ローカル検証済み、Supabase未適用）
+
+既存 `app/actions/staff-application-operations.js` に `checkInApplication(formData)` と `checkOutApplication(formData)` を追加。両方とも入力は `applicationId / updatedAt` のみ。DBから取得した版の文字列をマイクロ秒まで保持する。Actionでactive職員・取得時の許可／滞在状態・版を確認し、更新RPCがロック後に再検査する。日時・終了日・料金・キャンプID・任意の遷移先状態は入力として採用しない。納付Actionの契約は変更しない。
+
+成功時は既存の職員詳細URLへ `?updated=checked-in` または `?updated=checked-out`。本人・職員詳細／一覧と公開・職員カレンダーを再検証。失敗時は `{ error, fields, fieldErrors }` を返す。主なエラーは `invalid-application / invalid-version / stale-update / invalid-status / invalid-stay / stay-completed / outside-stay-period / invalid-allocation / calendar-inconsistent / forbidden / not-found / update-failed`。既存の部屋・施設・日程の検査エラーも安全なコードで返す。古い版・40001・40P01は自動再送しない。操作前の読取は許可の確約ではなく、保存時のRPC再検査が最終判定。
+
+`utils/application-operations/queries.js` に `getApplicationStay(applicationId)`（active本人／DBで職員も認可）と `getStaffApplicationStay(applicationId)`（active職員）を追加。1回の読取RPCで `{ error, application }`、applicationは `id / usage_type / camp_id / status / updated_at / start_date / end_date / stay / room_allocation`。stayは `status / checked_in_at / checked_out_at`、room_allocationは既存の部屋ID・名称・人数・期間・released_from・is_current。内部監査・職員ID・部屋変更理由は返さない。既存地域活動詳細の滞在取得も継続利用可能。
+
+入居は許可期間内の `before_move_in → staying`、退去は `staying → moved_out` のみ。未納でも操作可能。DB時刻を記録し、手入力・遡及訂正・再入居は提供しない。退去日は占有し、翌日から解放（予定終了後の確認は元終了日+1で上限）。個人は部屋とindividual枠、キャンプは個人部屋だけを解放しcamp枠を維持する。
+
+申請詳細の期間は元の許可期間を維持。職員カレンダーの個人／申請行のend_dateは解放日前日までの占有期間を返し、翌日以降の日別行を除外する。キャンプ日別人数も解放日を反映し、月別人数はその月に占有日がある対象数。キャンプ期間の行自体は人数0でも維持する。公開カレンダーの受付窓D+14〜D+60は維持するため、早期解放と直近日の新規受付は同義ではない。
