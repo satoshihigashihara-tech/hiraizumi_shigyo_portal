@@ -145,8 +145,8 @@ export default function Page() {
 
 `mock-data.js` の項目名は実際の返却契約に合わせてあるため、項目名の付け替え作業は不要です。
 
-- `MOCK_APPLICATIONS` の各要素 = `getCommunityApplication(id, mode)` が返す `application`
-- `MOCK_APPLICATION_LIST` の各要素 = `getCommunityApplications(page)` が返す `applications` の1件
+- `MOCK_APPLICATIONS` の各要素 = `getCommunityApplication(id, mode)` が返す `application`（下書き・修正依頼・許可・申請済みの4件）
+- `MOCK_APPLICATION_LIST` の各要素 = `getCommunityApplications(page)` が返す `applications` の1件。受付番号・料金・部屋・滞在は一覧の返却契約に含まれないため持たない
 - ただし `usage_type` / `camp_id` / `requested_room_preference` は**返却契約に含まれない補助項目**です。キャンプ・統合一覧の取得契約（T08/T16）が決まったら差し替えてください。
 
 ## 特に間違えやすい3点

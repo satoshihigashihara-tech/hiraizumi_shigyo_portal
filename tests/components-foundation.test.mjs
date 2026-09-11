@@ -342,8 +342,8 @@ test("mock charges follow min(days × 300, 9,000) and add up to their totals", a
       assert.equal(sum(months.map((month) => month.usage_days)), countStayDays(startDate, endDate));
     }
   }
-  // 下書きの見込・修正候補の見込・修正依頼中の確定額・許可済みの確定額
-  assert.equal(checked, 4);
+  // 下書きの見込・修正候補の見込・修正依頼中の確定額・許可済みの確定額・申請済みの確定額
+  assert.equal(checked, 5);
   const approved = MOCK_APPLICATIONS[2];
   assert.equal(approved.charge.total_amount, sum(approved.charge.months.map((month) => month.amount)));
   assert.equal(approved.charge.total_amount, 9600); // 8月分5,100円 + 9月分4,500円

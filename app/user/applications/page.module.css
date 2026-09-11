@@ -1,0 +1,147 @@
+/*
+ * 申請一覧（/user/applications）のスタイル。
+ *
+ * この画面は PageShell の内側にあるので、余白・文字サイズ・色・ダークモードは
+ * CSS基準値（--sg-*）をそのまま使える（app/components/README.md）。
+ * ここに持たせるのは「この画面だけの並びと囲み」だけ。
+ * app/globals.css は「事前に相談」対象のため変更しない（docs/frontend-handoff.md）。
+ *
+ * 375px対策：.shell * { min-width: 0 } が PageShell 側にあるため、
+ * ここでは幅を固定する指定を置かない。横並びは必ず折り返す。
+ */
+
+/* 新規申請・ホームへの導線。375pxでは縦積み、広い画面では横へ並べて折り返す */
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sg-space-2, 8px);
+}
+
+@media (min-width: 600px) {
+  .actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-3, 12px);
+}
+
+.sectionTitle {
+  font-size: var(--sg-font-lg, 18px);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.note {
+  color: var(--sg-color-text-muted, #4d5358);
+  font-size: var(--sg-font-sm, 14px);
+}
+
+/* 申請カード。1件ずつ縦に並べる */
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-4, 16px);
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-3, 12px);
+  padding: var(--sg-space-4, 16px);
+  border: 1px solid var(--sg-color-border, #c9ced4);
+  border-radius: var(--sg-radius, 8px);
+  color: var(--sg-color-text, #1b1d1f);
+  background: var(--sg-color-surface, #ffffff);
+}
+
+.cardTitle {
+  font-size: var(--sg-font-base, 16px);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/*
+ * 項目名と値。375pxでは縦積み、600px以上で2列にする。
+ * dt/dd を直接 grid の子にすると行の対応が崩れるため、1組ずつ div で包む。
+ */
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-2, 8px);
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.factKey {
+  color: var(--sg-color-text-muted, #4d5358);
+  font-size: var(--sg-font-xs, 12px);
+}
+
+.factValue {
+  font-size: var(--sg-font-sm, 14px);
+}
+
+@media (min-width: 600px) {
+  .fact {
+    flex-direction: row;
+    gap: var(--sg-space-3, 12px);
+  }
+
+  /* 項目名の幅をそろえる。縮まないが、はみ出す前に値側が折り返す */
+  .factKey {
+    flex: 0 0 7em;
+    font-size: var(--sg-font-sm, 14px);
+  }
+
+  .factValue {
+    flex: 1 1 auto;
+  }
+}
+
+/*
+ * 町からの連絡（修正理由・不許可理由）。
+ * 色だけに頼らないよう「町からの連絡：」の文字を必ず添える。
+ */
+.reason {
+  padding: var(--sg-space-2, 8px) var(--sg-space-3, 12px);
+  border-left: 4px solid var(--sg-info-border, #1f3c88);
+  border-radius: 0 var(--sg-radius, 8px) var(--sg-radius, 8px) 0;
+  color: var(--sg-info-text, #14306e);
+  background: var(--sg-info-bg, #eaf1fb);
+  font-size: var(--sg-font-sm, 14px);
+}
+
+.reasonKey {
+  font-weight: 700;
+}
+
+/*
+ * 詳細への導線。上に区切り線を引いて、カード内の情報と操作を分ける。
+ * LinkButton は inline-flex なので、stretch で全幅にし押す位置を迷わせない。
+ */
+.cardLink {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding-top: var(--sg-space-3, 12px);
+  border-top: 1px solid var(--sg-color-border, #c9ced4);
+}
+
+/* 広い画面ではボタンを内容の幅に戻す（375pxでは全幅のまま押しやすくする） */
+@media (min-width: 600px) {
+  .cardLink {
+    align-items: flex-start;
+  }
+}

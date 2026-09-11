@@ -65,7 +65,8 @@ export const MOCK_CONTACT = {
 };
 
 /**
- * 申請3件。
+ * 申請4件。下書き・修正依頼・許可・申請済みの4状態をそろえ、一覧画面
+ * （/user/applications）で状態が混在した並びを確認できるようにしている。
  *
  * application の項目は getCommunityApplication() の返却と同じ：
  *   id / status / updated_at / reserved_start_date / reserved_end_date /
@@ -322,6 +323,71 @@ export const MOCK_APPLICATIONS = [
       ],
     },
     requested_room_preference: "private_requested",
+  },
+
+  // 4件目：申請済み（地域活動・個人）。町の確認待ちで、利用者側の操作は不要。
+  // 一覧で「下書き」「修正依頼」「許可」と並べたときに、申請状態だけが違う
+  // 4つ目の例として使う。納付期限は職員が後から設定する任意項目なので
+  // （docs/database.md 5.7 payment_due_date「職員設定」）、提出直後は null。
+  // 期限が無くても納付状態は「未納」から始まる点を確かめられる。
+  {
+    id: "11111111-1111-4111-8111-111111111114",
+    usage_type: "community_individual",
+    camp_id: null,
+    status: "submitted",
+    updated_at: "2026-09-09T05:30:00.111222+00:00",
+    reserved_start_date: "2026-11-05",
+    reserved_end_date: "2026-11-07",
+    submitted_at: "2026-09-09T05:30:00.111222+00:00",
+    last_submitted_at: "2026-09-09T05:30:00.111222+00:00",
+    revision_due_at: null,
+    decision_reason: null,
+    approval_comment: null,
+    reception_number: "SG-2026-0003",
+    has_consent: false,
+    can_edit: false,
+    room_allocation: null,
+    stay: null,
+    fields: {
+      user_name: MOCK_USER.full_name,
+      user_address: MOCK_USER.address,
+      user_phone: MOCK_USER.phone,
+      emergency_name: MOCK_USER.emergency_name,
+      emergency_address: MOCK_USER.emergency_address,
+      emergency_phone: MOCK_USER.emergency_phone,
+      purpose: "地域の祭りの準備を手伝うため。",
+      local_activity: "平泉町内の秋祭りの設営と片付けを手伝います。",
+      special_notes: null,
+      usage_place: "common_and_second_floor",
+      start_date: "2026-11-05",
+      end_date: "2026-11-07",
+      requires_guardian_consent: false,
+    },
+    events: [
+      {
+        from_status: "draft",
+        to_status: "submitted",
+        public_reason: null,
+        occurred_at: "2026-09-09T05:30:00.111222+00:00",
+      },
+    ],
+    estimated_months: [],
+    // 提出時に確定額を作成済み。納付期限は職員が設定するまで null。
+    charge: {
+      total_amount: 900,
+      payment_status: "unpaid",
+      payment_due_date: null,
+      months: [
+        {
+          month: "2026-11-01",
+          usage_days: 3,
+          daily_rate: 300,
+          monthly_cap: 9000,
+          amount: 900,
+        },
+      ],
+    },
+    requested_room_preference: null,
   },
 ];
 
