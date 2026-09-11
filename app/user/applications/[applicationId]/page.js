@@ -15,13 +15,16 @@ import {
 import { statusLabel } from "@/app/components/status-labels";
 import { errorMessage } from "@/app/components/messages";
 import { getCampApplicationForDetail } from "@/utils/camp-applications/queries";
+import { getCommunityApplication } from "@/utils/community-applications/queries";
+import { getUserApplicationUsageType } from "@/utils/user-applications/queries";
 import { DUE_KINDS, nextAction } from "@/app/user/next-action";
 import CampApplicationReview from "./CampApplicationReview";
+import CommunityApplicationDetail from "./CommunityApplicationDetail";
 import styles from "./page.module.css";
 
 export const metadata = {
-  title: "キャンプ申請詳細｜ひらいずみ志業ポータル",
-  description: "キャンプ利用申請の内容、審査、料金、部屋、滞在の状態を確認します。",
+  title: "申請詳細｜ひらいずみ志業ポータル",
+  description: "申請内容、審査、料金、部屋、滞在の状態を確認します。",
 };
 
 function ApplicationNotice({ application }) {
@@ -130,6 +133,12 @@ function StaySection({ application }) {
 
 export default async function CampApplicationDetailPage({ params }) {
   const { applicationId } = await params;
+  const kind = await getUserApplicationUsageType(applicationId, `/user/applications/${applicationId}`);
+  if (kind.usageType === "community_individual") {
+    const result = await getCommunityApplication(applicationId, "detail");
+    if (result.error || !result.application) return <PageShell title="地域活動の個人申請詳細"><AlertMessage tone="error" title="申請を開けませんでした"><p>{errorMessage(result.error)}</p></AlertMessage><LinkButton href="/user/applications" fullWidthOnMobile>申請一覧へ戻る</LinkButton></PageShell>;
+    return <PageShell title="地域活動の個人申請詳細" description="申請内容、審査、料金、部屋、滞在の状態を確認できます。"><CommunityApplicationDetail application={result.application} /></PageShell>;
+  }
   const { error, application } = await getCampApplicationForDetail(applicationId);
 
   if (error || !application) {

@@ -1,9 +1,9 @@
 import PageShell from "@/app/components/PageShell";
 import styles from "../application-view.module.css";
 
-export default function CampApplicationConfirmLoading() {
+export default function ApplicationConfirmLoading() {
   return (
-    <PageShell title="キャンプ申請を確認" description="申請内容を読み込んでいます。">
+    <PageShell title="申請内容を確認" description="申請内容を読み込んでいます。">
       <div className={styles.loadingCard} aria-hidden="true">
         <span className={styles.loadingLine} />
         <span className={styles.loadingLineShort} />
