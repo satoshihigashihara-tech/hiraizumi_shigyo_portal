@@ -1,0 +1,60 @@
+/*
+ * ログイン画面（/login）のスタイル。
+ *
+ * 余白・文字サイズ・色・ダークモードは PageShell.module.css の
+ * CSS基準値（--sg-*）を使う。ここでは「この画面だけの幅と並び」だけを持つ。
+ * app/globals.css は「事前に相談」対象のため変更しない
+ * （docs/frontend-handoff.md）。
+ */
+
+/*
+ * PageShell は最大960pxだが、ログインは入力2項目だけなので外側で幅を絞る。
+ * 内側の .shell は width:100% なので、この親の幅に収まる。
+ *
+ * この要素は .shell の外側にあり --sg-* を受け取れないため、
+ * ここだけは実数値で書く（32px = --sg-space-6 と同じ値）。
+ */
+.page {
+  width: 100%;
+  max-width: 480px;
+  margin-inline: auto;
+}
+
+/* 画面の縦中央寄りに見せる。375pxでは余白を足さず、内容を上へ詰める */
+@media (min-width: 768px) {
+  .page {
+    padding-block: 32px;
+  }
+}
+
+/*
+ * 入力欄どうしの間隔。PageShell の .body（24px間隔）より詰めて、
+ * 「メールアドレスとパスワードはひとまとまり」に見せる。
+ */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-4, 16px);
+}
+
+/*
+ * ログインボタン。SubmitButton・LinkButton は inline-flex なので、
+ * align-items: stretch で全幅にする。この画面は最大480pxに絞ってあり、
+ * 押す操作が1つしかないため、PCでも全幅のほうが迷わない
+ * （480px以下は部品側の fullWidthOnMobile でも全幅になる）。
+ */
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-top: var(--sg-space-2, 8px);
+}
+
+/* トップへの導線。ログインとは役割が違うことが分かるよう区切る */
+.footer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding-top: var(--sg-space-4, 16px);
+  border-top: 1px solid var(--sg-color-border, #c9ced4);
+}
