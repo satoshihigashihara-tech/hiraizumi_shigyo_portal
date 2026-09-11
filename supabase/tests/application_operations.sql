@@ -90,7 +90,7 @@ $$;
 do $$ declare c pg_temp.t13_context%rowtype; x uuid; camp uuid; camp_app uuid; protected_value jsonb; snapshot_value jsonb;
   v timestamptz; paid_time timestamptz; n integer; r jsonb; kind text; a public.applications%rowtype;
 begin
-  if current_setting('test.operations_phase',true)='stays' then return; end if;
+  if current_setting('test.operations_phase',true) in ('stays','audit-notes') then return; end if;
   select * into c from pg_temp.t13_context;
   x:=pg_temp.t13_draft(c.owner_id,c.today+20,c.today+22);
   perform pg_temp.t13_error(pg_temp.t13_payment(x,'paid'),'invalid-status','draft refused');
@@ -192,6 +192,7 @@ for each row execute function pg_temp.t14_fail_audit();
 create function pg_temp.t14_application(kind text, starts_on date, ends_on date) returns uuid language plpgsql as $$
 declare owner_id uuid:=pg_temp.t13_user(); staff_id uuid:=(select c.staff_id from pg_temp.t13_context c);
   x uuid; camp uuid; r jsonb; d date:=(clock_timestamp() at time zone 'Asia/Tokyo')::date; room_id uuid;
+  initial_camp_start date:=case when starts_on>d+2 then starts_on else d+50 end;
 begin
   select id into room_id from public.rooms where name='桐';
   if kind='community_individual' then
@@ -202,7 +203,7 @@ begin
     perform pg_temp.t13_ok(pg_temp.t13_review(x,'approve'),'stay fixture approval');
   else
     r:=pg_temp.t13_ok(pg_temp.t13_call(staff_id,format('select public.create_staff_camp(%L,%L,%L,%L) as id',
-      '架空入退去キャンプ',d+50,d+52,clock_timestamp()+interval '1 day')),'stay camp fixture');
+      '架空入退去キャンプ',initial_camp_start,initial_camp_start+2,clock_timestamp()+interval '1 day')),'stay camp fixture');
     camp:=(r->0->>'id')::uuid;
     perform pg_temp.t13_ok(pg_temp.t13_call(staff_id,format('select public.add_camp_eligible_users(%L,%L::text[])',camp,
       array[(select email from auth.users where id=owner_id)])),'stay eligible fixture');
@@ -235,6 +236,7 @@ $$;
 do $$ declare c pg_temp.t13_context%rowtype; x uuid; kind text; r jsonb; v timestamptz; snap jsonb; protected_value jsonb;
   room_before jsonb; camp_before jsonb; owner_id uuid; candidate uuid; extra uuid; test_camp_id uuid; new_camp_app uuid; new_owner uuid; extras uuid[]:='{}'::uuid[];
 begin
+  if current_setting('test.operations_phase',true)='audit-notes' then return; end if;
   if to_regprocedure('public.update_application_stay(uuid,timestamptz,text)') is null then
     if current_setting('test.operations_phase',true)='stays' then raise exception 'Phase 2 requires SQL016'; end if;
     return;
@@ -364,6 +366,100 @@ begin
   perform pg_temp.t13_ok(pg_temp.t14_stay(x,'check_out'),'late confirmation');
   perform pg_temp.t13_check((select released_from=c.today from public.calendar_claims where application_id=x),'late confirmation clamped to original end+1');
   perform pg_temp.t13_check(pg_temp.t14_protected(x)=protected_value,'late checkout does not extend or recalculate');
+end; $$;
+
+create function pg_temp.t15_note(x uuid,body_value text,note_id uuid default null,version_value timestamptz default null,actor uuid default null)
+returns jsonb language sql as $$ select pg_temp.t13_call(coalesce(actor,c.staff_id),format(
+  'select * from public.save_application_staff_note(%L,%L,%L,%L)',x,coalesce(version_value,pg_temp.t13_version(x)),note_id,body_value)) from pg_temp.t13_context c; $$;
+create function pg_temp.t15_fail_audit() returns trigger language plpgsql as $$ begin
+  if new.entity_id::text=current_setting('test.fail_note_audit',true) then raise exception 'test-audit-failure'; end if;
+  return new;
+end; $$;
+create trigger t15_test_audit_failure before insert on public.audit_logs for each row execute function pg_temp.t15_fail_audit();
+do $$ declare c pg_temp.t13_context%rowtype; x uuid; other_app uuid; note_id uuid; kind text; r jsonb;
+  v timestamptz; protected_value jsonb; snap jsonb; note_before jsonb; camp uuid; path1 text; path2 text; audit_count integer;
+  future_start date;
+begin
+  if to_regprocedure('public.save_application_staff_note(uuid,timestamptz,uuid,text)') is null then
+    if current_setting('test.operations_phase',true)='audit-notes' then raise exception 'Phase 3 requires SQL017'; end if; return;
+  end if;
+  select * into c from pg_temp.t13_context;
+  select greatest(c.today+365,
+    coalesce((select max(end_date)+30 from public.calendar_claims),c.today+365),
+    coalesce((select max(end_date)+30 from public.applications),c.today+365),
+    coalesce((select max(end_date)+30 from public.camps where deleted_at is null),c.today+365))
+  into future_start;
+  other_app:=pg_temp.t13_draft(c.other_id,c.today+40,c.today+42);
+  foreach kind in array array['community_individual','camp'] loop
+    if kind='community_individual' then x:=pg_temp.t13_draft(c.owner_id,c.today+20,c.today+22);
+    else x:=pg_temp.t14_application('camp',future_start,future_start+2); end if;
+    protected_value:=pg_temp.t14_protected(x); snap:=pg_temp.t13_snapshot(x);
+    perform pg_temp.t13_error(pg_temp.t15_note(x,'秘密メモ',null,null,c.owner_id),'staff-required','owner cannot write note','42501');
+    perform pg_temp.t13_error(pg_temp.t15_note(x,'秘密メモ',null,null,c.disabled_id),'staff-required','disabled cannot write note','42501');
+    perform pg_temp.t13_error(pg_temp.t15_note(x,'  '),'note-required','empty note');
+    perform pg_temp.t13_error(pg_temp.t15_note(x,repeat('あ',2001)),'note-too-long','note length');
+    perform pg_temp.t13_check(pg_temp.t13_snapshot(x)=snap,'invalid note calls leave no effects');
+    v:=pg_temp.t13_version(x);
+    r:=pg_temp.t13_ok(pg_temp.t15_note(x,repeat('あ',2000)),'add max-length note'); note_id:=(r->0->>'result_note_id')::uuid;
+    perform pg_temp.t13_check(pg_temp.t13_version(x)>v,'note advances parent version');
+    perform pg_temp.t13_error(pg_temp.t15_note(x,'再送',null,v),'stale-update','double add with old parent version');
+    perform pg_temp.t13_error(pg_temp.t15_note(other_app,'別申請',note_id),'note-not-found','cross-application note id');
+    r:=pg_temp.t13_ok(pg_temp.t15_note(x,'内部メモ改訂',note_id),'edit note');
+    snap:=pg_temp.t13_snapshot(x); select to_jsonb(n) into note_before from public.staff_notes n where id=note_id;
+    perform pg_temp.t13_ok(pg_temp.t15_note(x,'内部メモ改訂',note_id),'same note no-op');
+    perform pg_temp.t13_check(pg_temp.t13_snapshot(x)=snap and (select to_jsonb(n)=note_before from public.staff_notes n where id=note_id),'no-op changes no timestamps or audit');
+    perform set_config('test.fail_note_audit',x::text,true);
+    perform pg_temp.t13_error(pg_temp.t15_note(x,'失敗変更',note_id),'test-audit-failure','note audit failure');
+    perform set_config('test.fail_note_audit','',true);
+    perform pg_temp.t13_check(pg_temp.t13_snapshot(x)=snap and (select to_jsonb(n)=note_before from public.staff_notes n where id=note_id),'failed note rolls back body parent audit');
+    perform pg_temp.t13_check(pg_temp.t14_protected(x)=protected_value,'notes preserve business state money stay rooms claims receipt');
+    r:=pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format('select public.get_staff_application_notes(%L) as data',x)),'staff reads notes');
+    perform pg_temp.t13_check(r->0->'data'->'notes'->0->>'body'='内部メモ改訂','staff sees edited body');
+    perform pg_temp.t13_error(pg_temp.t13_call(c.owner_id,format('select public.get_staff_application_notes(%L)',x)),'staff-required','owner getter denied','42501');
+    r:=pg_temp.t13_ok(pg_temp.t13_call(c.owner_id,format('select count(*) as n from public.staff_notes where application_id=%L',x)),'owner RLS read');
+    perform pg_temp.t13_check(r->0->>'n'='0','notes hidden by RLS');
+    perform pg_temp.t13_error(pg_temp.t13_call(c.staff_id,format('update public.staff_notes set body=%L where id=%L returning id','不正',note_id)),null,'direct note writes denied','42501');
+    r:=pg_temp.t13_ok(pg_temp.t13_call((select user_id from public.applications where id=x),format('select public.get_application_payment(%L) as data',x)),'owner payment response');
+    perform pg_temp.t13_check(not ((r->0->'data') ? 'notes'),'owner payment has no notes');
+    perform pg_temp.t13_check((select count(*)=2 from public.audit_logs where entity_id=x and action in ('add_staff_note','edit_staff_note')),'one audit per note mutation');
+  end loop;
+  -- A separate camp exercises the unchanged user RPC signatures and service-only metadata API.
+  r:=pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format('select public.create_staff_camp(%L,%L,%L,%L) as id',
+    '架空監査キャンプ',future_start+10,future_start+12,clock_timestamp()+interval '1 day')),'audit camp');camp:=(r->0->>'id')::uuid;
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format('select public.add_camp_eligible_users(%L,%L::text[])',camp,
+    array[(select email from auth.users where id=c.owner_id)])),'audit eligible');
+  r:=pg_temp.t13_ok(pg_temp.t13_call(c.owner_id,format('select public.create_camp_application_draft(%L) as id',camp)),'audited create');x:=(r->0->>'id')::uuid;
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.owner_id,format('select public.create_camp_application_draft(%L)',camp)),'reuse draft');
+  perform pg_temp.t13_check((select count(*)=1 from public.audit_logs where entity_id=x),'draft reuse no duplicate audit');
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.owner_id,format('select public.save_camp_application_draft(%L,%L,%L,%L,%L,%L,%L,%L,null,true,%L)',
+    x,'架空監査秘密氏名','架空監査秘密住所','0000000000','架空監査秘密連絡先','架空監査秘密住所','0000000000','架空監査秘密目的','shared_ok')),'audited save');
+  path1:='applications/'||x::text||'/'||gen_random_uuid()::text;path2:='applications/'||x::text||'/'||gen_random_uuid()::text;
+  v:=pg_temp.t13_version(x);
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format('select public.register_guardian_consent_document(%L,%L,%L,%L,10)',x,c.owner_id,path1,'application/pdf'),'service_role'),'audited consent registration');
+  perform pg_temp.t13_check(pg_temp.t13_version(x)>v,'camp consent advances parent');
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.owner_id,format('select * from public.submit_camp_application(%L)',x)),'audited submit');
+  select count(*) into audit_count from public.audit_logs where entity_id=x;
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.owner_id,format('select * from public.submit_camp_application(%L)',x)),'submit replay');
+  perform pg_temp.t13_check((select count(*)=audit_count from public.audit_logs where entity_id=x),'submission replay not duplicated');
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format('select * from public.review_camp_application(%L,%L,%L)',x,'start_review',pg_temp.t13_version(x))),'review existing audit');
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format('select * from public.review_camp_application(%L,%L,%L,%L)',x,'request_revision',pg_temp.t13_version(x),'架空修正理由')),'revision request');
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.owner_id,format('select public.save_camp_application_draft(%L,%L,%L,%L,%L,%L,%L,%L,null,true,%L)',
+    x,'架空監査秘密氏名','架空監査秘密住所','0000000000','架空監査秘密連絡先','架空監査秘密住所','0000000000','架空監査秘密改訂目的','shared_ok')),'audited revision save');
+  snap:=pg_temp.t13_snapshot(x);
+  perform set_config('test.fail_note_audit',x::text,true);
+  perform pg_temp.t13_error(pg_temp.t13_call(c.staff_id,format('select public.register_guardian_consent_document(%L,%L,%L,%L,20)',x,c.owner_id,path2,'application/pdf'),'service_role'),'test-audit-failure','consent audit failure');
+  perform set_config('test.fail_note_audit','',true);
+  perform pg_temp.t13_check(pg_temp.t13_snapshot(x)=snap,'consent metadata and parent roll back on audit failure');
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format('select public.register_guardian_consent_document(%L,%L,%L,%L,20)',x,c.owner_id,path2,'application/pdf'),'service_role'),'audited replacement');
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.owner_id,format('select * from public.submit_camp_application(%L)',x)),'audited resubmit');
+  perform pg_temp.t13_check((select count(*)=7 from public.audit_logs where entity_id=x and actor_kind='user'),'create save consent submit replacement resubmit each once');
+  perform pg_temp.t13_check((select count(*)=2 from public.audit_logs where entity_id=x and actor_kind='staff'),'existing staff audit not duplicated');
+  perform pg_temp.t13_check((select bool_and(actor_user_id=c.owner_id) from public.audit_logs where entity_id=x and actor_kind='user'),'service metadata attributed to actual owner');
+  perform pg_temp.t13_check(not exists(select 1 from public.audit_logs where entity_id=x and actor_kind='user'
+    and (before_data::text||after_data::text like '%架空監査秘密%' or after_data::text like '%https://%')),'audit excludes personal contents and signed URLs');
+  perform pg_temp.t13_check(exists(select 1 from public.audit_logs where entity_id=x and action='submit_camp_application'
+    and before_data->'application'->>'status'='draft' and after_data->'application'->>'status'='submitted'
+    and after_data->'application'->>'requires_guardian_consent'='true'),'audit final consent flag and status transition');
 end; $$;
 select count(*) as passed_checks, bool_and(passed) as all_passed from pg_temp.t13_results;
 rollback;

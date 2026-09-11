@@ -1,7 +1,7 @@
 import "server-only";
 
 import { requireActiveUser, requireStaff } from "@/utils/auth/guards";
-import { isUuid, isUpdatedAt, isPaymentOverdue, paymentErrorCode, stayErrorCode } from "@/utils/application-operations/validation";
+import { isUuid, isUpdatedAt, isPaymentOverdue, paymentErrorCode, stayErrorCode, noteErrorCode } from "@/utils/application-operations/validation";
 
 const pick = (row, keys) => Object.fromEntries(keys.map((key) => [key, row[key] ?? null]));
 async function readPayment(supabase, applicationId) {
@@ -52,4 +52,15 @@ export async function getApplicationStay(applicationId) {
 export async function getStaffApplicationStay(applicationId) {
   const { supabase } = await requireStaff("/staff");
   return readStay(supabase, applicationId);
+}
+
+export async function getStaffApplicationNotes(applicationId) {
+  const { supabase } = await requireStaff("/staff");
+  if (!isUuid(applicationId)) return { error: "not-found", application: null };
+  const { data, error } = await supabase.rpc("get_staff_application_notes", { target_application_id: applicationId });
+  if (error) return { error: noteErrorCode(error) === "not-found" ? "not-found" : "load-failed", application: null };
+  if (data?.id !== applicationId || !isUpdatedAt(data.updated_at) || !Array.isArray(data.notes)) return { error: "load-failed", application: null };
+  return { error: null, application: { ...pick(data, ["id", "usage_type", "camp_id", "updated_at"]),
+    notes: data.notes.map((note) => pick(note, ["id", "body", "author_user_id", "created_at", "updated_at"])),
+  } };
 }

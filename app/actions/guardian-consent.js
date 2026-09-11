@@ -112,7 +112,7 @@ export async function uploadGuardianConsent(formData) {
 
   const { data: application, error: applicationError } = await supabase
     .from("applications")
-    .select("id, usage_type, status, revision_due_at, updated_at")
+    .select("id, usage_type, status, revision_due_at, updated_at, submitted_at")
     .eq("id", applicationId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -175,7 +175,7 @@ export async function uploadGuardianConsent(formData) {
   }
 
   const previousObjectPath = community ? metadata?.[0]?.previous_object_path : metadata;
-  const deletePrevious = community ? metadata?.[0]?.delete_previous === true : true;
+  const deletePrevious = community ? metadata?.[0]?.delete_previous === true : !application.submitted_at;
   if (deletePrevious && previousObjectPath && previousObjectPath !== objectPath) {
     await admin.storage.from(BUCKET_NAME).remove([previousObjectPath]);
   }

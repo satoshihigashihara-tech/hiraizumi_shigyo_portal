@@ -79,7 +79,7 @@ SQL 009は初回提出と修正再提出の期限を分け、ロック取得後�
 | T12 | 作業中 | キャンプ個人はSQL 010で実装・検証済み。地域活動個人の部屋割当・許可をSQL 014とActionへ追加し、既存回帰を含むローカル単一接続916項目・別接続60ケース・Node 112テスト成功。SQL 014のSupabase適用と既存回帰を含む単一接続916項目はユーザー確認済み。Supabaseの別接続60ケースと全後片付けもユーザー確認済み。画面接続は未実施。団体は未実装（第4.8節） | バックエンド→フロント | 各部屋定員と施設15人を日別に検査する。個人は割当完了後のみ許可、団体は参加人数と割当人数の一致も必要。許可後変更は理由と前後内容を残す | P10、第4.4節。キャンプ個人は部屋だけ選択し人数はDBで1人固定。申請者には割当結果を表示する |
 | T13 | 作業中 | 料金・納付。キャンプ提出時の計算とテーブルあり。SQL 013で地域活動個人の提出・日程変更再提出の計算を追加（ローカル検証済み、Supabase適用成功をユーザー確認済み）。納付更新と画面なし | バックエンド→フロント | 600円・9,600円・9,000円、同月別申請6,000円＋3,300円を確認する。職員が納付期限・未納／納付済みを更新し、未納の期限超過を表示する。他の状態を自動変更しない | 個別詳細へ月別内訳・合計・納付状態、職員詳細へ更新操作を渡す。団体代表者には見込合計と納付済み人数のみ |
 | T14 | 作業中 | 滞在・設定テーブルあり。SQL 010にキャンプ許可時の入居前登録を追加（単一接続のDB検証で成功確認済み）。SQL 014に地域活動個人の許可時の入居前登録を追加（ローカル検証済み・Supabase適用・DB検証・後片付け完了）。SQL016で入退去・早期退去をローカル実装・対象検証済み（Supabase未適用、画面なし） | バックエンド→フロント | 許可時に入居前、対面確認で滞在中→退去済みとする。早期退去では元期間・料金を維持し、個人は翌日、団体は全員退去の翌日から枠解放、キャンプ枠は維持する | 職員詳細に入退去操作、滞在中の利用者と許可後の団体代表者に連絡先を表示。設定画面は `/staff/settings` |
-| T15 | 作業中 | 個別状態履歴あり。SQL 010に職員専用 `audit_logs` とキャンプの審査・部屋割り記録を追加（単一接続のDB検証で成功確認済み）。SQL 013で地域活動個人の作成・保存・提出・同意書差替・最小審査の監査を追加（ローカル検証済み、Supabase適用成功をユーザー確認済み）。SQL 014に個人の割当・再割当・許可の監査と滞在スナップショットを追加（ローカル検証済み・Supabase適用・DB検証・後片付け完了）。キャンプ利用者操作の監査と `staff_notes` は未実装 | バックエンド→フロント | 全更新に操作者・日時・対象・前後内容を記録する。本人用の状態履歴と職員専用メモ・監査履歴を分離する | 第4.4節。内部の部屋変更理由は `audit_logs` だけから職員向けに取得する |
+| T15 | 作業中 | 個別状態履歴あり。SQL 010に職員専用 `audit_logs` とキャンプの審査・部屋割り記録を追加（単一接続のDB検証で成功確認済み）。SQL 013で地域活動個人の作成・保存・提出・同意書差替・最小審査の監査を追加（ローカル検証済み、Supabase適用成功をユーザー確認済み）。SQL 014に個人の割当・再割当・許可の監査と滞在スナップショットを追加（ローカル検証済み・Supabase適用・DB検証・後片付け完了）。SQL017でキャンプ利用者監査と個別申請staff_notesをローカル実装・全回帰済み（Supabase未適用、画面なし） | バックエンド→フロント | 全更新に操作者・日時・対象・前後内容を記録する。本人用の状態履歴と職員専用メモ・監査履歴を分離する | 第4.4節。内部の部屋変更理由は `audit_logs` だけから職員向けに取得する |
 | T16 | 未着手 | 職員ホームの横断検索と区分別一覧 | 共同 | `/staff` で氏名・団体名・期間検索、利用区分・申請／納付／滞在状態の絞り込みを行い、正しい詳細へ進める | `/staff`、キャンプ申請一覧、`/staff/community` 配下。検索条件・返却項目・件数制限を確定して渡す |
 | T17 | 未着手 | 地域活動のキャンセル申請と継続・延長申請。関連列のみでは機能として使えない | バックエンド→フロント | キャンセル申請中は枠を維持し、職員確定で解放する。滞在開始後は電話と早期退去へ案内する。延長は元申請に紐づく別申請・別料金とし、資格・日程・審査を再確認する | 共通申請の `/cancel`・`/extension` に状態別の対象条件を渡す。T09〜T14に依存 |
 
@@ -487,3 +487,38 @@ node --experimental-vm-modules --test --test-name-pattern=stay tests/application
 node scripts/test-community-applications-db.mjs --stays-only --stays-concurrency
 ```
 引数なしのDB実行は全回帰なのでPhase 3後まで保留。SQL単体の通常実行はPhase 1＋2、ローカル `--stays-only` はPhase 1のケースをスキップする。今回の対象コマンドでは過去機能の全テストを再実行していない。Supabase操作、全回帰・全体lint/build、画面接続は未実施。Phase 3のキャンプ監査補完・職員メモ、緊急連絡先設定、団体・キャンセル・延長・アカウント初期化は未着手。T14全体は引き続き作業中。
+
+### T15 Phase 3：キャンプ監査・職員メモ（2026年9月11日）
+
+clean確認後、main `f2e4dbb` 起点に `codex/application-audit-notes` を作成。SQL015・016はマージ・Supabase適用・実DB242項目成功済みとのユーザー確認が最新の前提。Phase 3だけを実装し、SQL017のSupabase適用・commit・pushは未実施。
+
+新規ファイルは承認済み `supabase/migrations/202609110017_application_audit_and_staff_notes.sql` だけ。変更した既存ファイル：
+- `app/actions/guardian-consent.js`（提出済みキャンプの旧添付保持）
+- `app/actions/staff-application-operations.js`（職員メモAction）
+- `utils/application-operations/validation.js`、`utils/application-operations/queries.js`（検証・職員取得）
+- `tests/application-operations-actions.test.mjs`、`supabase/tests/application_operations.sql`（Phase 3対象ケース）
+- `supabase/tests/camp_room_allocations_and_approval.sql`、`supabase/tests/camp_room_allocations_concurrency.sql`（既存の職員監査件数検査をactor_kind=staffへ明示し、追加した利用者監査と区別）
+- `scripts/test-community-applications-db.mjs`（SQL017移行一致、メモを含むスナップショット、同時操作）
+- docsの `ai_context.md / database.md / routes.md / tasks.md`
+
+キャンプActionは変更不要で、既存入力契約・返却形式を維持。追加の版引数は導入せず、保存・添付のロックと待機後の権限／期限検査を補完。職員メモは申請版で競合を検査し、保存・添付・納付等と同時更新された場合は古い版を拒否する。監査対象とメモ接続契約はdatabase.md・routes.md末尾。
+
+対象検証：Node15件、DB81項目、別接続8ケース成功。メモ追加／編集の競合、納付・キャンプ保存・添付登録との競合、待機中職員停止、REPEATABLE READ、メモ保存待機後の本人保存でメモを保持することを確認。DBでは権限・本文上限・別申請noteId・同値保存・監査失敗時の全取消・利用者監査の主体／前後／非公開性・再送重複防止を検証。Storage補償と提出済み旧添付の保持はNode境界テストで確認。
+
+対象成功後、全回帰を1回実施：**Node203件、DB単一接続1239項目（既存916＋運用323）、別接続81ケース（既存60＋納付4＋入退去9＋監査メモ8）がすべて成功**。全体lint成功（明示的に対象外の.claudeは除外）。buildは既存Google Fonts取得のDNS制限で初回失敗し、コード変更なし・通信許可付きでbuildだけ再実行して成功。Webpackを使用して既存依存パッケージを再利用した。
+
+SQL016→017前後の既存16テーブル完全一致、staff_notesが空であること、過去監査のバックフィルなしを確認。別接続は接続IDとpg_blocking_pidsで実待機を検査し、各専用データ／スキーマ・一時ローカルDBの後片付けまで成功。ローカルAuthは代替実装であり、実Supabase／JWT／Storage／画面の受入を代替しない。
+
+再現：
+```bash
+# Phase 3だけ
+node --experimental-vm-modules --test '--test-name-pattern=notes|audit consent' tests/application-operations-actions.test.mjs
+node scripts/test-community-applications-db.mjs --audit-notes-only --audit-notes-concurrency
+# 全回帰（今回は実施済み。変更や失敗なしに反復しない）
+node --experimental-vm-modules --test tests/*.test.mjs
+node scripts/test-community-applications-db.mjs
+npm run lint -- --ignore-pattern '.claude/**'
+npm run build -- --webpack
+```
+
+T15はSQL017未適用・画面未接続のため引き続き作業中。削除・検索・団体メモ・汎用監査基盤、T16以降は追加していない。requirements.md、SQL001〜016、秘密情報、.env.local、docs/apple_event.txt、.claudeは変更していない。
