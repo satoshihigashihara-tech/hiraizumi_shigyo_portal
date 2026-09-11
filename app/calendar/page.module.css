@@ -1,0 +1,135 @@
+.monthNavigation,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sg-space-3, 12px);
+}
+
+.calendarSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-4, 16px);
+}
+
+.monthTitle {
+  font-size: var(--sg-font-2xl, 24px);
+  line-height: 1.4;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sg-space-2, 8px);
+  list-style: none;
+}
+
+.legendItem {
+  padding: 2px var(--sg-space-2, 8px);
+  border: 1px solid;
+  border-left-width: 3px;
+  border-radius: var(--sg-radius-pill, 999px);
+  font-size: var(--sg-font-sm, 14px);
+  font-weight: 600;
+}
+
+.calendarHeader,
+.calendarDays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--sg-space-2, 8px);
+}
+
+.calendarDays {
+  width: 100%;
+  list-style: none;
+}
+
+.weekday {
+  padding-block: var(--sg-space-2, 8px);
+  text-align: center;
+  font-size: var(--sg-font-sm, 14px);
+  font-weight: 700;
+}
+
+.day {
+  min-height: 88px;
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-1, 4px);
+  padding: var(--sg-space-2, 8px);
+  border: 1px solid;
+  border-radius: var(--sg-radius, 8px);
+}
+
+.dayNumber {
+  font-weight: 700;
+}
+
+.dayStatus {
+  font-size: var(--sg-font-xs, 12px);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.available {
+  color: var(--sg-success-text, #0b3d26);
+  background: var(--sg-success-bg, #e7f4ec);
+  border-color: var(--sg-success-border, #0f5132);
+}
+
+.unavailable {
+  color: var(--sg-danger-text, #8c1d18);
+  background: var(--sg-danger-bg, #fdecec);
+  border-color: var(--sg-danger-border, #b3261e);
+}
+
+.notYetOpen {
+  color: var(--sg-neutral-text, #343a40);
+  background: var(--sg-neutral-bg, #f1f3f5);
+  border-color: var(--sg-neutral-border, #5c6670);
+}
+
+.note {
+  color: var(--sg-color-text-muted, #4d5358);
+  font-size: var(--sg-font-sm, 14px);
+  line-height: 1.6;
+}
+
+@media (max-width: 599px) {
+  .calendarHeader,
+  .calendarDays {
+    gap: 3px;
+  }
+
+  .day {
+    min-height: 68px;
+  }
+
+  .day {
+    gap: 2px;
+    padding: 5px 3px;
+  }
+
+  .dayNumber {
+    font-size: var(--sg-font-sm, 14px);
+  }
+
+  .dayStatus {
+    font-size: 10px;
+    overflow-wrap: anywhere;
+  }
+
+  .monthNavigation > * {
+    flex: 1 1 0;
+    padding-inline: var(--sg-space-2, 8px);
+  }
+}
+
+@media (max-width: 480px) {
+  .actions {
+    flex-direction: column;
+  }
+}
