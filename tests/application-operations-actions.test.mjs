@@ -253,3 +253,63 @@ for (const method of ["getApplicationStay", "getStaffApplicationStay"]) {
     assert.equal(calls.length, 1);
   });
 }
+
+for (const kind of ["camp", "community_individual"]) test(`notes ${kind}: create and edit contract`, async () => {
+  for (const noteId of ["", OTHER_ID]) {
+    const { api, calls } = await harness(actionPath, { response: { data: [{ ...result(kind)[0], result_note_id: OTHER_ID }] } });
+    await assert.rejects(api.saveApplicationStaffNote(form({ body: "内部メモ", noteId, authorUserId: USER })), /REDIRECT/);
+    assert.deepEqual(calls[0],["auth","staff","/staff"]);
+    assert.deepEqual(calls.find(c => c[0]==="rpc"),["rpc","save_application_staff_note",{
+      target_application_id:ID,expected_updated_at:VERSION,target_note_id:noteId || null,note_body:"内部メモ",
+    }]);
+    assert.ok(calls.at(-1)[1].endsWith("?updated=note-saved"));
+    assert.ok(!calls.at(-1)[1].includes("内部メモ"));
+  }
+});
+for (const [input, code] of [[{ applicationId:"bad" },"invalid-application"],[{ updatedAt:"bad" },"invalid-version"],
+  [{ noteId:"bad" },"invalid-note"],[{ body:"  " },"note-required"],[{ body:"あ".repeat(2001) },"note-too-long"]]) {
+  test(`notes validation ${code}`,async()=>{
+    const { api,calls }=await harness(actionPath);
+    assert.equal((await api.saveApplicationStaffNote(form({body:"メモ",noteId:"",...input}))).error,code);
+    assert.ok(!calls.some(c=>c[0]==="rpc"));
+  });
+}
+for(const [error,code] of [[{code:"40001"},"stale-update"],[{code:"40P01"},"stale-update"],
+  [{code:"42501"},"forbidden"],[{message:"note-not-found"},"note-not-found"],[{message:"SQL private"},"update-failed"]]) {
+  test(`notes DB ${code}`,async()=>{
+    const {api,calls}=await harness(actionPath,{response:{error}});
+    const output=await api.saveApplicationStaffNote(form({body:"内部メモ",noteId:""}));
+    assert.equal(output.error,code);assert.equal(output.fields.body,"内部メモ");
+    assert.ok(!JSON.stringify(output).includes("SQL private"));
+    assert.equal(calls.filter(c=>c[0]==="rpc").length,1);
+    assert.ok(!calls.some(c=>c[0]==="revalidate"));
+  });
+}
+test("notes unauthorized action and getter never return body",async()=>{
+  for(const [path,method,arg] of [[actionPath,"saveApplicationStaffNote",form({body:"内部メモ"})],
+    [queriesPath,"getStaffApplicationNotes",ID]]) {
+    const {api,calls}=await harness(path,{denied:true});
+    await assert.rejects(api[method](arg),/AUTH_REDIRECT/);assert.equal(calls.length,1);
+  }
+});
+test("notes getter whitelist; owner payment/stay getters strip injected notes",async()=>{
+  const data={...stayPreview(),notes:[{id:OTHER_ID,body:"内部メモ",secret:"hidden"}]};
+  const {api}=await harness(queriesPath,{response:{data}});
+  assert.equal((await api.getStaffApplicationNotes(ID)).application.notes[0].body,"内部メモ");
+  for(const method of ["getApplicationPayment","getApplicationStay"]) {
+    assert.ok(!JSON.stringify(await api[method](ID)).includes("内部メモ"));
+  }
+});
+test("audit consent: DB failure compensates uploaded object; submitted old object is retained",async()=>{
+  const file=new File([new Uint8Array([0x25,0x50,0x44,0x46,0x2d,0x31])],"consent.pdf",{type:"application/pdf"});
+  for(const failed of [false,true]) {
+    const {api,calls}=await harness("app/actions/guardian-consent.js",{
+      readResponse:{data:{id:ID,usage_type:"camp",status:"revision_requested",submitted_at:VERSION}},
+      metadata:failed?{error:{message:"audit storage error"}}:{data:`applications/${ID}/${OTHER_ID}`},
+    });
+    await assert.rejects(api.uploadGuardianConsent(new Map([["applicationId",ID],["guardianConsentFile",file]])),/REDIRECT/);
+    const removals=calls.filter(c=>c[0]==="remove");
+    assert.equal(removals.length,failed?1:0);
+    if(failed) assert.equal(removals[0][1],`applications/${ID}/${KEY}`);
+  }
+});

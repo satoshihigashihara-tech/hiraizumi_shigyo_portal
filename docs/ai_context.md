@@ -125,3 +125,11 @@ Phase 2・3は未着手。Supabase適用・commit・pushは禁止の指示に従
 clean確認後、上記main起点に `codex/application-stays` を作成し、承認されたPhase 2だけを実装した。新規はSQL016だけ。許可済みの入居前→滞在中→退去済み、DB時刻、翌日解放（予定終了日の翌日を上限）、個人枠／部屋解放とキャンプ全体枠の維持、必要な入退去監査・取得・Actionを追加。料金・申請期間・申請状態・受付番号は維持し、既存納付Actionの契約を変えていない。
 
 ローカル対象Node34件・DB151項目・別接続9ケースと後片付け、SQL015→016の既存16テーブル一致を確認。詳細・再現はtasks.md末尾、接続契約はroutes.md末尾。Supabase操作・commit・push、全回帰・全体lint/buildは未実施。Phase 3以降や画面には着手していない。SQL001〜015・requirements.md・秘密情報・.env.local・docs/apple_event.txt・.claudeは触らない。SQL016は未適用なので、承認なしにSupabase操作やPhase 3へ進めない。
+
+### T15 Phase 3 追記（2026年9月11日）
+
+最新前提はmain `f2e4dbb`、SQL015・016のSupabase適用と実application_operations.sql 242項目成功（ユーザー確認）。clean確認後 `codex/application-audit-notes` にPhase 3だけを実装。新規はSQL017だけで、Supabase操作・commit・pushは未実施。
+
+キャンプの下書き作成／保存・提出／再提出・同意書登録／差替を、既存RPC契約のまま同一トランザクションで監査する。PII実値はコピーせず、状態等・変更項目名と同意書の非公開参照を記録。職員操作監査と重複させない。active職員だけの個別申請メモ追加・編集・取得を追加し、本文1〜2000文字、親申請のupdated_at競合検査、監査との一括保存を実装。本人応答へメモを渡さない。既存キャンプActionの版引数は増やさず、ロックと待機後の権限／期限検査を補完。同意書失敗補償を維持し、提出済み旧添付を保持する。
+
+対象Node15・DB81・同時操作8ケース成功後、全回帰Node203・DB1239・同時操作81ケース、lint・buildが成功。buildだけ既存フォント取得のネットワーク制限から通信許可付きで再実行した。移行前後16テーブル一致・新メモ表空・全後片付けも確認。実Supabase／Storage／画面は未検証で、SQL017未適用。詳細・ファイル一覧・再現はtasks.md末尾、契約はroutes.md末尾。T16以降や範囲外機能へ進めない。

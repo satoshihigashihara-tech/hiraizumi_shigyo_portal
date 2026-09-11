@@ -663,3 +663,13 @@ MVPでは `app/user` と `app/staff` 配下に個別の `loading.js`、`error.js
 入居は許可期間内の `before_move_in → staying`、退去は `staying → moved_out` のみ。未納でも操作可能。DB時刻を記録し、手入力・遡及訂正・再入居は提供しない。退去日は占有し、翌日から解放（予定終了後の確認は元終了日+1で上限）。個人は部屋とindividual枠、キャンプは個人部屋だけを解放しcamp枠を維持する。
 
 申請詳細の期間は元の許可期間を維持。職員カレンダーの個人／申請行のend_dateは解放日前日までの占有期間を返し、翌日以降の日別行を除外する。キャンプ日別人数も解放日を反映し、月別人数はその月に占有日がある対象数。キャンプ期間の行自体は人数0でも維持する。公開カレンダーの受付窓D+14〜D+60は維持するため、早期解放と直近日の新規受付は同義ではない。
+
+### T15 Phase 3：キャンプ監査・職員メモ（SQL 017・ローカル検証済み、Supabase未適用）
+
+既存キャンプActionとRPCの引数・返却形式は維持。新しいhidden入力や既存画面の移行は不要。下書き作成・保存・提出／再提出・同意書登録／差替の監査をDB内へ追加した。キャンプ保存と同意書登録も施設ロックと待機後のactive／期限検査を使用し、同意書登録は親申請のupdated_atを進める。したがって職員操作は添付登録後に詳細を再取得して新しい版を使う。キャンプの従来の保存／提出／添付に楽観的版引数は追加しておらず、同時操作はロックで直列化する。本人保存が職員メモを上書きすることはない。
+
+`app/actions/staff-application-operations.js` に `saveApplicationStaffNote(formData)` を追加。入力は `applicationId / updatedAt / noteId / body`。noteId空欄で追加、既存UUIDで編集。updatedAtは申請の版でありメモ行の版ではない。空白除去後の本文1〜2000文字。active職員だけが操作し、別申請のnoteIdを拒否する。最新版本の同内容編集は無更新、古い版は拒否。成功は正規の職員詳細URLへ `?updated=note-saved`、失敗は `{ error, fields, fieldErrors }`。主なコードは `note-required / note-too-long / invalid-note / note-not-found / invalid-version / stale-update / forbidden / not-found / update-failed`。40001・40P01を自動再送しない。
+
+`utils/application-operations/queries.js` の `getStaffApplicationNotes(applicationId)` はactive職員だけが呼べる。返却は `{ error, application }`、applicationは `id / usage_type / camp_id / updated_at / notes`。notesは作成日時・ID昇順で `id / body / author_user_id / created_at / updated_at`。編集後もauthor_user_idは作成者を保持し、編集者は監査へ記録。本文やメモは本人用RPC・取得応答には追加しない。更新後に本人詳細等を再検証するのは親版を更新するためであり、メモ本文を渡すためではない。
+
+同意書のStorage操作の順序・DB登録失敗時の新規オブジェクト削除を維持。キャンプも提出済み申請の旧添付を削除せず、監査の参照を保持する（下書きの旧添付だけ削除可能）。DB更新とStorageは別トランザクションのため、実Storage受入は未実施として残す。

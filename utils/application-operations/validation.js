@@ -53,3 +53,18 @@ export function stayFailure(error, fields) {
   const field = { "invalid-application": "applicationId", "invalid-version": "updatedAt" }[code];
   return { error: code, fields, fieldErrors: field ? { [field]: code } : {} };
 }
+
+const NOTE_CODES = new Set(["invalid-application", "invalid-version", "stale-update", "invalid-note",
+  "note-required", "note-too-long", "note-not-found", "not-found", "forbidden"]);
+export function noteErrorCode(error) {
+  if (["40001", "40P01"].includes(error?.code)) return "stale-update";
+  if (error?.code === "42501") return "forbidden";
+  const code = typeof error === "string" ? error : error?.message;
+  return NOTE_CODES.has(code) ? code : "update-failed";
+}
+export function noteFailure(error, fields) {
+  const code = noteErrorCode(error);
+  const field = { "invalid-application": "applicationId", "invalid-version": "updatedAt", "invalid-note": "noteId",
+    "note-required": "body", "note-too-long": "body" }[code];
+  return { error: code, fields, fieldErrors: field ? { [field]: code } : {} };
+}

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireStaff } from "@/utils/auth/guards";
 import { getText } from "@/utils/calendar/validation";
-import { isUuid, isUpdatedAt, validatePayment, paymentFailure, stayFailure } from "@/utils/application-operations/validation";
+import { isUuid, isUpdatedAt, validatePayment, paymentFailure, stayFailure, noteFailure } from "@/utils/application-operations/validation";
 
 export async function updateApplicationPayment(formData) {
   const { supabase } = await requireStaff("/staff");
@@ -67,3 +67,28 @@ async function updateStay(formData, operation) {
 
 export async function checkInApplication(formData) { return updateStay(formData, "check_in"); }
 export async function checkOutApplication(formData) { return updateStay(formData, "check_out"); }
+
+export async function saveApplicationStaffNote(formData) {
+  const { supabase } = await requireStaff("/staff");
+  const fields = Object.fromEntries(["applicationId", "updatedAt", "noteId", "body"].map((name) => [name, getText(formData, name)]));
+  if (!isUuid(fields.applicationId)) return noteFailure("invalid-application", fields);
+  if (!isUpdatedAt(fields.updatedAt)) return noteFailure("invalid-version", fields);
+  if (fields.noteId && !isUuid(fields.noteId)) return noteFailure("invalid-note", fields);
+  if (!fields.body) return noteFailure("note-required", fields);
+  if (Array.from(fields.body).length > 2000) return noteFailure("note-too-long", fields);
+  const { data, error } = await supabase.rpc("save_application_staff_note", {
+    target_application_id: fields.applicationId, expected_updated_at: fields.updatedAt,
+    target_note_id: fields.noteId || null, note_body: fields.body,
+  });
+  if (error) return noteFailure(error, fields);
+  const result = Array.isArray(data) && data.length === 1 ? data[0] : null;
+  if (result?.result_id !== fields.applicationId || !isUpdatedAt(result.result_updated_at) || !isUuid(result.result_note_id)
+    || (fields.noteId && fields.noteId !== result.result_note_id) || !["camp", "community_individual"].includes(result.result_usage_type)
+    || (result.result_usage_type === "camp" ? !isUuid(result.result_camp_id) : result.result_camp_id !== null)) return noteFailure("update-failed", fields);
+  const base = result.result_usage_type === "camp" ? `/staff/camps/${result.result_camp_id}` : "/staff/community";
+  const path = `${base}/applications/${fields.applicationId}`;
+  for (const route of [path, base, `${base}/applications`, "/staff"]) revalidatePath(route);
+  // Refresh parent versions without ever putting the note in an owner response.
+  for (const suffix of ["", "/edit", "/confirm"]) revalidatePath(`/user/applications/${fields.applicationId}${suffix}`);
+  redirect(`${path}?updated=note-saved`);
+}

@@ -417,7 +417,7 @@ begin
   )), null, 'internal submission cannot bypass consent wrapper', '42501');
 
   perform pg_temp.expect_ok(pg_temp.assign_room(application, room), 'authorized assignment for RLS fixture');
-  query_text := format('select id from public.audit_logs where entity_id=%L::uuid', application);
+  query_text := format('select id from public.audit_logs where entity_id=%L::uuid and actor_kind=''staff''', application);
   result := pg_temp.call_as(staff_id_value, query_text);
   perform pg_temp.check_true(result ->> 'ok' = 'true' and jsonb_array_length(result -> 'rows') = 1, 'active staff can read audit');
   result := pg_temp.call_as(owner_id, query_text);
