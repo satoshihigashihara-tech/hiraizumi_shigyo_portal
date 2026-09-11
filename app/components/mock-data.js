@@ -389,6 +389,73 @@ export const MOCK_APPLICATIONS = [
     },
     requested_room_preference: null,
   },
+
+  // 5件目：延泊（キャンプ）。3件目（許可済みキャンプ利用）の後に続く延泊で、
+  // original_application_id が3件目のidを指す。延泊は別申請・別審査・別納付
+  // であり、料金・受付番号・申請状態・部屋・滞在・取消操作はこの延泊ID自身で
+  // 行う（docs/routes.md 697行）。元申請のIDや版を延泊側の更新Actionへ送らない。
+  // 一覧（/user/applications）で「延泊」表示と元申請へのリンクを確認するための
+  // 唯一の例。
+  {
+    id: "11111111-1111-4111-8111-111111111115",
+    usage_type: "camp",
+    camp_id: MOCK_CAMP.id,
+    original_application_id: "11111111-1111-4111-8111-111111111113",
+    status: "submitted",
+    updated_at: "2026-09-10T04:00:00.222333+00:00",
+    reserved_start_date: "2026-09-16",
+    reserved_end_date: "2026-09-20",
+    submitted_at: "2026-09-10T04:00:00.222333+00:00",
+    last_submitted_at: "2026-09-10T04:00:00.222333+00:00",
+    revision_due_at: null,
+    decision_reason: null,
+    approval_comment: null,
+    reception_number: "SG-2026-0004",
+    has_consent: true,
+    can_edit: false,
+    room_allocation: null,
+    stay: null,
+    fields: {
+      user_name: MOCK_USER.full_name,
+      user_address: MOCK_USER.address,
+      user_phone: MOCK_USER.phone,
+      emergency_name: MOCK_USER.emergency_name,
+      emergency_address: MOCK_USER.emergency_address,
+      emergency_phone: MOCK_USER.emergency_phone,
+      purpose: "スパルタキャンプの延泊のため。",
+      local_activity: null,
+      special_notes: null,
+      usage_place: "common_and_second_floor",
+      start_date: "2026-09-16",
+      end_date: "2026-09-20",
+      requires_guardian_consent: true,
+    },
+    events: [
+      {
+        from_status: "draft",
+        to_status: "submitted",
+        public_reason: null,
+        occurred_at: "2026-09-10T04:00:00.222333+00:00",
+      },
+    ],
+    estimated_months: [],
+    // 9/16〜9/20の5日分（countStayDays("2026-09-16", "2026-09-20") = 5）
+    charge: {
+      total_amount: 1500,
+      payment_status: "unpaid",
+      payment_due_date: null,
+      months: [
+        {
+          month: "2026-09-01",
+          usage_days: 5,
+          daily_rate: 300,
+          monthly_cap: 9000,
+          amount: 1500,
+        },
+      ],
+    },
+    requested_room_preference: null,
+  },
 ];
 
 /**
@@ -411,9 +478,18 @@ export const MOCK_APPLICATIONS = [
  * reserved_* は提出前（submitted_at が null）だと null になるが、そのとき
  * revision_start_date も null なので fields の日程が applications の列と一致する。
  * ここで fields を使うと、修正依頼中の2件目だけ一覧が実データと食い違う。
+ *
+ * original_application_id・reception_number は getCommunityApplications() の
+ * 返却契約に現時点で含まれない（Issue #27 でバックエンドへ追加を依頼中）。
+ * 画面（app/user/applications/page.js）は接続後にすぐ表示できるよう
+ * row.original_application_id・row.reception_number を既に参照しているため、
+ * 契約が確定するまでの間、仮データ側にも同じ項目を持たせて実画面で
+ * 延泊表示・受付番号表示を確認できるようにしている。契約が決まったら
+ * この2項目は取得列に合わせて見直す。
  */
 export const MOCK_APPLICATION_LIST = MOCK_APPLICATIONS.map((application) => ({
   id: application.id,
+  original_application_id: application.original_application_id ?? null,
   status: application.status,
   start_date: application.reserved_start_date ?? application.fields.start_date,
   end_date: application.reserved_end_date ?? application.fields.end_date,
@@ -422,6 +498,7 @@ export const MOCK_APPLICATION_LIST = MOCK_APPLICATIONS.map((application) => ({
   last_submitted_at: application.last_submitted_at,
   revision_due_at: application.revision_due_at,
   decision_reason: application.decision_reason,
+  reception_number: application.reception_number,
   usage_type: application.usage_type,
 }));
 

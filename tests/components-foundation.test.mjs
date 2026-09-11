@@ -342,8 +342,8 @@ test("mock charges follow min(days × 300, 9,000) and add up to their totals", a
       assert.equal(sum(months.map((month) => month.usage_days)), countStayDays(startDate, endDate));
     }
   }
-  // 下書きの見込・修正候補の見込・修正依頼中の確定額・許可済みの確定額・申請済みの確定額
-  assert.equal(checked, 5);
+  // 下書きの見込・修正候補の見込・修正依頼中の確定額・許可済みの確定額・申請済みの確定額・延泊の確定額
+  assert.equal(checked, 6);
   const approved = MOCK_APPLICATIONS[2];
   assert.equal(approved.charge.total_amount, sum(approved.charge.months.map((month) => month.amount)));
   assert.equal(approved.charge.total_amount, 9600); // 8月分5,100円 + 9月分4,500円
@@ -355,14 +355,19 @@ test("the list mirrors the applications columns; only the revision case differs 
   const { MOCK_APPLICATIONS, MOCK_APPLICATION_LIST } = await load(MOCK);
   assert.equal(MOCK_APPLICATION_LIST.length, MOCK_APPLICATIONS.length);
   for (const row of MOCK_APPLICATION_LIST) {
-    // getCommunityApplications() の返却列 + 区分表示用の usage_type だけを持つ。
-    assert.deepEqual(Object.keys(row), ["id", "status", "start_date", "end_date", "updated_at",
-      "submitted_at", "last_submitted_at", "revision_due_at", "decision_reason", "usage_type"]);
+    // getCommunityApplications() の返却列 + 区分表示用の usage_type、
+    // 契約確定前の画面確認用の original_application_id / reception_number を持つ
+    // （Issue #27 でバックエンドへ追加を依頼中）。
+    assert.deepEqual(Object.keys(row), ["id", "original_application_id", "status", "start_date",
+      "end_date", "updated_at", "submitted_at", "last_submitted_at", "revision_due_at",
+      "decision_reason", "reception_number", "usage_type"]);
   }
   for (const [index, row] of MOCK_APPLICATION_LIST.entries()) {
     const application = MOCK_APPLICATIONS[index];
     assert.equal(row.id, application.id);
     assert.equal(row.status, application.status);
+    assert.equal(row.original_application_id, application.original_application_id ?? null);
+    assert.equal(row.reception_number, application.reception_number);
     // 一覧は applications の列、詳細の fields は coalesce(revision_start_date, start_date)。
     // 提出前は revision_start_date も null なので、両者は fields と一致する。
     const reserved = application.reserved_start_date !== null;
@@ -377,6 +382,16 @@ test("the list mirrors the applications columns; only the revision case differs 
   assert.deepEqual([differs[0].start_date, differs[0].end_date], ["2026-10-10", "2026-10-12"]);
   assert.deepEqual([MOCK_APPLICATIONS[1].fields.start_date, MOCK_APPLICATIONS[1].fields.end_date],
     ["2026-10-11", "2026-10-13"]);
+  // 5件目（延泊）だけが original_application_id を持ち、3件目（元のキャンプ申請）を指す。
+  const withOriginal = MOCK_APPLICATION_LIST.filter((row) => row.original_application_id !== null);
+  assert.equal(withOriginal.length, 1);
+  assert.equal(withOriginal[0].id, MOCK_APPLICATIONS[4].id);
+  assert.equal(withOriginal[0].original_application_id, MOCK_APPLICATIONS[2].id);
+  // 提出済み・許可の申請は受付番号を持ち、下書きは持たない。
+  assert.equal(MOCK_APPLICATION_LIST[0].reception_number, null); // 下書き
+  for (const row of MOCK_APPLICATION_LIST.slice(1)) {
+    assert.match(row.reception_number, /^SG-\d{4}-\d{4}$/);
+  }
 });
 
 test("mock statuses and payment dates work with the label and format helpers", async () => {

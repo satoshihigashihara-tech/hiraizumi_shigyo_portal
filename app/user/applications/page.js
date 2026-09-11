@@ -32,13 +32,19 @@ import styles from "./page.module.css";
  * （docs/routes.md 8.1 の多層防御。1段目の app/user/layout.js 側のガードは
  * イシュー #18 の記載どおり未接続のまま）。
  *
- * この画面が扱う項目は getCommunityApplications() の返却列だけに限る：
+ * この画面が扱う項目は getCommunityApplications() の返却列を基本とする：
  *   id / original_application_id / status / start_date / end_date /
  *   updated_at / submitted_at / last_submitted_at / revision_due_at /
  *   decision_reason
- * 詳細（getCommunityApplication）にしかない受付番号・料金・部屋・滞在は、
- * 一覧では出さずに詳細へ誘導する。ここで詳細用の項目を使うと、接続した
- * 途端に表示が消える画面になるため（docs/routes.md 9.5 の返却契約）。
+ * 詳細（getCommunityApplication）にしかない料金・部屋・滞在は、一覧では
+ * 出さずに詳細へ誘導する。ここで詳細用の項目を使うと、接続した途端に
+ * 表示が消える画面になるため（docs/routes.md 9.5 の返却契約）。
+ *
+ * 受付番号（reception_number）はイシュー #19 が一覧の表示要件に明記して
+ * いるが、現時点の返却契約には含まれない（Issue #27 でバックエンドへ
+ * 追加を依頼中）。契約が確定するまでの間、値が渡された場合に表示できる
+ * よう row.reception_number をそのまま参照する。契約に無い項目だが、
+ * 確定後にコード側の変更なしで表示が始まる設計にしている。
  *
  * 日程は一覧の start_date / end_date をそのまま使う。詳細の fields は
  * coalesce(revision_start_date, start_date) なので、修正依頼中だけ両者が
@@ -80,10 +86,9 @@ function usageTypeLabel(usageType) {
  * 未発行であることを明示し、URLのUUIDで代用しない（docs/routes.md 3章7項・
  * app/components/README.md「特に間違えやすい3点」の3つ目）。
  *
- * 受付番号は詳細の表示項目で（docs/routes.md 6.2 の [applicationId] 行）、
- * 一覧の取得契約には含まれない。提出済みの申請に毎回「詳細で確認できます」と
- * 出しても分かることが増えないため、欄自体を出さずカード下部の詳細リンクに任せる。
- * 契約に追加されたら、その値をそのまま表示する。
+ * reception_number は現時点の一覧取得契約に含まれない（Issue #27 で
+ * バックエンドへ追加を依頼中）。値が渡ってきた場合はそのまま表示し、
+ * 無ければ欄自体を出さずカード下部の詳細リンクに任せる。
  *
  * @param {object} row 一覧1件分
  * @returns {string|null}
@@ -135,9 +140,10 @@ function ApplicationListItem({ row }) {
       <dl className={styles.facts}>
         {/*
          * 延泊表示。original_application_id がnullでない行は「延泊」と表示し、
-         * 元申請への導線を出す（docs/routes.md 697行・イシュー #19）。
-         * 仮データに延泊がないため、接続時に実装する。
-         * TODO(T19): 接続時に original_application_id に応じて延泊フラグを出す
+         * 元申請への導線を出す（docs/routes.md 697行・イシュー #19）。延泊は
+         * 別申請・別審査・別納付なので、料金・受付番号・申請状態・部屋・滞在・
+         * 取消操作はこの延泊ID自身で行う。元申請のIDや版を延泊側の更新Action
+         * へ送らない。仮データの5件目（延泊）で表示を確認できる。
          */}
         {row.original_application_id && (
           <div className={styles.fact}>
