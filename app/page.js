@@ -37,12 +37,18 @@ const CAMP_LOGIN_HREF = `/login?returnTo=${encodeURIComponent(
 )}`;
 
 /*
+ * 画面の説明文。metadata.description と本文（PageShell）で同じ内容を
+ * 二度書くと片方だけ更新され食い違うため、定数にして共有する。
+ */
+const PAGE_DESCRIPTION =
+  "使用許可申請の受付窓口です。対象者・使用料・必要書類を確認してから申請へお進みください。";
+
+/*
  * title は app/layout.js のルート metadata と同一になるため上書きしない
  * （二重定義すると片方だけ更新され取り残されるため）。
  */
 export const metadata = {
-  description:
-    "平泉町志業シェアハウスの使用許可申請を受け付けるサイトです。対象者・利用条件・使用料・必要書類を確認し、申請へ進めます。",
+  description: PAGE_DESCRIPTION,
 };
 
 export default function Home() {
@@ -50,7 +56,7 @@ export default function Home() {
     <div className={styles.page}>
       <PageShell
         title="平泉町志業シェアハウス"
-        description="使用許可申請の受付窓口です。対象者・使用料・必要書類を確認してから申請へお進みください。"
+        description={PAGE_DESCRIPTION}
       >
         <section>
           <h2>このサイトでできること</h2>
@@ -117,7 +123,7 @@ export default function Home() {
               variant="primary"
               fullWidthOnMobile
             >
-              スパルタキャンプ利用の申請へ進む
+              ログインして申請一覧へ進む
             </LinkButton>
           </div>
 
