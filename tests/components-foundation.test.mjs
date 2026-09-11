@@ -382,11 +382,19 @@ test("the list mirrors the applications columns; only the revision case differs 
   assert.deepEqual([differs[0].start_date, differs[0].end_date], ["2026-10-10", "2026-10-12"]);
   assert.deepEqual([MOCK_APPLICATIONS[1].fields.start_date, MOCK_APPLICATIONS[1].fields.end_date],
     ["2026-10-11", "2026-10-13"]);
-  // 5件目（延泊）だけが original_application_id を持ち、3件目（元のキャンプ申請）を指す。
+  // 5件目（延泊）だけが original_application_id を持ち、3件目（元の地域活動個人申請）を指す。
   const withOriginal = MOCK_APPLICATION_LIST.filter((row) => row.original_application_id !== null);
   assert.equal(withOriginal.length, 1);
   assert.equal(withOriginal[0].id, MOCK_APPLICATIONS[4].id);
   assert.equal(withOriginal[0].original_application_id, MOCK_APPLICATIONS[2].id);
+  const extension = MOCK_APPLICATIONS[4];
+  const original = MOCK_APPLICATIONS[2];
+  assert.equal(extension.usage_type, "community_individual");
+  assert.equal(original.usage_type, "community_individual");
+  assert.equal(extension.camp_id, null);
+  assert.equal(original.camp_id, null);
+  assert.equal(extension.fields.start_date, "2026-09-16");
+  assert.equal(original.fields.end_date, "2026-09-15");
   // 提出済み・許可の申請は受付番号を持ち、下書きは持たない。
   assert.equal(MOCK_APPLICATION_LIST[0].reception_number, null); // 下書き
   for (const row of MOCK_APPLICATION_LIST.slice(1)) {

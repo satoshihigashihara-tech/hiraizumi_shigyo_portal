@@ -232,11 +232,12 @@ export const MOCK_APPLICATIONS = [
     requested_room_preference: null,
   },
 
-  // 3件目：許可（キャンプ）。部屋割当・滞在あり、納付済み
+  // 3件目：許可（地域活動・個人）。部屋割当・滞在あり、納付済み。
+  // 5件目の延泊元としても使う。
   {
     id: "11111111-1111-4111-8111-111111111113",
-    usage_type: "camp",
-    camp_id: MOCK_CAMP.id,
+    usage_type: "community_individual",
+    camp_id: null,
     status: "approved",
     updated_at: "2026-07-25T06:05:30.987654+00:00",
     reserved_start_date: MOCK_CAMP.start_date,
@@ -271,8 +272,8 @@ export const MOCK_APPLICATIONS = [
       emergency_name: MOCK_USER.emergency_name,
       emergency_address: MOCK_USER.emergency_address,
       emergency_phone: MOCK_USER.emergency_phone,
-      purpose: "スパルタキャンプへの参加のため。",
-      local_activity: null,
+      purpose: "地域文化の記録活動を行うため。",
+      local_activity: "平泉町内の伝統行事を取材し、地域資料として整理します。",
       special_notes: "到着は15時ごろの予定です。",
       usage_place: "common_and_second_floor",
       start_date: MOCK_CAMP.start_date,
@@ -322,7 +323,7 @@ export const MOCK_APPLICATIONS = [
         },
       ],
     },
-    requested_room_preference: "private_requested",
+    requested_room_preference: null,
   },
 
   // 4件目：申請済み（地域活動・個人）。町の確認待ちで、利用者側の操作は不要。
@@ -390,7 +391,7 @@ export const MOCK_APPLICATIONS = [
     requested_room_preference: null,
   },
 
-  // 5件目：延泊（キャンプ）。3件目（許可済みキャンプ利用）の後に続く延泊で、
+  // 5件目：延泊（地域活動・個人）。3件目（許可済み個人利用）の後に続く延泊で、
   // original_application_id が3件目のidを指す。延泊は別申請・別審査・別納付
   // であり、料金・受付番号・申請状態・部屋・滞在・取消操作はこの延泊ID自身で
   // 行う（docs/routes.md 697行）。元申請のIDや版を延泊側の更新Actionへ送らない。
@@ -398,8 +399,8 @@ export const MOCK_APPLICATIONS = [
   // 唯一の例。
   {
     id: "11111111-1111-4111-8111-111111111115",
-    usage_type: "camp",
-    camp_id: MOCK_CAMP.id,
+    usage_type: "community_individual",
+    camp_id: null,
     original_application_id: "11111111-1111-4111-8111-111111111113",
     status: "submitted",
     updated_at: "2026-09-10T04:00:00.222333+00:00",
@@ -422,8 +423,8 @@ export const MOCK_APPLICATIONS = [
       emergency_name: MOCK_USER.emergency_name,
       emergency_address: MOCK_USER.emergency_address,
       emergency_phone: MOCK_USER.emergency_phone,
-      purpose: "スパルタキャンプの延泊のため。",
-      local_activity: null,
+      purpose: "地域文化の記録活動を継続するため。",
+      local_activity: "平泉町内の伝統行事の追加取材と資料整理を行います。",
       special_notes: null,
       usage_place: "common_and_second_floor",
       start_date: "2026-09-16",
@@ -466,7 +467,7 @@ export const MOCK_APPLICATIONS = [
  *
  * usage_type は一覧の区分表示のための補助項目で、上記の返却列には含まれない。
  * getCommunityApplications() は usage_type = "community_individual" で絞り込むため、
- * 本来この一覧に usage_type: "camp"（1件目・3件目）は現れない。
+ * 本来この一覧に usage_type: "camp"（1件目）は現れない。
  * 統合一覧の取得契約（T08/T16）が未定のあいだ、キャンプと地域活動を1つの一覧で
  * 確認できるようにするための意図的な差であり、一覧画面は「区分で絞り込み済み」とは
  * 見なさないこと。契約が決まったら usage_type ごと差し替える。
