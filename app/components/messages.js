@@ -127,7 +127,10 @@ const FALLBACK_MESSAGE = "処理できませんでした。時間をおいて、
  */
 export function errorMessage(code) {
   if (typeof code !== "string" || code === "") return FALLBACK_MESSAGE;
-  return ERROR_MESSAGES[code] ?? FALLBACK_MESSAGE;
+  // Object.hasOwn で自前のキーに限定する。ERROR_MESSAGES[code] だと
+  // "toString" のような Object.prototype のプロパティ名が関数として返り、
+  // 案内文のつもりで関数を描画してしまう。
+  return Object.hasOwn(ERROR_MESSAGES, code) ? ERROR_MESSAGES[code] : FALLBACK_MESSAGE;
 }
 
 /**
@@ -181,7 +184,8 @@ export const FIELD_LABELS = {
  */
 export function fieldLabel(name) {
   if (typeof name !== "string" || name === "") return "入力項目";
-  return FIELD_LABELS[name] ?? "入力項目";
+  // errorMessage() と同じ理由で Object.hasOwn を使う
+  return Object.hasOwn(FIELD_LABELS, name) ? FIELD_LABELS[name] : "入力項目";
 }
 
 /** 仮データ表示中であることを示す固定文（MockDataNotice が使う） */

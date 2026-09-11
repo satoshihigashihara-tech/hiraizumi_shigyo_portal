@@ -12,7 +12,6 @@ import styles from "./FormField.module.css";
  * ブラウザ検証だけに依存せず、送信の可否はサーバー検証に委ねる
  * （.claude/rules/security.md・docs/coding_rules.md 4章）。
  *
- * @param {object} props
  * チェックボックス（as="checkbox"）は単一の同意確認用で、押されたときだけ
  * value が送信されるHTMLの仕様に合わせる。ラジオ（as="radio"）は
  * 「未回答」と「false を選んだ」を区別する必要がある項目のために用意する

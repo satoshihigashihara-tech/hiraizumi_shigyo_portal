@@ -330,7 +330,13 @@ export const MOCK_APPLICATIONS = [
  * getCommunityApplications() の返却列（id / status / start_date / end_date /
  * updated_at / submitted_at / last_submitted_at / revision_due_at /
  * decision_reason）に合わせる。詳細と違い、日程は入れ子ではなく直下にある。
- * usage_type は一覧の区分表示のための補助項目。
+ *
+ * usage_type は一覧の区分表示のための補助項目で、上記の返却列には含まれない。
+ * getCommunityApplications() は usage_type = "community_individual" で絞り込むため、
+ * 本来この一覧に usage_type: "camp"（1件目・3件目）は現れない。
+ * 統合一覧の取得契約（T08/T16）が未定のあいだ、キャンプと地域活動を1つの一覧で
+ * 確認できるようにするための意図的な差であり、一覧画面は「区分で絞り込み済み」とは
+ * 見なさないこと。契約が決まったら usage_type ごと差し替える。
  *
  * 日程は詳細の fields ではなく reserved_* から作る。一覧は applications テーブルの
  * start_date / end_date 列をそのまま select するのに対し、詳細RPCの fields は

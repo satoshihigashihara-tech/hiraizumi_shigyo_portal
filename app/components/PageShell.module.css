@@ -16,7 +16,6 @@
   --sg-space-4: 16px;
   --sg-space-5: 24px;
   --sg-space-6: 32px;
-  --sg-space-7: 48px;
 
   /* 文字サイズ */
   --sg-font-xs: 12px;
@@ -25,16 +24,13 @@
   --sg-font-lg: 18px;
   --sg-font-xl: 20px;
   --sg-font-2xl: 24px;
-  --sg-font-3xl: 28px;
   --sg-line-height: 1.6;
 
-  /* 角丸・線 */
+  /* 角丸 */
   --sg-radius: 8px;
   --sg-radius-pill: 999px;
-  --sg-border: 1px solid var(--sg-color-border);
 
   /* 基本色（本文コントラスト4.5:1以上） */
-  --sg-color-bg: #f4f6f8;
   --sg-color-surface: #ffffff;
   --sg-color-text: #1b1d1f;
   --sg-color-text-muted: #4d5358;
@@ -124,7 +120,6 @@
  */
 @media (prefers-color-scheme: dark) {
   .shell {
-    --sg-color-bg: #0f1113;
     --sg-color-surface: #14171a;
     --sg-color-text: #ececec;
     --sg-color-text-muted: #b6bcc2;

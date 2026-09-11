@@ -126,6 +126,17 @@ export const STATUS_TONES = {
 };
 
 /**
+ * 辞書から自前のキーだけを引く。
+ *
+ * dictionary[key] と書くと Object.prototype のプロパティ名（"toString" など）が
+ * 関数として返り、未知値のはずが関数を描画して画面が壊れる。Object.hasOwn で
+ * 自前のキーに限定すれば、想定外の値は必ずフォールバックへ落ちる。
+ */
+function ownValue(dictionary, key) {
+  return dictionary && Object.hasOwn(dictionary, key) ? dictionary[key] : null;
+}
+
+/**
  * 状態値を日本語ラベルへ変換する。
  * 未設定・未知の値でも例外を投げず、画面クラッシュより表示劣化を選ぶ。
  *
@@ -135,8 +146,7 @@ export const STATUS_TONES = {
  */
 export function statusLabel(kind, value) {
   if (value === null || value === undefined || value === "") return "状態未設定";
-  const labels = LABELS_BY_KIND[kind];
-  return labels?.[value] ?? "状態不明";
+  return ownValue(ownValue(LABELS_BY_KIND, kind), value) ?? "状態不明";
 }
 
 /**
@@ -147,7 +157,7 @@ export function statusLabel(kind, value) {
  * @returns {"neutral"|"info"|"success"|"warning"|"danger"}
  */
 export function statusTone(kind, value) {
-  return STATUS_TONES[kind]?.[value] ?? "neutral";
+  return ownValue(ownValue(STATUS_TONES, kind), value) ?? "neutral";
 }
 
 /**

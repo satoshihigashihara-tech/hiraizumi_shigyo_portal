@@ -17,10 +17,10 @@
 
 | 種別 | トークン |
 |---|---|
-| 余白（4px基準） | `--sg-space-1`(4) 〜 `--sg-space-7`(48) |
-| 文字サイズ | `--sg-font-xs`(12) 〜 `--sg-font-3xl`(28)、`--sg-line-height`(1.6) |
-| 角丸・線 | `--sg-radius`(8px)、`--sg-radius-pill`(999px)、`--sg-border` |
-| 基本色 | `--sg-color-bg / -surface / -text / -text-muted / -border / -focus` |
+| 余白（4px基準） | `--sg-space-1`(4) 〜 `--sg-space-6`(32) |
+| 文字サイズ | `--sg-font-xs`(12) 〜 `--sg-font-2xl`(24)、`--sg-line-height`(1.6) |
+| 角丸 | `--sg-radius`(8px)、`--sg-radius-pill`(999px) |
+| 基本色 | `--sg-color-surface / -text / -text-muted / -border / -focus` |
 | 5トーン | `--sg-{neutral,info,success,warning,danger}-{bg,border,text}` |
 
 `prefers-color-scheme: dark` のときは `.shell` 側でトークンを暗色へ差し替えます。新しい部品を足すときも、**背景色と文字色を必ずセットで指定**してください（`app/globals.css` が `color-scheme: dark` と暗い `body` 背景を持つため、継承任せにすると片方だけ暗くなります）。
@@ -37,7 +37,7 @@
 | `AlertMessage.js` の `errorAlertItems` | 関数 | `fieldErrors` → `[{ href, label }]` |
 | `EmptyState.js` | Server | `title` / `description` / `action` |
 | `SubmitButton.js` | **Client** | `children` / `pendingLabel` / `variant` / `disabled` / `pending` / `fullWidthOnMobile` |
-| `LinkButton.js` | Server | `href`(必須) / `children` / `variant` / `fullWidthOnMobile` |
+| `LinkButton.js` | Server | `href`(必須) / `children` / `variant` / `fullWidthOnMobile`（`http(s)` / `mailto:` / `tel:` と同一オリジンの相対パスだけを描画し、それ以外の `href` は何も描画しない） |
 | `ComingSoon.js` | Server | `title` / `description`（クリックできる要素を描画しない） |
 | `MockDataNotice.js` | Server | `children` |
 
@@ -154,3 +154,14 @@ export default function Page() {
 1. **`updated_at` は文字列のまま扱う。** `new Date(...)` を経由させるとマイクロ秒が落ち、更新競合の検査に通らなくなります（`docs/tasks.md` 4.4）。hidden input へそのまま渡します。
 2. **期限は保存値から1分引いて表示する。** DBには「翌日00:00」の排他的境界が入っています（`docs/database.md` 8章）。`formatDeadline()` を使ってください。`formatJstDateTime()` をそのまま使うと1分ずれます。
 3. **受付番号はサーバー取得値を表示する。** URLクエリの値を根拠に提出成功を表示しません（`docs/tasks.md` 4.2）。UUIDと受付番号は別の値です。
+
+## テスト
+
+依存なしの純粋モジュール（`format.js` / `status-labels.js` / `messages.js` / `mock-data.js`）は
+`tests/components-foundation.test.mjs` で検証しています。JSXを含む部品は対象外です。
+
+```bash
+NODE_OPTIONS=--experimental-vm-modules node --test tests/*.test.mjs
+```
+
+日付・金額・状態ラベルの分岐を変えたら、このファイルも合わせて更新してください。

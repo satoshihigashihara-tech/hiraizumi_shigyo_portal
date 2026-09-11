@@ -41,15 +41,49 @@ const monthFormatter = new Intl.DateTimeFormat("ja-JP", {
 const yenFormatter = new Intl.NumberFormat("ja-JP");
 
 /**
+ * "YYYY-MM-DD" を、実在する日付のときだけUTCの時刻値へ変換する。
+ *
+ * Date.UTC は範囲外の値を繰り上げる（2月31日→3月3日、13月→翌年1月）ため、
+ * 形式が合っているだけの "2026-02-31" をそのまま通すと日数が黙って計算できてしまう。
+ * 作った Date から年月日を取り出して入力と一致するか確かめれば、繰り上がりを検出できる。
+ * 2桁年がDate.UTCで1900年代へ写される件（"0026" → 1926年）も同じ確認で弾ける。
+ *
+ * 日付だけの値の検証はこの1か所に集約する。表示（toDate）と日数計算（countStayDays）で
+ * 厳格さが違うと、countStayDays は null なのに formatPeriod は「3月3日 〜 3月1日」と
+ * 開始日が終了日より後に見える表示を出す、という食い違いが起きるため。
+ *
+ * @param {string} value DATE_ONLY を満たす文字列
+ * @returns {number|null} UTCのミリ秒。実在しない日付なら null
+ */
+function utcDayTime(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  const time = Date.UTC(year, month - 1, day);
+  const date = new Date(time);
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return time;
+}
+
+/**
  * 文字列を Date へ変換する。不正値は null。
  * "YYYY-MM-DD" は JavaScript ではUTCの0時として解釈され、日本時間で表示すると
  * 9時間ずれて同じ日になる（日付だけなら問題ないが境界が分かりにくい）ため、
  * 明示的に日本時間の正午へ寄せて日付がずれないようにする。
+ * 日付だけの値は utcDayTime() で実在を確かめてから寄せる。
  */
 function toDate(value) {
   if (typeof value !== "string" || value === "") return null;
-  const source = DATE_ONLY.test(value) ? `${value}T12:00:00+09:00` : value;
-  const parsed = new Date(source);
+  if (DATE_ONLY.test(value)) {
+    if (utcDayTime(value) === null) return null;
+    const parsed = new Date(`${value}T12:00:00+09:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
@@ -135,31 +169,6 @@ export function formatYen(amount) {
 export function formatMonth(value) {
   const date = toDate(value);
   return date ? monthFormatter.format(date) : "";
-}
-
-/**
- * "YYYY-MM-DD" を、実在する日付のときだけUTCの時刻値へ変換する。
- *
- * Date.UTC は範囲外の値を繰り上げる（2月31日→3月3日、13月→翌年1月）ため、
- * 形式が合っているだけの "2026-02-31" をそのまま通すと日数が黙って計算できてしまう。
- * 作った Date から年月日を取り出して入力と一致するか確かめれば、繰り上がりを検出できる。
- * 2桁年がDate.UTCで1900年代へ写される件（"0026" → 1926年）も同じ確認で弾ける。
- *
- * @param {string} value DATE_ONLY を満たす文字列
- * @returns {number|null} UTCのミリ秒。実在しない日付なら null
- */
-function utcDayTime(value) {
-  const [year, month, day] = value.split("-").map(Number);
-  const time = Date.UTC(year, month - 1, day);
-  const date = new Date(time);
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    return null;
-  }
-  return time;
 }
 
 /**
