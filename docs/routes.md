@@ -695,3 +695,13 @@ MVPのSQL018は現在存在する2区分だけを対象とする。団体テー�
 `createCommunityApplicationExtension(formData)` の入力は `extensionId / originalApplicationId / endDate / reason`。extensionIdは画面で新しいUUIDを1回生成し、通信再送では同じ値を使う。理由は空白除去後1〜2000文字。成功後は `/user/applications/[extensionId]/edit?created=extension` へ進み、通常の個人申請入力を確認・保存してから提出する。主なエラーは `invalid-extension-period / extension-not-available / extension-exists / reason-required / reason-too-long / not-found / forbidden / update-failed`。
 
 本人一覧の `original_application_id` がnullでない行は「延泊」と表示し、元申請への導線を出す。職員検索・部屋・納付・滞在・メモの取得にも同項目がある。延泊は別申請なので、料金・受付番号・申請状態・部屋・滞在・取消操作はその延泊IDで行う。元申請のIDや版を延泊側の更新Actionへ送らない。
+
+### T18 団体申込の土台接続契約（SQL 021）
+
+代表者の一覧は`getCommunityGroups(page)`、詳細・編集・確認・完了は`getCommunityGroup(groupId, mode)`を使う。想定パスは`/user/groups`、`/user/groups/new`、`/user/groups/[groupId]`、`/edit`、`/confirm`、`/complete`。この段階では招待・参加者・職員審査の画面を作らない。
+
+下書きActionは`createCommunityGroupDraft(formData)`と`saveCommunityGroupDraft(formData)`。入力名は`groupId / updatedAt / intent / groupName / representativeName / representativeAddress / representativePhone / startDate / endDate / usagePlace / purpose / localActivity / notes / plannedParticipants / representativeStays`。作成時の省略値はプロフィール既定値を維持し、保存時は画面の編集可能項目を全て送る。`intent=confirm`だけ確認画面へ、それ以外は編集画面へ戻す。
+
+申請開始は`startCommunityGroupApplication(formData)`。入力は`groupId / updatedAt / submissionKey / confirmed`だけで、表示中の団体名・人数・日程等を信頼して送らない。submissionKeyは同じ利用者操作の通信再送で同じUUIDを使う。成功結果は`collecting`、SG受付番号、申請開始日時、参加者提出期限を含み、完了画面へ進む。古い版や別キーを自動再送しない。
+
+主なエラーは`required-fields / invalid-participant-count / invalid-duration / start-too-soon / end-too-late / calendar-unavailable / calendar-inconsistent / stale-update / not-editable / confirmation-required / forbidden / update-failed`。画面は内部SQL詳細を表示せず、エラー時は入力を保持する。公開カレンダーから団体名・人数・状態を取得しない。

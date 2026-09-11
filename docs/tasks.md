@@ -548,3 +548,18 @@ SQL018のmainマージ・Supabase適用・実DB365項目成功後、`codex/commu
 main `07a21a0` 起点の `codex/community-application-extension` で、承認済みの本番用SQL020を追加。許可済み・入居前または滞在中の通常申請だけを元に、終了翌日から連続する別申請を1件作る。元申請は不変。延泊側は通常の下書き保存・提出・同意書・受付番号・料金・審査・部屋割り・許可・納付・入退去・取消・職員メモを独立して使う。延泊の延泊、他人の申請、重複する有効延泊、通常のD+14〜D+60外、1〜15日外を拒否する。
 
 新規は承認済み `supabase/migrations/202609110020_community_application_extension.sql` のみ。既存Action・検証・取得・メッセージ、運用テスト、関連docsを更新。対象Node150件と運用統合446項目の成功後、全回帰もNode234件、DB単一接続1361項目、別接続81ケース、lint、production buildが成功。SQL001〜020の順次適用と全後片付けも確認した。Supabase適用、実環境テスト、commit、push、画面接続は未実施。本番用SQL020はSupabase適用時に保存する。検証SQL `supabase/tests/application_operations.sql` は保存用クエリではなく、実行時は末尾ROLLBACKのためSQL Editorでは保存しない。
+
+### T18 団体申込の土台（SQL 021・ローカル作成中）
+
+2026年9月11日、mainのSQL020適用・実DB446項目成功後に`codex/community-groups`を作成。団体代表者の下書き作成・保存・申請開始、本人一覧／詳細、団体専有枠、参加者提出期限、共通SG採番、公開／職員カレンダー統合までを実装した。招待・参加者申請、団体審査・部屋・許可・取消、自動期限処理、UI・メールは未着手。
+
+| ファイル | 内容 |
+|---|---|
+| `supabase/migrations/202609110021_community_groups.sql` | 団体表・履歴・RLS・RPC・枠・採番・カレンダー統合。本番適用時はSQL Editorで保存する |
+| `app/actions/community-groups.js` | 代表者の作成・保存・申請開始Server Actions |
+| `utils/community-groups/validation.js` | 固定入力対応、構造検査、公開可能なエラーコード |
+| `utils/community-groups/queries.js` | 代表者本人の固定項目一覧・詳細取得 |
+| `tests/community-groups-actions.test.mjs` | 実モジュールの認可順序・許可リスト・再送・返却検査 |
+| `supabase/tests/community_groups.sql` | 架空データ・末尾ROLLBACKの単一接続検証。SQL Editorでは保存しない |
+
+ローカル結果はSQL001〜021順次適用成功、団体DB95項目、別接続4ケース、Node17件が成功。別接続は団体対団体・団体対個人の両順序・同一キー再送について、異なる接続IDと実待機を確認する。全回帰もNode251件、DB単一接続1456項目・別接続85ケース、lint、production buildが成功した。Supabase適用、commit、pushは未実施。`docs/apple_event.txt`と秘密情報には触れない。
