@@ -58,16 +58,16 @@ export default function Home() {
         title="平泉町志業シェアハウス"
         description={PAGE_DESCRIPTION}
       >
-        <section>
-          <h2>このサイトでできること</h2>
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>このサイトでできること</h2>
           <p>
             平泉町志業シェアハウスの使用許可申請ができます。申請いただいた内容は町が確認し、許可の可否をこの画面からお知らせします。申請しただけでは宿泊は確定しません。
           </p>
         </section>
 
-        <section>
-          <h2>対象者と利用条件</h2>
-          <ul>
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>対象者と利用条件</h2>
+          <ul className={styles.list}>
             <li>
               スパルタキャンプの参加者として、対象期間の利用を申請する方
             </li>
@@ -84,25 +84,26 @@ export default function Home() {
           </p>
         </section>
 
-        <section>
-          <h2>使用料</h2>
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>使用料</h2>
           {/*
            * docs/requirements.md 16章（506〜520行）。
            * 月9,000円の上限は「利用者の月間合計」ではなく「申請ごと」に
            * 適用されるため、合計額と誤解されない書き方にする。
            */}
-          <AlertMessage tone="info" title="1人につき1日300円">
-            <ul>
+          <div className={styles.feeBox}>
+            <p className={styles.feeTitle}>1人につき1日300円</p>
+            <ul className={styles.list}>
               <li>開始日と終了日の両方を日数に含めます。1泊2日は600円です。</li>
               <li>
                 1つの申請で同じ月に9,000円を超える場合は、その月の分を9,000円までとします。上限は申請ごとに適用し、別々の申請の金額は合算しません。
               </li>
             </ul>
-          </AlertMessage>
+          </div>
         </section>
 
-        <section>
-          <h2>必要書類</h2>
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>必要書類</h2>
           {/* docs/requirements.md 8.2節（223〜225行） */}
           <AlertMessage tone="warning" title="保護者同意書が必要な方がいます">
             <p>
@@ -111,9 +112,9 @@ export default function Home() {
           </AlertMessage>
         </section>
 
-        <section>
-          <h2>申請へ進む</h2>
-          <h3>スパルタキャンプ利用の申請</h3>
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>申請へ進む</h2>
+          <h3 className={styles.subsectionTitle}>スパルタキャンプ利用の申請</h3>
           <p>
             ログイン後の申請一覧から、手続きの状況確認と続きの操作ができます。
           </p>
@@ -127,27 +128,27 @@ export default function Home() {
             </LinkButton>
           </div>
 
-          <h3>地域活動での利用</h3>
+          <h3 className={styles.subsectionTitle}>地域活動での利用</h3>
           <ComingSoon
             title="地域活動での利用申請"
             description="準備中です。後日この画面から申請できるようになります。"
           />
         </section>
 
-        <section>
-          <h2>アカウントをお持ちの方</h2>
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>アカウントをお持ちの方</h2>
           <p>
             申請の状況確認や続きの手続きは、ログイン後の画面から行えます。
           </p>
           <div className={styles.actions}>
             <LinkButton href="/login" variant="secondary" fullWidthOnMobile>
-              ログインはこちら
+              ログイン画面を開く
             </LinkButton>
           </div>
         </section>
 
-        <section>
-          <h2>利用状況カレンダー</h2>
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>利用状況カレンダー</h2>
           <ComingSoon description="空き状況の確認は後日この画面でご覧いただけるようになります。" />
         </section>
       </PageShell>

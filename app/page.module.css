@@ -31,44 +31,53 @@
 }
 
 /*
- * セクション内の間隔。セクション同士の間隔は PageShell の .body
- * （24px間隔）が持つため、ここでは中身だけを整える。
+ * セクション内の間隔。直下要素だけを配置対象にすることで、AlertMessageや
+ * ComingSoonなど共通部品の内部スタイルへ影響させない。
  */
-.page h2 {
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-3, 12px);
+}
+
+.sectionTitle {
   font-size: var(--sg-font-xl, 20px);
   font-weight: 700;
   line-height: 1.4;
 }
 
-.page h3 {
-  margin-top: var(--sg-space-5, 24px);
+.subsectionTitle {
+  margin-top: var(--sg-space-3, 12px);
   font-size: var(--sg-font-lg, 18px);
   font-weight: 700;
   line-height: 1.4;
-}
-
-.page h2 + *,
-.page h3 + * {
-  margin-top: var(--sg-space-3, 12px);
-}
-
-.page p + p,
-.page p + ul,
-.page ul + p {
-  margin-top: var(--sg-space-3, 12px);
 }
 
 /*
  * 箇条書き。globals.css が padding を 0 にしているため、行頭記号が
  * 外側へはみ出す。記号を内側へ入れたうえで字下げを付け直す。
  */
-.page ul {
+.list {
   padding-left: var(--sg-space-5, 24px);
   list-style-position: outside;
 }
 
-.page li + li {
+.list > li + li {
   margin-top: var(--sg-space-2, 8px);
+}
+
+/* 使用料は常時表示する静的情報なので、aria-liveを持つ通知部品を使わない。 */
+.feeBox {
+  padding: var(--sg-space-4, 16px);
+  border: 1px solid var(--sg-info-border, #7a9de0);
+  border-radius: var(--sg-radius, 8px);
+  color: var(--sg-info-text, #14306e);
+  background: var(--sg-info-bg, #eaf1fb);
+}
+
+.feeTitle {
+  margin-bottom: var(--sg-space-3, 12px);
+  font-weight: 700;
 }
 
 /*
@@ -80,5 +89,4 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--sg-space-3, 12px);
-  margin-top: var(--sg-space-4, 16px);
 }
