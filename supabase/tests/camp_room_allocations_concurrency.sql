@@ -617,7 +617,7 @@ begin
     else
       perform t12_concurrency_test.check_true((select p.account_state = 'disabled' from public.profiles p where p.id = context.staff_b)
         and not exists (select 1 from public.room_allocations r where r.application_id = test_case.app_b)
-        and not exists (select 1 from public.audit_logs l where l.entity_id = test_case.app_b),
+        and not exists (select 1 from public.audit_logs l where l.entity_id = test_case.app_b and l.actor_kind='staff'),
         'staff deactivation prevents the waiting operation and history write');
     end if;
     return query select test_case.case_no, test_case.test_name, true,

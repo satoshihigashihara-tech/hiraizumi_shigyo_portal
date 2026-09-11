@@ -68,6 +68,9 @@ async function storedRows(c) {
     'calendar_claims','application_charges','charge_months','reception_numbers','reception_counters','application_status_events','audit_logs','consent_documents']) {
     result[table] = (await c.query(`select coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text),'[]') as rows from public.${table} t`)).rows[0].rows;
   }
+  if ((await c.query("select to_regclass('public.staff_notes') is not null as present")).rows[0].present) {
+    result.staff_notes=(await c.query("select coalesce(jsonb_agg(to_jsonb(n) order by n.id),'[]') as rows from public.staff_notes n")).rows[0].rows;
+  }
   return result;
 }
 async function cleanupUpgrade(c, fixture) {
@@ -136,6 +139,170 @@ async function paymentConcurrency(c) {
   }
   console.log('PASS payment concurrency cleanup');
 }
+// Phase 2: real RPC races on separate local connections, with temporary fixtures only.
+async function stayConcurrency(c) {
+  const scenarios = ['double-check-in', 'double-check-out', 'checkout-versus-room', 'room-versus-checkout',
+    'payment-versus-checkout', 'camp-double-checkout', 'staff-disabled', 'repeatable-read', 'checkout-versus-submission'];
+  async function session(client, actor) {
+    await client.query("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: actor,
+      email: `upgrade-${actor}@example.invalid`, role: 'authenticated' })]);
+    await client.query('set role authenticated');
+  }
+  const version = async (id) => (await c.query('select updated_at::text as v from public.applications where id=$1', [id])).rows[0].v;
+  for (const scenario of scenarios) {
+    const fixture = await prepareUpgrade(c);
+    const staffB = randomUUID();
+    await c.query('insert into auth.users(id,email) values($1,$2)', [staffB, `stay-${staffB}@example.invalid`]);
+    await c.query('insert into public.staff_roles(user_id) values($1)', [staffB]);
+    const a = await connect(), b = await connect();
+    try {
+      const camp = scenario === 'camp-double-checkout';
+      const target = fixture.applications[camp ? 0 : 1];
+      if (!camp) {
+        const v = await version(target);
+        await session(c, fixture.owner);
+        await c.query('select * from public.submit_community_application($1,$2,$3,true)', [target,v,randomUUID()]);
+        await c.query('reset role');
+        let next = await version(target); await session(c, fixture.staff);
+        await c.query("select * from public.review_community_application($1,'start_review',$2)", [target,next]);
+        await c.query('reset role'); next = await version(target); await session(c, fixture.staff);
+        await c.query("select * from public.assign_community_application_room($1,(select id from public.rooms where name='桐'),$2)", [target,next]);
+        await c.query('reset role'); next = await version(target); await session(c, fixture.staff);
+        await c.query("select * from public.review_community_application($1,'approve',$2)", [target,next]);
+        await c.query('reset role');
+      }
+      // Date relocation is test setup, not a product operation.
+      if (camp) await c.query("update public.camps set start_date=(clock_timestamp() at time zone 'Asia/Tokyo')::date,end_date=(clock_timestamp() at time zone 'Asia/Tokyo')::date+14 where id=$1", [fixture.camp]);
+      await c.query("update public.applications set start_date=(clock_timestamp() at time zone 'Asia/Tokyo')::date,end_date=(clock_timestamp() at time zone 'Asia/Tokyo')::date+14 where id=$1", [target]);
+      await c.query('update public.room_allocations r set start_date=a.start_date,end_date=a.end_date from public.applications a where a.id=r.application_id and a.id=$1', [target]);
+      const checkout = !['double-check-in','staff-disabled','repeatable-read'].includes(scenario);
+      if (checkout) {
+        const v = await version(target); await session(c, fixture.staff);
+        await c.query("select * from public.update_application_stay($1,$2,'check_in')", [target,v]); await c.query('reset role');
+      }
+      let candidate;
+      if (scenario === 'checkout-versus-submission') {
+        candidate = randomUUID(); fixture.applications.push(candidate);
+        const fields = (await c.query(`select jsonb_build_object('user_name','架空利用者','user_address','架空住所','user_phone','0000000000',
+          'emergency_name','架空連絡先','emergency_address','架空住所','emergency_phone','0000000000','purpose','架空調査',
+          'local_activity','架空調査活動','usage_place','common_and_second_floor','requires_guardian_consent',false,
+          'start_date',(clock_timestamp() at time zone 'Asia/Tokyo')::date+14,'end_date',(clock_timestamp() at time zone 'Asia/Tokyo')::date+15) as f`)).rows[0].f;
+        await session(c,fixture.owner); await c.query('select * from public.create_community_application_draft($1,$2)',[candidate,fields]); await c.query('reset role');
+      }
+      const v = await version(target), candidateVersion = candidate ? await version(candidate) : null;
+      await session(a, fixture.staff); await session(b, candidate ? fixture.owner : staffB);
+      await a.query('begin'); await b.query(scenario === 'repeatable-read' ? 'begin isolation level repeatable read' : 'begin');
+      await b.query("set local statement_timeout='8s'");
+      if (scenario === 'repeatable-read') await b.query('select count(*) from public.applications');
+      if (scenario === 'staff-disabled') {
+        await a.query('reset role'); await a.query('select private.lock_calendar_facility()');
+        await a.query("update public.profiles set account_state='disabled' where id=$1",[staffB]);
+      } else if (scenario === 'room-versus-checkout') {
+        await a.query("select * from public.assign_community_application_room($1,(select id from public.rooms where name='藤'),$2,'架空変更')",[target,v]);
+      } else if (scenario === 'payment-versus-checkout') {
+        await a.query("select * from public.update_application_payment($1,$2,'paid',null)",[target,v]);
+      } else await a.query('select * from public.update_application_stay($1,$2,$3)',[target,v,checkout ? 'check_out' : 'check_in']);
+      const leader = (await a.query('select pg_backend_pid() as pid')).rows[0].pid;
+      const peer = (await b.query('select pg_backend_pid() as pid')).rows[0].pid;
+      const pending = (scenario === 'checkout-versus-room'
+        ? b.query("select * from public.assign_community_application_room($1,(select id from public.rooms where name='藤'),$2,'架空変更')",[target,v])
+        : candidate ? b.query('select * from public.submit_community_application($1,$2,$3,true)',[candidate,candidateVersion,randomUUID()])
+        : b.query('select * from public.update_application_stay($1,$2,$3)',[target,v,checkout ? 'check_out' : 'check_in']))
+        .then(() => ({ ok:true }), error => ({ ok:false,code:error.code,message:error.message }));
+      let waited = false;
+      for (let n=0;n<100;n++) {
+        if ((await c.query('select $2::integer=any(pg_blocking_pids($1)) as waiting',[peer,leader])).rows[0].waiting) { waited=true; break; }
+        await new Promise(resolve => setTimeout(resolve,20));
+      }
+      await a.query('reset role'); const expected = await storedRows(a); await a.query('commit');
+      const outcome = await pending;
+      await b.query(candidate && outcome.ok ? 'commit' : 'rollback'); await b.query('reset role');
+      assert.ok(waited && leader!==peer, `${scenario}: distinct connections and actual waiting`);
+      if (candidate) {
+        assert.equal(outcome.ok,true, JSON.stringify(outcome));
+        assert.equal((await c.query('select status from public.applications where id=$1',[candidate])).rows[0].status,'submitted');
+      } else {
+        assert.equal(outcome.ok,false,scenario);
+        assert.equal(outcome.code, scenario==='repeatable-read' ? '40001' : scenario==='staff-disabled' ? '42501' : 'P0001');
+        if (!['repeatable-read','staff-disabled'].includes(scenario)) assert.equal(outcome.message,'stale-update');
+        assert.deepEqual(await storedRows(c),expected,`${scenario}: no partial writes from losing RPC`);
+      }
+      console.log('PASS stay concurrency',scenario);
+    } finally {
+      await a.query('rollback'); await b.query('rollback'); await c.query('reset role');
+      await cleanupUpgrade(c,fixture); await c.query('delete from auth.users where id=$1',[staffB]);
+    }
+  }
+  console.log('PASS stay concurrency cleanup');
+}
+// Phase 3: notes share the parent version with legacy user operations and staff work.
+async function auditNotesConcurrency(c) {
+  const cases=['double-note','edit-note','note-versus-payment','camp-save-versus-note','consent-versus-note',
+    'staff-disabled','repeatable-read','note-versus-camp-save'];
+  async function session(client,actor,role='authenticated') {
+    await client.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:actor,email:`upgrade-${actor}@example.invalid`,role})]);
+    await client.query(`set role ${role}`);
+  }
+  for(const scenario of cases) {
+    const fixture=await prepareUpgrade(c), target=fixture.applications[0], staffB=randomUUID();
+    await c.query('insert into auth.users(id,email) values($1,$2)',[staffB,`notes-${staffB}@example.invalid`]);
+    await c.query('insert into public.staff_roles(user_id) values($1)',[staffB]);
+    const a=await connect(), b=await connect();
+    try {
+      const userOperation=scenario.includes('camp-save')||scenario==='consent-versus-note';
+      if(userOperation) await c.query("update public.applications set status='revision_requested',revision_due_at=clock_timestamp()+interval '1 day' where id=$1",[target]);
+      let noteId=null;
+      if(scenario==='edit-note') {
+        const v=(await c.query('select updated_at::text as v from public.applications where id=$1',[target])).rows[0].v;
+        await session(c,fixture.staff);
+        noteId=(await c.query("select * from public.save_application_staff_note($1,$2,null,'初期メモ')",[target,v])).rows[0].result_note_id;
+        await c.query('reset role');
+      }
+      const v=(await c.query('select updated_at::text as v from public.applications where id=$1',[target])).rows[0].v;
+      await session(a,scenario==='camp-save-versus-note'?fixture.owner:fixture.staff,scenario==='consent-versus-note'?'service_role':'authenticated');
+      await session(b,scenario==='note-versus-camp-save'?fixture.owner:staffB);
+      await a.query('begin');await b.query(scenario==='repeatable-read'?'begin isolation level repeatable read':'begin');
+      await b.query("set local statement_timeout='8s'");
+      if(scenario==='repeatable-read') await b.query('select count(*) from public.applications');
+      const saveSql="select public.save_camp_application_draft($1,'架空変更者','架空住所','0000000000','架空連絡先','架空住所','0000000000','架空変更目的',null,false,'shared_ok')";
+      if(scenario==='staff-disabled') {
+        await a.query('reset role');await a.query('select private.lock_calendar_facility()');
+        await a.query("update public.profiles set account_state='disabled' where id=$1",[staffB]);
+      } else if(scenario==='camp-save-versus-note') await a.query(saveSql,[target]);
+      else if(scenario==='consent-versus-note') await a.query("select public.register_guardian_consent_document($1,$2,$3,'application/pdf',10)",[target,fixture.owner,`applications/${target}/${randomUUID()}`]);
+      else await a.query("select * from public.save_application_staff_note($1,$2,$3,'職員Aメモ')",[target,v,noteId]);
+      const leader=(await a.query('select pg_backend_pid() as pid')).rows[0].pid;
+      const peer=(await b.query('select pg_backend_pid() as pid')).rows[0].pid;
+      const pending=(scenario==='note-versus-payment'?b.query("select * from public.update_application_payment($1,$2,'paid',null)",[target,v]):
+        scenario==='note-versus-camp-save'?b.query(saveSql,[target]):b.query("select * from public.save_application_staff_note($1,$2,$3,'職員Bメモ')",[target,v,noteId]))
+        .then(()=>({ok:true}),error=>({ok:false,code:error.code,message:error.message}));
+      let waited=false;
+      for(let n=0;n<100;n++) {
+        if((await c.query('select $2::integer=any(pg_blocking_pids($1)) as waiting',[peer,leader])).rows[0].waiting){waited=true;break;}
+        await new Promise(resolve=>setTimeout(resolve,20));
+      }
+      await a.query('reset role');const expected=await storedRows(a);await a.query('commit');
+      const outcome=await pending;
+      await b.query(scenario==='note-versus-camp-save'&&outcome.ok?'commit':'rollback');await b.query('reset role');
+      assert.ok(waited&&peer!==leader,`${scenario}: actual wait on separate connections`);
+      if(scenario==='note-versus-camp-save') {
+        assert.equal(outcome.ok,true);
+        assert.deepEqual((await storedRows(c)).staff_notes,expected.staff_notes,'legacy user save preserves note');
+        assert.equal((await c.query("select count(*)::integer as n from public.audit_logs where entity_id=$1 and action='save_camp_draft'",[target])).rows[0].n,2);
+      } else {
+        assert.equal(outcome.ok,false,scenario);
+        assert.equal(outcome.code,scenario==='repeatable-read'?'40001':scenario==='staff-disabled'?'42501':'P0001');
+        if(!['repeatable-read','staff-disabled'].includes(scenario))assert.equal(outcome.message,'stale-update');
+        assert.deepEqual(await storedRows(c),expected,`${scenario}: no partial notes or business writes`);
+      }
+      console.log('PASS audit/notes concurrency',scenario);
+    } finally {
+      await a.query('rollback');await b.query('rollback');await c.query('reset role');
+      await cleanupUpgrade(c,fixture);await c.query('delete from auth.users where id=$1',[staffB]);
+    }
+  }
+  console.log('PASS audit/notes concurrency cleanup');
+}
 let stage = 'start';
 let failed = false;
 try {
@@ -167,6 +334,12 @@ try {
   let beforeUpgrade;
   let paymentUpgrade;
   let beforePaymentUpgrade;
+  let stayUpgrade;
+  let beforeStayUpgrade;
+  let auditUpgrade;
+  let beforeAuditUpgrade;
+  let searchUpgrade;
+  let beforeSearchUpgrade;
   for (const file of (await readdir(join(root, 'supabase/migrations'))).filter(x => x.endsWith('.sql')).sort()) {
     stage = file; await c.query(await readFile(join(root, 'supabase/migrations', file), 'utf8'));
     console.log('PASS migration', file);
@@ -185,13 +358,38 @@ try {
       assert.deepEqual(await storedRows(c), beforePaymentUpgrade);
       await cleanupUpgrade(c, paymentUpgrade);
       console.log('PASS 014 to 015 upgrade: 16 tables unchanged; fictional fixtures removed');
+      stayUpgrade = await prepareUpgrade(c); beforeStayUpgrade = await storedRows(c);
+    }
+    if (file === '202609110016_application_stays.sql') {
+      assert.deepEqual(await storedRows(c), beforeStayUpgrade);
+      await cleanupUpgrade(c, stayUpgrade);
+      console.log('PASS 015 to 016 upgrade: 16 tables unchanged; fictional fixtures removed');
+      auditUpgrade=await prepareUpgrade(c); beforeAuditUpgrade=await storedRows(c);
+    }
+    if (file === '202609110017_application_audit_and_staff_notes.sql') {
+      const afterAuditUpgrade=await storedRows(c);
+      assert.deepEqual(afterAuditUpgrade.staff_notes,[]); delete afterAuditUpgrade.staff_notes;
+      assert.deepEqual(afterAuditUpgrade,beforeAuditUpgrade);
+      await cleanupUpgrade(c,auditUpgrade);
+      console.log('PASS 016 to 017 upgrade: 16 tables unchanged; no backfilled audit');
+      searchUpgrade=await prepareUpgrade(c); beforeSearchUpgrade=await storedRows(c);
+    }
+    if (file === '202609110018_staff_application_search.sql') {
+      assert.deepEqual(await storedRows(c),beforeSearchUpgrade);
+      await cleanupUpgrade(c,searchUpgrade);
+      console.log('PASS 017 to 018 upgrade: existing rows unchanged');
     }
   }
   const requested = process.argv.slice(2);
+  if (requested.includes('--audit-notes-only')) await c.query("select set_config('test.operations_phase','audit-notes',false)");
+  if (requested.includes('--staff-search-only')) await c.query("select set_config('test.operations_phase','staff-search',false)");
+  if (requested.includes('--stays-only')) await c.query("select set_config('test.operations_phase','stays',false)");
   const single = ['application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql'];
   const concurrent = ['camp_room_allocations_concurrency.sql', 'calendar_concurrency.sql', 'community_individual_applications_concurrency.sql', 'community_individual_room_allocations_concurrency.sql'];
-  const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency'];
+  const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.includes('--stays-only') ? ['application_operations.sql', ...(requested.includes('--stays-concurrency') ? ['--stays-concurrency'] : [])] : requested.includes('--audit-notes-only') ? ['application_operations.sql', ...(requested.includes('--audit-notes-concurrency') ? ['--audit-notes-concurrency'] : [])] : requested.includes('--staff-search-only') ? ['application_operations.sql'] : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency', '--stays-concurrency', '--audit-notes-concurrency'];
   for (const file of selected) {
+    if (file === '--audit-notes-concurrency') { stage=file; await auditNotesConcurrency(c); continue; }
+    if (file === '--stays-concurrency') { stage=file; await stayConcurrency(c); continue; }
     if (file === '--payments-concurrency') { stage = file; await paymentConcurrency(c); continue; }
     assert.ok([...single, ...concurrent].includes(file), 'Unknown test file'); stage = file;
     const result = await c.query(await readFile(join(root, 'supabase/tests', file), 'utf8'));

@@ -78,10 +78,10 @@ SQL 009は初回提出と修正再提出の期限を分け、ロック取得後�
 | T11 | 作業中 | キャンプ審査・許可・古い画面の拒否・不許可時の割当解放をSQL 010とActionへ追加。単一接続218項目と同時更新7ケース成功。画面は未確認。SQL 013に地域活動個人の審査開始・修正依頼・不許可を追加（Supabase適用済み）。SQL 014に個人の許可を追加（ローカル検証済み・Supabase適用・DB検証・後片付け完了）。キャンセル確定は未実装 | バックエンド→フロント | 閲覧だけで審査を開始しない。理由必須の操作、状態ごとの編集制限、許可条件、枠解放、変更履歴、古い更新日時での保存拒否を一括処理する | P09・P10、第4.4節を職員詳細へ接続。キャンプ利用者には本人用キャンセルボタンを出さない |
 | T12 | 作業中 | キャンプ個人はSQL 010で実装・検証済み。地域活動個人の部屋割当・許可をSQL 014とActionへ追加し、既存回帰を含むローカル単一接続916項目・別接続60ケース・Node 112テスト成功。SQL 014のSupabase適用と既存回帰を含む単一接続916項目はユーザー確認済み。Supabaseの別接続60ケースと全後片付けもユーザー確認済み。画面接続は未実施。団体は未実装（第4.8節） | バックエンド→フロント | 各部屋定員と施設15人を日別に検査する。個人は割当完了後のみ許可、団体は参加人数と割当人数の一致も必要。許可後変更は理由と前後内容を残す | P10、第4.4節。キャンプ個人は部屋だけ選択し人数はDBで1人固定。申請者には割当結果を表示する |
 | T13 | 作業中 | 料金・納付。キャンプ提出時の計算とテーブルあり。SQL 013で地域活動個人の提出・日程変更再提出の計算を追加（ローカル検証済み、Supabase適用成功をユーザー確認済み）。納付更新と画面なし | バックエンド→フロント | 600円・9,600円・9,000円、同月別申請6,000円＋3,300円を確認する。職員が納付期限・未納／納付済みを更新し、未納の期限超過を表示する。他の状態を自動変更しない | 個別詳細へ月別内訳・合計・納付状態、職員詳細へ更新操作を渡す。団体代表者には見込合計と納付済み人数のみ |
-| T14 | 作業中 | 滞在・設定テーブルあり。SQL 010にキャンプ許可時の入居前登録を追加（単一接続のDB検証で成功確認済み）。SQL 014に地域活動個人の許可時の入居前登録を追加（ローカル検証済み・Supabase適用・DB検証・後片付け完了）。入退去・早期退去の操作は未実装 | バックエンド→フロント | 許可時に入居前、対面確認で滞在中→退去済みとする。早期退去では元期間・料金を維持し、個人は翌日、団体は全員退去の翌日から枠解放、キャンプ枠は維持する | 職員詳細に入退去操作、滞在中の利用者と許可後の団体代表者に連絡先を表示。設定画面は `/staff/settings` |
-| T15 | 作業中 | 個別状態履歴あり。SQL 010に職員専用 `audit_logs` とキャンプの審査・部屋割り記録を追加（単一接続のDB検証で成功確認済み）。SQL 013で地域活動個人の作成・保存・提出・同意書差替・最小審査の監査を追加（ローカル検証済み、Supabase適用成功をユーザー確認済み）。SQL 014に個人の割当・再割当・許可の監査と滞在スナップショットを追加（ローカル検証済み・Supabase適用・DB検証・後片付け完了）。キャンプ利用者操作の監査と `staff_notes` は未実装 | バックエンド→フロント | 全更新に操作者・日時・対象・前後内容を記録する。本人用の状態履歴と職員専用メモ・監査履歴を分離する | 第4.4節。内部の部屋変更理由は `audit_logs` だけから職員向けに取得する |
-| T16 | 未着手 | 職員ホームの横断検索と区分別一覧 | 共同 | `/staff` で氏名・団体名・期間検索、利用区分・申請／納付／滞在状態の絞り込みを行い、正しい詳細へ進める | `/staff`、キャンプ申請一覧、`/staff/community` 配下。検索条件・返却項目・件数制限を確定して渡す |
-| T17 | 未着手 | 地域活動のキャンセル申請と継続・延長申請。関連列のみでは機能として使えない | バックエンド→フロント | キャンセル申請中は枠を維持し、職員確定で解放する。滞在開始後は電話と早期退去へ案内する。延長は元申請に紐づく別申請・別料金とし、資格・日程・審査を再確認する | 共通申請の `/cancel`・`/extension` に状態別の対象条件を渡す。T09〜T14に依存 |
+| T14 | 作業中 | 滞在・設定テーブルあり。SQL 010にキャンプ許可時、SQL 014に地域活動個人許可時の入居前登録を追加。SQL016の入退去・早期退去はmain・Supabaseへ適用済みで、実DB242項目成功をユーザー確認済み。画面なし | バックエンド→フロント | 許可時に入居前、対面確認で滞在中→退去済みとする。早期退去では元期間・料金を維持し、個人は翌日、団体は全員退去の翌日から枠解放、キャンプ枠は維持する | 職員詳細に入退去操作、滞在中の利用者と許可後の団体代表者に連絡先を表示。設定画面は `/staff/settings` |
+| T15 | 作業中 | 個別状態履歴あり。SQL 010・013・014の既存監査に加え、SQL017でキャンプ利用者監査と個別申請staff_notesを実装。main・Supabaseへ適用済みで、実DB323項目成功をユーザー確認済み。画面なし | バックエンド→フロント | 全更新に操作者・日時・対象・前後内容を記録する。本人用の状態履歴と職員専用メモ・監査履歴を分離する | 第4.4節。内部の部屋変更理由は `audit_logs` だけから職員向けに取得する |
+| T16 | 作業中 | SQL018で、実装済みのキャンプ・地域活動個人を対象に職員検索RPCとServer取得をローカル実装。氏名・受付番号・キャンプ名・期間、利用区分、申請／納付／滞在状態、50件ページング、正規詳細URLに対応。団体・画面・Supabase適用は未実施 | 共同 | `/staff` で氏名・団体名・期間検索、利用区分・申請／納付／滞在状態の絞り込みを行い、正しい詳細へ進める | `/staff`、キャンプ申請一覧、`/staff/community` 配下。`searchStaffApplications(searchParams)` の固定入力・返却契約を使用し、本人画面へ結果を渡さない。団体はT18〜20後に拡張 |
+| T17 | バックエンド完了 | SQL019で地域活動個人の取消、SQL020で連続する延泊申請をローカル実装・検証済み。SQL020のSupabase適用と画面接続は未実施 | バックエンド→フロント | 取消確定時だけ枠を解放する。延泊は許可済み元申請に紐づく別申請・別料金・別審査・別部屋・別滞在とし、元申請を変更しない | `/cancel` はSQL019、`/extension` はSQL020の契約へ接続。申請一覧・職員検索では `original_application_id` がある行を「延泊」と表示する |
 
 根拠：要件6・10〜11・13〜19・21章、ルート6.2・7章、DB5・6〜9章。
 
@@ -470,3 +470,81 @@ node scripts/test-community-applications-db.mjs application_operations.sql --pay
 既存ローカルPostgreSQL runtimeを使用し、.envやSupabase接続先は読まない。実行スクリプトの引数なしは全回帰になるため、Phase 3終了まで実行しない。変更JS6ファイルの対象ESLintも成功（元プロジェクトの既存node_modulesを参照）。初回のSQL権限テストは検証用UPDATEにRETURNINGがなくカーソルエラーになったため、検証SQLを修正して成功。lint初回の依存解決エラーも既存node_modulesのNODE_PATH指定で解消。
 
 Supabase適用、commit、push、全回帰・全体lint・buildは未実施。T13は画面未接続・Supabase未適用のため引き続き作業中。SQL015を本番でまだ実行しない。
+
+### T14 Phase 2：入退去・早期退去（2026年9月11日）
+
+開始時のworktreeがcleanであることを確認し、main `434cc63` 起点に `codex/application-stays` を作成。Phase 1のSQL015はマージ・Supabase適用・実単一接続91項目成功済みとのユーザー確認を前提とした。Phase 2だけを実装し、commit・pushは未実施。
+
+新規ファイルは承認済み `supabase/migrations/202609110016_application_stays.sql` だけ。既存の `app/actions/staff-application-operations.js`、`utils/application-operations/validation.js`、`utils/application-operations/queries.js`、`tests/application-operations-actions.test.mjs`、`supabase/tests/application_operations.sql`、`scripts/test-community-applications-db.mjs`、docsのai_context／database／routes／tasksへ追記した。入退去の状態遷移・解放条件・入力契約はroutes.md末尾に記載。
+
+対象検証：Node34件、DB151項目、別接続9ケース成功。二重入居・二重退去、退去と部屋変更（両順序）、納付と退去、キャンプ二重退去、待機中の別職員停止、REPEATABLE READ、退去待機後の本人新規提出を確認。異なる接続IDとpg_blocking_pidsで実待機を検査し、失敗側の部分更新なしを比較。単一接続では満員から翌日以降の枠解放・本人重複解消・実提出、解放済み15個人枠に重なる新キャンプの部屋割当、キャンプ枠維持、最終日／遅い退去、監査書込失敗時の滞在・部屋・枠・親版の全取消を確認。
+
+SQL015→016前後の16テーブル完全一致と、一時ローカルDB・テストデータの後片付けも確認。初回テストの変数名衝突と片付け対象の誤りは検証コード内で修正し、作成済みIDだけを対象にして再検証した。製品の入退去・解放ロジックは対象検証で成功。ローカルAuthは代替実装であり、実Supabase・JWT・画面の受入を代替しない。
+
+Phase 2だけの再現：
+```bash
+node --experimental-vm-modules --test --test-name-pattern=stay tests/application-operations-actions.test.mjs
+node scripts/test-community-applications-db.mjs --stays-only --stays-concurrency
+```
+引数なしのDB実行は全回帰なのでPhase 3後まで保留。SQL単体の通常実行はPhase 1＋2、ローカル `--stays-only` はPhase 1のケースをスキップする。今回の対象コマンドでは過去機能の全テストを再実行していない。Supabase操作、全回帰・全体lint/build、画面接続は未実施。Phase 3のキャンプ監査補完・職員メモ、緊急連絡先設定、団体・キャンセル・延長・アカウント初期化は未着手。T14全体は引き続き作業中。
+
+### T15 Phase 3：キャンプ監査・職員メモ（2026年9月11日）
+
+clean確認後、main `f2e4dbb` 起点に `codex/application-audit-notes` を作成。SQL015・016はマージ・Supabase適用・実DB242項目成功済みとのユーザー確認が最新の前提。Phase 3だけを実装し、SQL017のSupabase適用・commit・pushは未実施。
+
+新規ファイルは承認済み `supabase/migrations/202609110017_application_audit_and_staff_notes.sql` だけ。変更した既存ファイル：
+- `app/actions/guardian-consent.js`（提出済みキャンプの旧添付保持）
+- `app/actions/staff-application-operations.js`（職員メモAction）
+- `utils/application-operations/validation.js`、`utils/application-operations/queries.js`（検証・職員取得）
+- `tests/application-operations-actions.test.mjs`、`supabase/tests/application_operations.sql`（Phase 3対象ケース）
+- `supabase/tests/camp_room_allocations_and_approval.sql`、`supabase/tests/camp_room_allocations_concurrency.sql`（既存の職員監査件数検査をactor_kind=staffへ明示し、追加した利用者監査と区別）
+- `scripts/test-community-applications-db.mjs`（SQL017移行一致、メモを含むスナップショット、同時操作）
+- docsの `ai_context.md / database.md / routes.md / tasks.md`
+
+キャンプActionは変更不要で、既存入力契約・返却形式を維持。追加の版引数は導入せず、保存・添付のロックと待機後の権限／期限検査を補完。職員メモは申請版で競合を検査し、保存・添付・納付等と同時更新された場合は古い版を拒否する。監査対象とメモ接続契約はdatabase.md・routes.md末尾。
+
+対象検証：Node15件、DB81項目、別接続8ケース成功。メモ追加／編集の競合、納付・キャンプ保存・添付登録との競合、待機中職員停止、REPEATABLE READ、メモ保存待機後の本人保存でメモを保持することを確認。DBでは権限・本文上限・別申請noteId・同値保存・監査失敗時の全取消・利用者監査の主体／前後／非公開性・再送重複防止を検証。Storage補償と提出済み旧添付の保持はNode境界テストで確認。
+
+対象成功後、全回帰を1回実施：**Node203件、DB単一接続1239項目（既存916＋運用323）、別接続81ケース（既存60＋納付4＋入退去9＋監査メモ8）がすべて成功**。全体lint成功（明示的に対象外の.claudeは除外）。buildは既存Google Fonts取得のDNS制限で初回失敗し、コード変更なし・通信許可付きでbuildだけ再実行して成功。Webpackを使用して既存依存パッケージを再利用した。
+
+SQL016→017前後の既存16テーブル完全一致、staff_notesが空であること、過去監査のバックフィルなしを確認。別接続は接続IDとpg_blocking_pidsで実待機を検査し、各専用データ／スキーマ・一時ローカルDBの後片付けまで成功。ローカルAuthは代替実装であり、実Supabase／JWT／Storage／画面の受入を代替しない。
+
+再現：
+```bash
+# Phase 3だけ
+node --experimental-vm-modules --test '--test-name-pattern=notes|audit consent' tests/application-operations-actions.test.mjs
+node scripts/test-community-applications-db.mjs --audit-notes-only --audit-notes-concurrency
+# 全回帰（今回は実施済み。変更や失敗なしに反復しない）
+node --experimental-vm-modules --test tests/*.test.mjs
+node scripts/test-community-applications-db.mjs
+npm run lint -- --ignore-pattern '.claude/**'
+npm run build -- --webpack
+```
+
+T15はSQL017未適用・画面未接続のため引き続き作業中。削除・検索・団体メモ・汎用監査基盤、T16以降は追加していない。requirements.md、SQL001〜016、秘密情報、.env.local、docs/apple_event.txt、.claudeは変更していない。
+
+### T16 職員申請検索（2026年9月11日）
+
+main `09125af` 起点の `codex/staff-application-search` でMVP範囲を実装。新規は承認済み `supabase/migrations/202609110018_staff_application_search.sql` だけ。既存の `utils/application-operations/validation.js / queries.js`、`tests/application-operations-actions.test.mjs`、`supabase/tests/application_operations.sql`、DBテストランナー、関連docsを更新した。
+
+active職員限定、固定の引数・返却許可リスト、文字列ワイルドカードの無効化、期間重複、状態値、50件ページング、正規詳細パス、情報非公開、読取専用性を実装。団体、CSV、全文検索拡張、画面、更新Actionは範囲外。対象Node19件とローカルDB42項目が成功。その後の全回帰もNode222件、DB単一接続1281項目、別接続81ケース、lint、本番buildがすべて成功。SQL018は既存データを書き換えず、Supabase適用・実環境受入・commit・pushは未実施。
+
+対象検証：
+```bash
+node --experimental-vm-modules --test '--test-name-pattern=staff search' tests/application-operations-actions.test.mjs
+node scripts/test-community-applications-db.mjs --staff-search-only
+```
+
+### T17 地域活動の個人利用の取消（前半、2026年9月11日）
+
+SQL018のmainマージ・Supabase適用・実DB365項目成功後、`codex/community-application-cancellation` で取消だけを実装。新規ファイルは承認済みの `supabase/migrations/202609110019_community_application_cancellation.sql` だけ。継続・延長、団体、キャンプ利用者の自己取消、メール、画面は含めない。
+
+本人は申請済み・審査中・修正依頼・許可（入居前のみ）から理由付きで取消申請中へ変更できる。この時点では日程枠・部屋・料金・滞在を保持する。active職員が理由付きで確定した時だけ取消済みへ変更し、個人日程枠と部屋を全期間解放する。料金・月別内訳・納付・受付番号・入居前滞在・取消理由・履歴は削除しない。古い版、二重操作、本人違い、職員権限喪失、滞在開始後、不整合を拒否し、状態・解放・監査を一括保存する。
+
+対象Node55件、ローカル一時DBのSQL001〜019適用と運用テスト413項目が成功。続く全回帰もNode231件、DB単一接続1329項目、別接続81ケース、lint、本番buildがすべて成功。SQL019のSupabase適用、commit、pushはまだ行っていない。
+
+### T17 地域活動の個人利用の延泊（後半、2026年9月11日）
+
+main `07a21a0` 起点の `codex/community-application-extension` で、承認済みの本番用SQL020を追加。許可済み・入居前または滞在中の通常申請だけを元に、終了翌日から連続する別申請を1件作る。元申請は不変。延泊側は通常の下書き保存・提出・同意書・受付番号・料金・審査・部屋割り・許可・納付・入退去・取消・職員メモを独立して使う。延泊の延泊、他人の申請、重複する有効延泊、通常のD+14〜D+60外、1〜15日外を拒否する。
+
+新規は承認済み `supabase/migrations/202609110020_community_application_extension.sql` のみ。既存Action・検証・取得・メッセージ、運用テスト、関連docsを更新。対象Node150件と運用統合446項目の成功後、全回帰もNode234件、DB単一接続1361項目、別接続81ケース、lint、production buildが成功。SQL001〜020の順次適用と全後片付けも確認した。Supabase適用、実環境テスト、commit、push、画面接続は未実施。本番用SQL020はSupabase適用時に保存する。検証SQL `supabase/tests/application_operations.sql` は保存用クエリではなく、実行時は末尾ROLLBACKのためSQL Editorでは保存しない。

@@ -651,3 +651,47 @@ MVPでは `app/user` と `app/staff` 配下に個別の `loading.js`、`error.js
 `utils/application-operations/queries.js` の `getApplicationPayment(applicationId)` はactive本人（職員権限もDBで認可）、`getStaffApplicationPayment(applicationId)` はactive職員。1回の読取RPCで `{ error, application }` を返す。applicationは `id / usage_type / camp_id / status / updated_at / charge`。chargeは `total_amount / payment_status / payment_due_date / paid_at / is_overdue / months`、下書き等で料金行がなければnull。monthsは既存の月別内訳5項目。内部理由・監査・職員IDは返さない。
 
 `is_overdue` は取得時点の日本時間で「未納かつ期限翌日以降」を計算する。共有キャッシュへ保存しない。既存 `getCommunityApplication` のchargeにも同項目だけ追加（既存項目は維持）。期限超過は表示用の派生値であり、DBの納付状態は未納のまま。画面は未実装。
+
+### T14 Phase 2：入退去（SQL 016・ローカル検証済み、Supabase未適用）
+
+既存 `app/actions/staff-application-operations.js` に `checkInApplication(formData)` と `checkOutApplication(formData)` を追加。両方とも入力は `applicationId / updatedAt` のみ。DBから取得した版の文字列をマイクロ秒まで保持する。Actionでactive職員・取得時の許可／滞在状態・版を確認し、更新RPCがロック後に再検査する。日時・終了日・料金・キャンプID・任意の遷移先状態は入力として採用しない。納付Actionの契約は変更しない。
+
+成功時は既存の職員詳細URLへ `?updated=checked-in` または `?updated=checked-out`。本人・職員詳細／一覧と公開・職員カレンダーを再検証。失敗時は `{ error, fields, fieldErrors }` を返す。主なエラーは `invalid-application / invalid-version / stale-update / invalid-status / invalid-stay / stay-completed / outside-stay-period / invalid-allocation / calendar-inconsistent / forbidden / not-found / update-failed`。既存の部屋・施設・日程の検査エラーも安全なコードで返す。古い版・40001・40P01は自動再送しない。操作前の読取は許可の確約ではなく、保存時のRPC再検査が最終判定。
+
+`utils/application-operations/queries.js` に `getApplicationStay(applicationId)`（active本人／DBで職員も認可）と `getStaffApplicationStay(applicationId)`（active職員）を追加。1回の読取RPCで `{ error, application }`、applicationは `id / usage_type / camp_id / status / updated_at / start_date / end_date / stay / room_allocation`。stayは `status / checked_in_at / checked_out_at`、room_allocationは既存の部屋ID・名称・人数・期間・released_from・is_current。内部監査・職員ID・部屋変更理由は返さない。既存地域活動詳細の滞在取得も継続利用可能。
+
+入居は許可期間内の `before_move_in → staying`、退去は `staying → moved_out` のみ。未納でも操作可能。DB時刻を記録し、手入力・遡及訂正・再入居は提供しない。退去日は占有し、翌日から解放（予定終了後の確認は元終了日+1で上限）。個人は部屋とindividual枠、キャンプは個人部屋だけを解放しcamp枠を維持する。
+
+申請詳細の期間は元の許可期間を維持。職員カレンダーの個人／申請行のend_dateは解放日前日までの占有期間を返し、翌日以降の日別行を除外する。キャンプ日別人数も解放日を反映し、月別人数はその月に占有日がある対象数。キャンプ期間の行自体は人数0でも維持する。公開カレンダーの受付窓D+14〜D+60は維持するため、早期解放と直近日の新規受付は同義ではない。
+
+### T15 Phase 3：キャンプ監査・職員メモ（SQL 017・Supabase適用済み、実DB323項目成功）
+
+既存キャンプActionとRPCの引数・返却形式は維持。新しいhidden入力や既存画面の移行は不要。下書き作成・保存・提出／再提出・同意書登録／差替の監査をDB内へ追加した。キャンプ保存と同意書登録も施設ロックと待機後のactive／期限検査を使用し、同意書登録は親申請のupdated_atを進める。したがって職員操作は添付登録後に詳細を再取得して新しい版を使う。キャンプの従来の保存／提出／添付に楽観的版引数は追加しておらず、同時操作はロックで直列化する。本人保存が職員メモを上書きすることはない。
+
+`app/actions/staff-application-operations.js` に `saveApplicationStaffNote(formData)` を追加。入力は `applicationId / updatedAt / noteId / body`。noteId空欄で追加、既存UUIDで編集。updatedAtは申請の版でありメモ行の版ではない。空白除去後の本文1〜2000文字。active職員だけが操作し、別申請のnoteIdを拒否する。最新版本の同内容編集は無更新、古い版は拒否。成功は正規の職員詳細URLへ `?updated=note-saved`、失敗は `{ error, fields, fieldErrors }`。主なコードは `note-required / note-too-long / invalid-note / note-not-found / invalid-version / stale-update / forbidden / not-found / update-failed`。40001・40P01を自動再送しない。
+
+`utils/application-operations/queries.js` の `getStaffApplicationNotes(applicationId)` はactive職員だけが呼べる。返却は `{ error, application }`、applicationは `id / usage_type / camp_id / updated_at / notes`。notesは作成日時・ID昇順で `id / body / author_user_id / created_at / updated_at`。編集後もauthor_user_idは作成者を保持し、編集者は監査へ記録。本文やメモは本人用RPC・取得応答には追加しない。更新後に本人詳細等を再検証するのは親版を更新するためであり、メモ本文を渡すためではない。
+
+同意書のStorage操作の順序・DB登録失敗時の新規オブジェクト削除を維持。キャンプも提出済み申請の旧添付を削除せず、監査の参照を保持する（下書きの旧添付だけ削除可能）。DB更新とStorageは別トランザクションのため、実Storage受入は未実施として残す。
+
+### T16 職員ホーム検索（SQL 018・ローカル検証済み、Supabase未適用）
+
+`utils/application-operations/queries.js` の `searchStaffApplications(searchParams)` を `/staff` と区分別一覧から使用する。入力キーは `q / usageType / applicationStatus / paymentStatus / stayStatus / from / to / page`。空文字は未指定へ正規化し、日付はYYYY-MM-DD、pageは1〜10000。GETクエリをSQL文字列へ連結せず、RPC引数として渡す。不正時はRPCを呼ばず `invalid-query / invalid-usage-type / invalid-application-status / invalid-payment-status / invalid-stay-status / invalid-period / invalid-page` を返す。権限喪失は `forbidden`、未知のDBエラー・不正な返却は `load-failed`。
+
+成功は `{ error: null, filters, applications, pagination }`。`pagination` は `page / pageSize=50 / totalCount / hasNext`。各applicationは `id / usage_type / camp_id / applicant_name / camp_name / status / start_date / end_date / reception_number / people_count / total_amount / payment_status / payment_due_date / stay_status / updated_at / detail_path` の固定許可リストだけを返す。`detail_path` はキャンプなら `/staff/camps/[campId]/applications/[applicationId]`、地域活動の個人利用なら `/staff/community/applications/[applicationId]`。画面はこの値をリンクに使用できるが、本人向け画面へ同じ結果を渡さない。
+
+MVPのSQL018は現在存在する2区分だけを対象とする。団体テーブル実装後に同じ検索契約へ団体名・人数・団体詳細パスを拡張する。CSV、高度な全文検索、検索履歴保存、検索による状態更新は行わない。
+
+### T17 地域活動の個人利用の取消接続契約（SQL 019）
+
+`getCommunityApplicationCancellation(applicationId)` は本人またはactive職員向けの固定項目 `id / status / updated_at / start_date / end_date / cancel_reason / stay_status / can_request / can_confirm` を返す。本人以外はnot-found。`/user/applications/[applicationId]/cancel` は `can_request=true` の場合だけ表示し、滞在開始後は操作を出さず町への連絡と早期退去を案内する。
+
+本人Action `requestCommunityApplicationCancellation(formData)` と職員Action `confirmCommunityApplicationCancellation(formData)` の入力は `applicationId / updatedAt / reason`。理由は空白除去後1〜2000文字。成功時は本人詳細または職員詳細へ戻る。主なエラーは `reason-required / reason-too-long / invalid-version / stale-update / invalid-status / invalid-stay / stay-started / invalid-allocation / calendar-inconsistent / not-found / forbidden / update-failed`。画面はDBが返した最新状態を再取得し、古い版を自動再送しない。
+
+### T17 地域活動の個人利用の延泊接続契約（SQL 020）
+
+`/user/applications/[applicationId]/extension` は `getCommunityApplicationExtensionSource(applicationId)` を呼ぶ。固定返却は `id / status / end_date / stay_status / extension_start_date / existing_extension_id / can_extend`。`can_extend=true` のときだけ、終了日と理由を入力できる。開始日は元の終了翌日を表示専用とし、利用者入力にしない。
+
+`createCommunityApplicationExtension(formData)` の入力は `extensionId / originalApplicationId / endDate / reason`。extensionIdは画面で新しいUUIDを1回生成し、通信再送では同じ値を使う。理由は空白除去後1〜2000文字。成功後は `/user/applications/[extensionId]/edit?created=extension` へ進み、通常の個人申請入力を確認・保存してから提出する。主なエラーは `invalid-extension-period / extension-not-available / extension-exists / reason-required / reason-too-long / not-found / forbidden / update-failed`。
+
+本人一覧の `original_application_id` がnullでない行は「延泊」と表示し、元申請への導線を出す。職員検索・部屋・納付・滞在・メモの取得にも同項目がある。延泊は別申請なので、料金・受付番号・申請状態・部屋・滞在・取消操作はその延泊IDで行う。元申請のIDや版を延泊側の更新Actionへ送らない。

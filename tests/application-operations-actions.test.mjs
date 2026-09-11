@@ -1,4 +1,4 @@
-// Phase 1 only: node --experimental-vm-modules --test tests/application-operations-actions.test.mjs
+// Phase 1 + 2 (use --test-name-pattern="stay" for Phase 2): node --experimental-vm-modules --test tests/application-operations-actions.test.mjs
 // Load the actual modules; replace only Next.js, auth and DB boundaries.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -13,7 +13,7 @@ const KEY = "10000000-0000-4000-8000-000000000003";
 const USER = "10000000-0000-4000-8000-000000000004";
 const SAVED = [];
 const copy = (value) => JSON.parse(JSON.stringify(value));
-async function harness(path, { response = { data: SAVED, error: null }, denied = false, readResponse = response, metadata = response, authResponse = { data: { session: {}, user: { id: USER } } } } = {}) {
+async function harness(path, { response = { data: SAVED, error: null }, denied = false, readResponse = response, metadata = response, rpcResponses = null, authResponse = { data: { session: {}, user: { id: USER } } } } = {}) {
   const calls = [];
   const context = vm.createContext({ URLSearchParams, URL, File, crypto: { randomUUID: () => KEY }, process: { env: { NEXT_PUBLIC_SUPABASE_URL: "https://example.invalid", SUPABASE_SECRET_KEY: "fictional-test-value" } } });
   const admin = {
@@ -30,7 +30,7 @@ async function harness(path, { response = { data: SAVED, error: null }, denied =
       async signInWithPassword(args) { calls.push(["login", copy(args)]); return authResponse; },
       async getUser() { calls.push(["getUser"]); return authResponse; },
     },
-    async rpc(name, args) { calls.push(["rpc", name, copy(args)]); return response; },
+    async rpc(name, args) { calls.push(["rpc", name, copy(args)]); return rpcResponses?.[name] ?? response; },
     from(table) {
       calls.push(["from", table]);
       return {
@@ -174,4 +174,199 @@ test("existing community detail adds overdue without exposing internal fields", 
   const output = await api.getCommunityApplication(ID);
   assert.equal(output.application.charge.is_overdue, true);
   assert.ok(!JSON.stringify(output).includes("private"));
+});
+
+const stayPreview = (status = "before_move_in") => ({ id: ID, usage_type: "camp", camp_id: CAMP,
+  updated_at: VERSION, status: "approved", stay: { status } });
+for (const [method, operation, before, after] of [["checkInApplication", "check_in", "before_move_in", "staying"],
+  ["checkOutApplication", "check_out", "staying", "moved_out"]]) {
+  for (const kind of ["camp", "community_individual"]) test(`stay ${method} ${kind}: fixed operation, precise version, no user timestamps`, async () => {
+    const { api, calls } = await harness(actionPath, { rpcResponses: {
+      get_application_stay: { data: stayPreview(before) },
+      update_application_stay: { data: [{ ...result(kind)[0], result_status: after }] },
+    } });
+    await assert.rejects(api[method](form({ checkedInAt: "2000-01-01", stayAction: "cancel", campId: OTHER_ID })), /REDIRECT/);
+    assert.deepEqual(calls[0], ["auth", "staff", "/staff"]);
+    assert.deepEqual(calls.find(c => c[1] === "update_application_stay"), ["rpc", "update_application_stay", {
+      target_application_id: ID, expected_updated_at: VERSION, stay_action: operation,
+    }]);
+    const base = kind === "camp" ? `/staff/camps/${CAMP}` : "/staff/community";
+    assert.equal(calls.at(-1)[1], `${base}/applications/${ID}?updated=${operation === "check_in" ? "checked-in" : "checked-out"}`);
+    for (const path of ["/calendar", "/staff/calendar", `/user/applications/${ID}`]) assert.ok(calls.some(c => c[0] === "revalidate" && c[1] === path));
+  });
+  test(`stay ${method}: no authority no calls`, async () => {
+    const { api, calls } = await harness(actionPath, { denied: true });
+    await assert.rejects(api[method](form()), /AUTH_REDIRECT/);
+    assert.equal(calls.length, 1);
+  });
+  for (const [data, code] of [[{ ...stayPreview(before), updated_at: "2026-09-10T12:34:56.123457+00:00" }, "stale-update"],
+    [{ ...stayPreview(before), status: "under_review" }, "invalid-status"], [stayPreview("moved_out"), "stay-completed"],
+    [stayPreview(null), "invalid-stay"]]) test(`stay ${method}: preflight ${code}`, async () => {
+    const { api, calls } = await harness(actionPath, { response: { data } });
+    assert.equal((await api[method](form())).error, code);
+    assert.equal(calls.filter(c => c[0] === "rpc").length, 1);
+    assert.ok(!calls.some(c => ["revalidate", "redirect"].includes(c[0])));
+  });
+  for (const [error, code] of [[{ message: "stale-update" }, "stale-update"], [{ code: "40001" }, "stale-update"],
+    [{ code: "40P01" }, "stale-update"], [{ code: "42501" }, "forbidden"], [{ message: "outside-stay-period" }, "outside-stay-period"],
+    [{ message: "internal SQL", details: "private" }, "update-failed"]]) test(`stay ${method}: atomic RPC failure ${code}`, async () => {
+    const { api, calls } = await harness(actionPath, { rpcResponses: {
+      get_application_stay: { data: stayPreview(before) }, update_application_stay: { error },
+    } });
+    const output = await api[method](form());
+    assert.equal(output.error, code);
+    assert.deepEqual(copy(output.fields), { applicationId: ID, updatedAt: VERSION });
+    assert.ok(!JSON.stringify(output).includes("private"));
+    assert.equal(calls.filter(c => c[1] === "update_application_stay").length, 1);
+    assert.ok(!calls.some(c => ["revalidate", "redirect"].includes(c[0])));
+  });
+  test(`stay ${method}: malformed success rejected`, async () => {
+    const { api, calls } = await harness(actionPath, { rpcResponses: {
+      get_application_stay: { data: stayPreview(before) }, update_application_stay: { data: [{ ...result("camp")[0], result_status: before }] },
+    } });
+    assert.equal((await api[method](form())).error, "update-failed");
+    assert.ok(!calls.some(c => ["revalidate", "redirect"].includes(c[0])));
+  });
+}
+for (const [input, code] of [[{ applicationId: "bad" }, "invalid-application"], [{ updatedAt: "bad" }, "invalid-version"]]) {
+  test(`stay input ${code} rejected before read`, async () => {
+    const { api, calls } = await harness(actionPath);
+    assert.equal((await api.checkInApplication(form(input))).error, code);
+    assert.equal(calls.length, 1);
+  });
+}
+for (const method of ["getApplicationStay", "getStaffApplicationStay"]) {
+  test(`stay ${method}: safe allowlist, read only`, async () => {
+    const { api, calls } = await harness(queriesPath, { response: { data: { ...stayPreview(),
+      start_date: "2026-09-10", end_date: "2026-09-12", audit_logs: ["private"],
+      room_allocation: { room_name: "桐", released_from: "2026-09-12", is_current: false, reason: "private" },
+    } } });
+    const output = await api[method](ID);
+    assert.equal(output.application.stay.status, "before_move_in");
+    assert.equal(output.application.room_allocation.released_from, "2026-09-12");
+    assert.ok(!JSON.stringify(output).includes("private"));
+    assert.equal(calls.filter(c => c[0] === "rpc").length, 1);
+  });
+  test(`stay ${method}: auth rejection`, async () => {
+    const { api, calls } = await harness(queriesPath, { denied: true });
+    await assert.rejects(api[method](ID), /AUTH_REDIRECT/);
+    assert.equal(calls.length, 1);
+  });
+}
+
+for (const kind of ["camp", "community_individual"]) test(`notes ${kind}: create and edit contract`, async () => {
+  for (const noteId of ["", OTHER_ID]) {
+    const { api, calls } = await harness(actionPath, { response: { data: [{ ...result(kind)[0], result_note_id: OTHER_ID }] } });
+    await assert.rejects(api.saveApplicationStaffNote(form({ body: "内部メモ", noteId, authorUserId: USER })), /REDIRECT/);
+    assert.deepEqual(calls[0],["auth","staff","/staff"]);
+    assert.deepEqual(calls.find(c => c[0]==="rpc"),["rpc","save_application_staff_note",{
+      target_application_id:ID,expected_updated_at:VERSION,target_note_id:noteId || null,note_body:"内部メモ",
+    }]);
+    assert.ok(calls.at(-1)[1].endsWith("?updated=note-saved"));
+    assert.ok(!calls.at(-1)[1].includes("内部メモ"));
+  }
+});
+for (const [input, code] of [[{ applicationId:"bad" },"invalid-application"],[{ updatedAt:"bad" },"invalid-version"],
+  [{ noteId:"bad" },"invalid-note"],[{ body:"  " },"note-required"],[{ body:"あ".repeat(2001) },"note-too-long"]]) {
+  test(`notes validation ${code}`,async()=>{
+    const { api,calls }=await harness(actionPath);
+    assert.equal((await api.saveApplicationStaffNote(form({body:"メモ",noteId:"",...input}))).error,code);
+    assert.ok(!calls.some(c=>c[0]==="rpc"));
+  });
+}
+for(const [error,code] of [[{code:"40001"},"stale-update"],[{code:"40P01"},"stale-update"],
+  [{code:"42501"},"forbidden"],[{message:"note-not-found"},"note-not-found"],[{message:"SQL private"},"update-failed"]]) {
+  test(`notes DB ${code}`,async()=>{
+    const {api,calls}=await harness(actionPath,{response:{error}});
+    const output=await api.saveApplicationStaffNote(form({body:"内部メモ",noteId:""}));
+    assert.equal(output.error,code);assert.equal(output.fields.body,"内部メモ");
+    assert.ok(!JSON.stringify(output).includes("SQL private"));
+    assert.equal(calls.filter(c=>c[0]==="rpc").length,1);
+    assert.ok(!calls.some(c=>c[0]==="revalidate"));
+  });
+}
+test("notes unauthorized action and getter never return body",async()=>{
+  for(const [path,method,arg] of [[actionPath,"saveApplicationStaffNote",form({body:"内部メモ"})],
+    [queriesPath,"getStaffApplicationNotes",ID]]) {
+    const {api,calls}=await harness(path,{denied:true});
+    await assert.rejects(api[method](arg),/AUTH_REDIRECT/);assert.equal(calls.length,1);
+  }
+});
+test("notes getter whitelist; owner payment/stay getters strip injected notes",async()=>{
+  const data={...stayPreview(),notes:[{id:OTHER_ID,body:"内部メモ",secret:"hidden"}]};
+  const {api}=await harness(queriesPath,{response:{data}});
+  assert.equal((await api.getStaffApplicationNotes(ID)).application.notes[0].body,"内部メモ");
+  for(const method of ["getApplicationPayment","getApplicationStay"]) {
+    assert.ok(!JSON.stringify(await api[method](ID)).includes("内部メモ"));
+  }
+});
+test("audit consent: DB failure compensates uploaded object; submitted old object is retained",async()=>{
+  const file=new File([new Uint8Array([0x25,0x50,0x44,0x46,0x2d,0x31])],"consent.pdf",{type:"application/pdf"});
+  for(const failed of [false,true]) {
+    const {api,calls}=await harness("app/actions/guardian-consent.js",{
+      readResponse:{data:{id:ID,usage_type:"camp",status:"revision_requested",submitted_at:VERSION}},
+      metadata:failed?{error:{message:"audit storage error"}}:{data:`applications/${ID}/${OTHER_ID}`},
+    });
+    await assert.rejects(api.uploadGuardianConsent(new Map([["applicationId",ID],["guardianConsentFile",file]])),/REDIRECT/);
+    const removals=calls.filter(c=>c[0]==="remove");
+    assert.equal(removals.length,failed?1:0);
+    if(failed) assert.equal(removals[0][1],`applications/${ID}/${KEY}`);
+  }
+});
+
+const searchItem = { id: ID, usage_type: "camp", camp_id: CAMP, applicant_name: "架空検索者", camp_name: "架空キャンプ",
+  status: "approved", start_date: "2026-10-01", end_date: "2026-10-03", reception_number: "2026-001",
+  people_count: 1, total_amount: 600, payment_status: "overdue", payment_due_date: "2026-09-01",
+  stay_status: "before_move_in", updated_at: VERSION, detail_path: `/staff/camps/${CAMP}/applications/${ID}` };
+const searchData = (items = [searchItem]) => ({ page: 2, page_size: 50, total_count: 51, has_next: false, items });
+
+test("staff search normalizes GET filters, calls one RPC and allowlists results", async () => {
+  const { api, calls } = await harness(queriesPath, { response: { data: searchData([{ ...searchItem, address: "秘密住所", notes: ["秘密メモ"] }]) } });
+  const output = await api.searchStaffApplications({ q: ["  架空%_  ", "ignored"], usageType: "camp",
+    applicationStatus: "approved", paymentStatus: "overdue", stayStatus: "before_move_in",
+    from: "2026-10-01", to: "2026-10-31", page: "2" });
+  assert.equal(output.error, null);
+  assert.deepEqual(calls[0], ["auth", "staff", "/staff"]);
+  assert.deepEqual(calls.find((call) => call[0] === "rpc"), ["rpc", "search_staff_applications", {
+    search_text: "架空%_", usage_type_filter: "camp", application_status_filter: "approved",
+    payment_status_filter: "overdue", stay_status_filter: "before_move_in",
+    starts_from: "2026-10-01", ends_to: "2026-10-31", page_number: 2,
+  }]);
+  assert.equal(output.pagination.totalCount, 51);
+  assert.ok(!JSON.stringify(output).includes("秘密住所"));
+  assert.ok(!JSON.stringify(output).includes("秘密メモ"));
+});
+
+for (const [input, code] of [
+  [{ q: "あ".repeat(101) }, "invalid-query"], [{ usageType: "group" }, "invalid-usage-type"],
+  [{ applicationStatus: "unknown" }, "invalid-application-status"], [{ paymentStatus: "unknown" }, "invalid-payment-status"],
+  [{ stayStatus: "unknown" }, "invalid-stay-status"], [{ from: "2026-02-30" }, "invalid-period"],
+  [{ from: "2026-10-02", to: "2026-10-01" }, "invalid-period"], [{ page: "0" }, "invalid-page"],
+  [{ page: "10001" }, "invalid-page"],
+]) test(`staff search rejects ${code} before RPC`, async () => {
+  const { api, calls } = await harness(queriesPath);
+  assert.equal((await api.searchStaffApplications(input)).error, code);
+  assert.ok(!calls.some((call) => call[0] === "rpc"));
+});
+
+for (const [error, code] of [[{ code: "42501" }, "forbidden"], [{ message: "invalid-page" }, "invalid-page"],
+  [{ message: "private SQL", details: "secret" }, "load-failed"]]) test(`staff search DB ${code} fails closed`, async () => {
+  const { api } = await harness(queriesPath, { response: { error } });
+  const output = await api.searchStaffApplications();
+  assert.equal(output.error, code);
+  assert.ok(!JSON.stringify(output).includes("private SQL"));
+  assert.ok(!JSON.stringify(output).includes("secret"));
+});
+
+for (const data of [null, { ...searchData(), page: 3 }, { ...searchData(), items: [{ ...searchItem, camp_id: null }] },
+  { ...searchData(), items: [{ ...searchItem, detail_path: "https://evil.example" }] },
+  { ...searchData(), items: [{ ...searchItem, people_count: 15 }] }]) test("staff search rejects malformed response", async () => {
+  const { api } = await harness(queriesPath, { response: { data } });
+  assert.equal((await api.searchStaffApplications({ page: "2" })).error, "load-failed");
+});
+
+test("staff search requires staff before validating input", async () => {
+  const { api, calls } = await harness(queriesPath, { denied: true });
+  await assert.rejects(api.searchStaffApplications({ page: "bad" }), /AUTH_REDIRECT/);
+  assert.equal(calls.length, 1);
 });

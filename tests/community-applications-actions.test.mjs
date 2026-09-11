@@ -11,6 +11,7 @@ const OTHER_ID = "10000000-0000-4000-8000-000000000002";
 const VERSION = "2026-09-10T12:34:56.123456+00:00";
 const KEY = "10000000-0000-4000-8000-000000000003";
 const USER = "10000000-0000-4000-8000-000000000004";
+const EXTENSION_ID = "10000000-0000-4000-8000-000000000005";
 const SAVED = [{ result_id: ID, result_updated_at: VERSION }];
 const SUBMITTED = [{ ...SAVED[0], result_status: "submitted", reception_number: "SG-2026-0001", submission_time: VERSION }];
 const FORM = { applicationId: ID, updatedAt: VERSION, submissionKey: KEY, confirmed: "true",
@@ -91,8 +92,12 @@ const ACTIONS = [
  ["app/actions/community-applications.js", "createCommunityApplicationDraft", "create_community_application_draft", SAVED],
  ["app/actions/community-applications.js", "saveCommunityApplicationDraft", "save_community_application_draft", SAVED],
  ["app/actions/community-applications.js", "submitCommunityApplication", "submit_community_application", SUBMITTED],
+ ["app/actions/community-applications.js", "requestCommunityApplicationCancellation", "request_community_application_cancellation",
+  [{ ...SAVED[0], result_status: "cancellation_requested" }]],
  ...[["startCommunityApplicationReview", "under_review"], ["requestCommunityApplicationRevision", "revision_requested"], ["rejectCommunityApplication", "rejected"]]
   .map(([action, status]) => ["app/actions/staff-community-applications.js", action, "review_community_application", [{ ...SAVED[0], result_status: status }]]),
+ ["app/actions/staff-community-applications.js", "confirmCommunityApplicationCancellation", "confirm_community_application_cancellation",
+  [{ ...SAVED[0], result_status: "cancelled" }]],
 ];
 for (const [file, action, rpc, data] of ACTIONS) {
  test(`${action} guards first, sends exact version, refreshes then redirects`, async () => {
@@ -119,11 +124,57 @@ for (const [file, action, rpc, data] of ACTIONS) {
   assert.ok(!calls.some(c => ["redirect", "revalidate"].includes(c[0])));
  });
 }
-test("only T10 and approved T12 actions are exported", async () => {
+test("only approved community application actions are exported", async () => {
  for (const file of ["app/actions/community-applications.js", "app/actions/staff-community-applications.js"]) {
   const { api } = await harness(file);
-  const extra = file.includes("staff-community") ? ["assignCommunityApplicationRoom", "approveCommunityApplication"] : [];
+  const extra = file.includes("staff-community") ? ["assignCommunityApplicationRoom", "approveCommunityApplication"]
+    : ["createCommunityApplicationExtension"];
   assert.deepEqual(Object.keys(api).sort(), [...ACTIONS.filter(a => a[0] === file).map(a => a[1]), ...extra].sort());
+ }
+});
+test("cancellation actions send only normalized reason and concurrency fields", async () => {
+ for (const [file, action, rpc, reasonKey] of [
+  ["app/actions/community-applications.js", "requestCommunityApplicationCancellation", "request_community_application_cancellation", "cancellation_reason"],
+  ["app/actions/staff-community-applications.js", "confirmCommunityApplicationCancellation", "confirm_community_application_cancellation", "confirmation_reason"],
+ ]) {
+  const status = action.startsWith("request") ? "cancellation_requested" : "cancelled";
+  const { api, calls } = await harness(file, { response: { data: [{ ...SAVED[0], result_status: status }] } });
+  await assert.rejects(api[action](form({ reason: "  架空の取消理由  ", status: "cancelled", userId: OTHER_ID })), /REDIRECT/);
+  assert.deepEqual(calls.find((call) => call[0] === "rpc").slice(1), [rpc, {
+    target_application_id: ID, expected_updated_at: VERSION, [reasonKey]: "架空の取消理由",
+  }]);
+ }
+});
+test("cancellation actions reject missing or oversized reasons before RPC", async () => {
+ for (const [file, action] of [["app/actions/community-applications.js", "requestCommunityApplicationCancellation"],
+  ["app/actions/staff-community-applications.js", "confirmCommunityApplicationCancellation"]]) {
+  for (const [reason, expected] of [["   ", "reason-required"], ["あ".repeat(2001), "reason-too-long"]]) {
+   const { api, calls } = await harness(file);
+   assert.equal((await api[action](form({ reason }))).error, expected);
+   assert.equal(calls.filter((call) => call[0] === "rpc").length, 0);
+  }
+ }
+});
+test("extension creation sends only its link, end date and normalized reason", async () => {
+ const { api, calls } = await harness("app/actions/community-applications.js", {
+  response: { data: [{ result_id: EXTENSION_ID, result_updated_at: VERSION }] },
+ });
+ await assert.rejects(api.createCommunityApplicationExtension(form({ extensionId: EXTENSION_ID,
+  originalApplicationId: ID, endDate: "2028-03-04", reason: "  架空の継続理由  ", status: "approved" })), /REDIRECT/);
+ assert.deepEqual(calls.find((call) => call[0] === "rpc").slice(1), ["create_community_application_extension", {
+  target_extension_id: EXTENSION_ID, target_original_application_id: ID,
+  target_end_date: "2028-03-04", extension_reason_value: "架空の継続理由",
+ }]);
+ assert.equal(calls.at(-1)[1], `/user/applications/${EXTENSION_ID}/edit?created=extension`);
+});
+test("extension creation validates IDs, date and reason before RPC", async () => {
+ for (const [fields, expected] of [[{ extensionId: "bad" }, "invalid-application"],
+  [{ originalApplicationId: "bad" }, "invalid-application"], [{ endDate: "2028-02-30" }, "invalid-extension-period"],
+  [{ reason: "   " }, "reason-required"], [{ reason: "あ".repeat(2001) }, "reason-too-long"]]) {
+  const { api, calls } = await harness("app/actions/community-applications.js");
+  assert.equal((await api.createCommunityApplicationExtension(form({ extensionId: EXTENSION_ID,
+   originalApplicationId: ID, endDate: "2028-03-04", reason: "架空理由", ...fields }))).error, expected);
+  assert.equal(calls.filter((call) => call[0] === "rpc").length, 0);
  }
 });
 test("empty creation preserves profile defaults, explicit empty fields clear them", async () => {
@@ -218,6 +269,24 @@ test("owner list explicitly scopes user/type, paginates and returns fixed column
  assert.ok(calls.some(c => c[0] === "eq" && c[1] === "user_id" && c[2] === USER));
  assert.ok(calls.some(c => c[0] === "eq" && c[1] === "usage_type" && c[2] === "community_individual"));
  assert.deepEqual(calls.find(c => c[0] === "range"), ["range", 50, 99]);
+});
+test("cancellation context is guarded, fixed-field and read-only", async () => {
+ const data = { id: ID, status: "approved", updated_at: VERSION, start_date: "2028-02-29", end_date: "2028-03-01",
+  cancel_reason: null, stay_status: "before_move_in", can_request: true, can_confirm: false, private: "PRIVATE" };
+ const { api, calls } = await harness("utils/community-applications/queries.js", { response: { data } });
+ const result = copy(await api.getCommunityApplicationCancellation(ID));
+ assert.equal(result.error, null); assert.equal(result.application.can_request, true);
+ assert.ok(!JSON.stringify(result).includes("PRIVATE"));
+ assert.deepEqual(calls.map((call) => call[0]), ["auth", "rpc"]);
+});
+test("extension source is guarded, fixed-field and read-only", async () => {
+ const data = { id: ID, status: "approved", end_date: "2028-03-01", stay_status: "before_move_in",
+  extension_start_date: "2028-03-02", existing_extension_id: null, can_extend: true, private: "PRIVATE" };
+ const { api, calls } = await harness("utils/community-applications/queries.js", { response: { data } });
+ const result = copy(await api.getCommunityApplicationExtensionSource(ID));
+ assert.equal(result.error, null); assert.equal(result.application.can_extend, true);
+ assert.ok(!JSON.stringify(result).includes("PRIVATE"));
+ assert.deepEqual(calls.map((call) => call[0]), ["auth", "rpc"]);
 });
 test("owner reads guard before invalid arguments", async () => {
  for (const [name, argument] of [["getCommunityApplication", "bad"], ["getCommunityApplications", -1]]) {

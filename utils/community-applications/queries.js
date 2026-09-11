@@ -35,7 +35,7 @@ export async function getCommunityApplication(applicationId, mode = "detail") {
 export async function getCommunityApplications(page = 1) {
   const { supabase, user } = await requireActiveUser("/user/applications");
   if (!Number.isInteger(page) || page < 1 || page > 10000) return { error: "invalid-page", applications: [] };
-  const columns = ["id", "status", "start_date", "end_date", "updated_at", "submitted_at", "last_submitted_at", "revision_due_at", "decision_reason"];
+  const columns = ["id", "original_application_id", "status", "start_date", "end_date", "updated_at", "submitted_at", "last_submitted_at", "revision_due_at", "decision_reason"];
   const { data, error } = await supabase.from("applications").select(columns.join(",")).eq("user_id", user.id).eq("usage_type", "community_individual")
     .order("created_at", { ascending: false }).order("id", { ascending: false }).range((page - 1) * 50, page * 50 - 1);
   return error || !Array.isArray(data) ? { error: "load-failed", applications: [] } : { error: null, applications: data.map((row) => pick(row, columns)) };
@@ -50,7 +50,29 @@ export async function getStaffCommunityApplicationRoomContext(applicationId) {
   if (error) return { error: communityErrorCode(error) === "not-found" ? "not-found" : "load-failed", application: null };
   if (!data || data.id !== applicationId || !Array.isArray(data.rooms)) return { error: "load-failed", application: null };
   return { error: null, application: {
-    ...pick(data, ["id", "status", "updated_at", "start_date", "end_date", "approval_comment"]),
+    ...pick(data, ["id", "status", "updated_at", "start_date", "end_date", "approval_comment", "original_application_id"]),
     ...roomResult(data), rooms: data.rooms.map((room) => pick(room, ["id", "name", "capacity"])),
   } };
+}
+
+export async function getCommunityApplicationCancellation(applicationId) {
+  const { supabase } = await requireActiveUser("/user/applications");
+  if (!isUuid(applicationId)) return { error: "not-found", application: null };
+  const { data, error } = await supabase.rpc("get_community_application_cancellation", { target_application_id: applicationId });
+  if (error) return { error: communityErrorCode(error) === "not-found" ? "not-found" : "load-failed", application: null };
+  if (!data || data.id !== applicationId) return { error: "load-failed", application: null };
+  return { error: null, application: pick(data, ["id", "status", "updated_at", "start_date", "end_date",
+    "cancel_reason", "stay_status", "can_request", "can_confirm"]) };
+}
+
+export async function getCommunityApplicationExtensionSource(applicationId) {
+  const { supabase } = await requireActiveUser("/user/applications");
+  if (!isUuid(applicationId)) return { error: "not-found", application: null };
+  const { data, error } = await supabase.rpc("get_community_application_extension_source", {
+    target_original_application_id: applicationId,
+  });
+  if (error) return { error: communityErrorCode(error) === "not-found" ? "not-found" : "load-failed", application: null };
+  if (!data || data.id !== applicationId) return { error: "load-failed", application: null };
+  return { error: null, application: pick(data, ["id", "status", "end_date", "stay_status",
+    "extension_start_date", "existing_extension_id", "can_extend"]) };
 }

@@ -579,3 +579,45 @@ FK参照元には上記と重複しない索引を付ける。機密列への索
 既存の施設実更新ロック・職員active再検査・申請行ロック・申請updated_at照合・料金行ロックを使用する。期限・状態・paid_atだけを変更し、親申請のupdated_atと `audit_logs.action=update_payment` を同一トランザクションで更新する。監査は料金行と親版の変更前後、職員ID、日時、差戻し理由を保持。最新版本の同内容保存は無更新、古い版は拒否。金額・月別内訳・申請状態・滞在・部屋・日程枠・受付番号・本人向け申請状態履歴は不変。
 
 両RPCは空search_pathのsecurity definerで、PUBLIC／anon／service_role実行を拒否し、authenticatedだけに実行権限を付与。取得はactive本人または職員を検査して必要列だけ返す。期限超過は取得側でJST基準に導出し、保存状態を増やさない。SQL 001〜014は変更していない。Supabaseへの015適用は未実施。
+
+### T14 Phase 2 実装補足（SQL 016・未適用）
+
+`202609110016_application_stays.sql` だけを追加。新表・既存行のデータ移行なし。`update_application_stay(uuid,timestamptz,text)` は通常キャンプ／地域活動個人の許可済み申請だけを対象とし、延長元付き・団体は拒否する。既存facility_guard実更新とactive職員再検査、申請版照合、滞在・部屋・個人枠の行ロックを使用。部屋と枠の期間一致・未解放を検査し、入居時は既存の部屋・施設定員・日程条件も再確認する。
+
+check_inは許可期間内に限定。check_outは入居日時との順序を確認し、DBの `clock_timestamp()` をロック待機後に採取。解放日は `least(JST確認日+1, 元の終了日+1)`。個人はroom_allocationsとcalendar_claims、キャンプはroom_allocationsだけにreleased_fromを保存。キャンプ全体の枠は変更しない。申請状態・許可期間・料金・月別内訳・納付・受付番号・既存申請状態履歴は維持する。
+
+滞在、解放日、親申請updated_at、`audit_logs.action=check_in / check_out` を一括保存。監査は滞在・部屋・個人枠・親版の前後を記録する。この操作に必要な監査だけを追加し、キャンプ利用者監査の補完・staff_notesは未実装。再送は旧版ならstale-update、最新版本でも二重遷移・退去後再入居を拒否する。
+
+既存の個人定員・本人重複・公開カレンダー・日程競合判定はindividual枠のreleased_fromを既に参照しているため再実装しない。SQL016でprivate.check_camp_room_capacityの施設人数にも個人解放日を反映し、解放後に作成したキャンプの割当に過去の個人枠を数えない。職員カレンダー月／日の返却期間・人数にも解放日を反映。`get_application_stay(uuid)` は本人／active職員の必要列だけを同一読取スナップショットで返す。
+
+SQL001〜015とrequirements.mdは変更しない。SQL015はmain 434cc63へマージ・Supabase適用・実DB91項目成功済み（ユーザー確認）。SQL016はローカル検証のみで、実Supabase未適用。
+
+### T15 Phase 3 実装補足（SQL 017・Supabase適用済み）
+
+新規は `202609110017_application_audit_and_staff_notes.sql` のみ。既存行の移行・過去監査のバックフィルは行わない。SQL001〜016は変更しない。SQL015・016はmain f2e4dbbへマージ・Supabase適用・実DB application_operations.sql 242項目成功済み。SQL017もmain 09125afへマージ・Supabase適用・同テスト323項目成功済み（いずれもユーザー確認）。
+
+キャンプ利用者操作の監査actionは `create_camp_draft / save_camp_draft / submit_camp_application / resubmit_camp_application / register_camp_consent / replace_camp_consent`。操作主体は本人、service_roleの同意書登録も認可済みexpected_user_idを記録する。前後は状態・期間・提出日時・親版・相部屋希望・同意要否、同意書ID／非公開オブジェクトパス／MIME／サイズ。変更項目名を残すが、氏名・住所・電話・メール・自由記述の実値はこの監査へコピーしない。署名URL・ファイル本体・認証情報は保存しない。職員メモ本文はメモ編集履歴として必要な前後内容だけを職員監査へ保存する。
+
+監査は利用者操作と同じトランザクション。提出中の一時的な同意要否フラグ変更は記録せず、復元後の最終状態だけを監査する。既存下書きの再利用・提出再送・同じ添付メタデータの再登録で監査を重複させない。保存で業務内容が変わらない場合も監査は追加しない（従来のキャンプ保存の親版更新は維持）。既存の職員審査・部屋・納付・入退去の監査はそのまま。
+
+staff_notesは `id / application_id / body / author_user_id / created_at / updated_at`。通常キャンプ・地域活動個人の申請だけをRPC対象とし、団体・延長元付きは拒否。本文1〜2000文字、作成者FKはアカウント削除時NULL。active職員SELECTのRLSと、専用RPC以外の書込み禁止を設定する。削除RPC・団体列・検索機能は追加しない。
+
+`save_application_staff_note(uuid,timestamptz,uuid,text)` は施設実更新ロック→職員active再確認→申請行→メモ行の順。親申請版を照合し、メモ・親updated_at・add_staff_note／edit_staff_note監査を一括保存する。業務状態・料金・滞在・部屋・枠・番号は変更しない。`get_staff_application_notes(uuid)` は職員限定・読取専用で同一スナップショットの親版とメモを返す。本人向け取得関数・監査スナップショットへstaff_notesを混ぜない。
+
+### T16 職員申請検索（SQL 018・ローカル検証済み、Supabase未適用）
+
+`search_staff_applications(text,text,text,text,text,date,date,integer)` はactive職員だけが呼べる読取専用RPC。現在実装済みのキャンプと「地域活動の個人利用」の通常申請だけを対象にし、延長元付き申請と未実装の団体は除外する。氏名・受付番号・キャンプ名は100文字以内の部分一致で、`%`・`_`・バックスラッシュを文字としてエスケープする。期間指定は申請期間との重なりで判定し、許可した利用区分・申請状態・納付状態・滞在状態だけを受理する。
+
+納付状態は日本時間の実行日から `unpaid / overdue / paid` を排他的に算出し、DB行を書き換えない。1ページ50件、最大10000ページ、作成日時・ID降順。総件数と次ページ有無を同じ読取スナップショットで返す。一覧項目はID、区分、キャンプID・名、氏名、申請状態、期間、受付番号、人数1、合計・納付状態・期限、滞在状態、更新日時、正規詳細パスだけ。住所・電話・メール・緊急連絡先・自由記述・同意書・部屋・職員メモ・監査は返さない。SQL018は関数追加だけで既存行や索引を変更しない。
+
+### T17 地域活動の個人利用の取消（SQL 019・ローカル検証済み）
+
+`request_community_application_cancellation` はactive本人・通常のcommunity_individual・最新updated_at・理由1〜2000文字を検査する。申請済み／審査中／修正依頼／許可から取消申請中へ変更できるが、許可済みはstayがbefore_move_inの場合だけ。calendar_claims、room_allocations、stays、application_charges、charge_months、受付番号は変更しない。
+
+`confirm_community_application_cancellation` はactive職員・最新updated_at・取消申請中・理由を検査し、cancelledへの状態遷移とindividual枠・存在する部屋割当の `released_from=start_date`、状態履歴、監査を同一トランザクションで保存する。stayと料金は履歴として維持する。ロック順は施設→操作者の権限行→申請→滞在→部屋→個人枠。監査用スナップショットに氏名・住所・電話・メール・自由記述をコピーしない。
+
+### T17 地域活動の個人利用の延泊（SQL 020・ローカル検証済み）
+
+`applications.original_application_id` で延泊元を結ぶ。有効状態（不許可・取消以外）は元申請ごとに1件という部分一意索引を持つ。トリガーで両方が同一本人のcommunity_individual、元が通常申請、延泊開始が元終了翌日であることを全更新経路で保証する。延泊提出時には元申請が許可済みであることを再確認するため、汎用保存から開始日や親リンクを改ざんできない。
+
+`create_community_application_extension` は施設ロック、active本人、元申請と滞在状態、理由、D+14〜D+60、2〜15日、重複を検査し、延泊を下書きとして作る。同じextension UUIDの再送は同じ行を返す。提出後は既存の個人枠・採番・料金・審査・部屋・許可をその延泊IDで使用する。SQL020は既存の職員検索・メモ・納付・滞在・取消契約を延泊にも拡張し、元申請の行・料金・部屋・滞在・履歴を変更しない。
