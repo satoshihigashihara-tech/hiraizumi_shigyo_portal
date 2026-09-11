@@ -303,6 +303,100 @@ async function auditNotesConcurrency(c) {
   }
   console.log('PASS audit/notes concurrency cleanup');
 }
+// T18: group start serializes with other exclusive starts and individual submissions.
+async function groupConcurrency(c) {
+  const scenarios = ['group-versus-group', 'group-versus-individual', 'individual-versus-group', 'identical-retry'];
+  const today = (await c.query("select (clock_timestamp() at time zone 'Asia/Tokyo')::date as d")).rows[0].d;
+  async function actor(client, id) {
+    await client.query("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: id,
+      email: `group-${id}@example.invalid`, role: 'authenticated' })]);
+    await client.query('set role authenticated');
+  }
+  async function asActor(client, id, sql, values = []) {
+    await actor(client, id);
+    try { return await client.query(sql, values); } finally { await client.query('reset role'); }
+  }
+  for (const scenario of scenarios) {
+    const ownerA = randomUUID(), ownerB = randomUUID(), groupA = randomUUID(), groupB = randomUUID();
+    for (const id of [ownerA, ownerB]) await c.query('insert into auth.users(id,email) values($1,$2)', [id, `group-${id}@example.invalid`]);
+    const dates = (await c.query("select ($1::date+25)::text as start_date,($1::date+27)::text as end_date", [today])).rows[0];
+    const groupFields = (name) => ({ group_name: name, representative_name: '架空代表者', representative_address: '架空住所',
+      representative_phone: '000-0000-0000', start_date: dates.start_date, end_date: dates.end_date,
+      usage_place: 'common_and_second_floor', purpose: '架空の地域調査', local_activity: '町内で架空の聞き取り',
+      special_notes: null, planned_participants: 4, representative_stays: false });
+    await asActor(c, ownerA, 'select * from public.create_community_group_draft($1,$2)', [groupA, groupFields('架空団体A')]);
+    const groupVersionA = (await c.query('select updated_at::text as v from public.group_applications where id=$1', [groupA])).rows[0].v;
+    let targetB = groupB, versionB, keyA = randomUUID(), keyB = randomUUID(), individualB = false;
+    if (scenario !== 'identical-retry') {
+      if (scenario === 'group-versus-individual') {
+        individualB = true; targetB = randomUUID();
+        const fields = { user_name: '架空個人', user_address: '架空住所', user_phone: '000-0000-0000',
+          emergency_name: '架空連絡先', emergency_address: '架空住所', emergency_phone: '000-0000-0000',
+          purpose: '架空調査', local_activity: '町内で架空の活動', special_notes: null,
+          usage_place: 'common_and_second_floor', requires_guardian_consent: false,
+          start_date: dates.start_date, end_date: dates.end_date };
+        await asActor(c, ownerB, 'select * from public.create_community_application_draft($1,$2)', [targetB, fields]);
+        versionB = (await c.query('select updated_at::text as v from public.applications where id=$1', [targetB])).rows[0].v;
+      } else {
+        await asActor(c, ownerB, 'select * from public.create_community_group_draft($1,$2)', [groupB, groupFields('架空団体B')]);
+        versionB = (await c.query('select updated_at::text as v from public.group_applications where id=$1', [groupB])).rows[0].v;
+      }
+    }
+    const a = await connect(), b = await connect();
+    try {
+      await actor(a, scenario === 'individual-versus-group' ? ownerB : ownerA);
+      await actor(b, scenario === 'identical-retry' ? ownerA : scenario === 'individual-versus-group' ? ownerA : ownerB);
+      await a.query('begin'); await b.query('begin'); await b.query("set local statement_timeout='8s'");
+      if (scenario === 'individual-versus-group') {
+        const individual = randomUUID(); targetB = individual; individualB = true;
+        const fields = { user_name: '架空個人', user_address: '架空住所', user_phone: '000-0000-0000',
+          emergency_name: '架空連絡先', emergency_address: '架空住所', emergency_phone: '000-0000-0000',
+          purpose: '架空調査', local_activity: '町内で架空の活動', special_notes: null,
+          usage_place: 'common_and_second_floor', requires_guardian_consent: false,
+          start_date: dates.start_date, end_date: dates.end_date };
+        await a.query('select * from public.create_community_application_draft($1,$2)', [individual, fields]);
+        const individualVersion = (await a.query('select updated_at::text as v from public.applications where id=$1', [individual])).rows[0].v;
+        await a.query('select * from public.submit_community_application($1,$2,$3,true)', [individual, individualVersion, keyA]);
+      } else {
+        await a.query('select * from public.start_community_group_application($1,$2,$3,true)', [groupA, groupVersionA, keyA]);
+      }
+      const leader = (await a.query('select pg_backend_pid() as pid')).rows[0].pid;
+      const peer = (await b.query('select pg_backend_pid() as pid')).rows[0].pid;
+      const pending = (scenario === 'group-versus-individual'
+        ? b.query('select * from public.submit_community_application($1,$2,$3,true)', [targetB, versionB, keyB])
+        : b.query('select * from public.start_community_group_application($1,$2,$3,true)',
+          scenario === 'identical-retry' ? [groupA, groupVersionA, keyA] : scenario === 'individual-versus-group'
+            ? [groupA, groupVersionA, keyB] : [groupB, versionB, keyB]))
+        .then(result => ({ ok: true, rows: result.rows }), error => ({ ok: false, code: error.code, message: error.message }));
+      let waited = false;
+      for (let n = 0; n < 100; n++) {
+        if ((await c.query('select $2::integer=any(pg_blocking_pids($1)) as waiting', [peer, leader])).rows[0].waiting) { waited = true; break; }
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      await a.query('commit'); await a.query('reset role');
+      const outcome = await pending;
+      if (scenario === 'identical-retry') await b.query('commit'); else await b.query('rollback');
+      await b.query('reset role');
+      assert.ok(waited && leader !== peer, `${scenario}: actual wait on separate connections`);
+      if (scenario === 'identical-retry') {
+        assert.equal(outcome.ok, true, JSON.stringify(outcome));
+        assert.equal((await c.query('select count(*)::integer as n from public.reception_numbers where group_id=$1', [groupA])).rows[0].n, 1);
+        assert.equal((await c.query('select count(*)::integer as n from public.group_status_events where group_id=$1 and to_status=\'collecting\'', [groupA])).rows[0].n, 1);
+      } else {
+        assert.deepEqual(outcome, { ok: false, code: 'P0001', message: 'calendar-unavailable' });
+      }
+      console.log('PASS group concurrency', scenario);
+    } finally {
+      await a.query('rollback'); await b.query('rollback'); await c.query('reset role');
+      await c.query('delete from public.audit_logs where entity_id=any($1::uuid[])', [[groupA, groupB, targetB]]);
+      await c.query('delete from public.calendar_claims where group_id=any($1::uuid[]) or application_id=$2', [[groupA, groupB], individualB ? targetB : null]);
+      await c.query('delete from public.applications where id=$1', [individualB ? targetB : scenario === 'individual-versus-group' ? targetB : null]);
+      await c.query('delete from public.group_applications where id=any($1::uuid[])', [[groupA, groupB]]);
+      await c.query('delete from auth.users where id=any($1::uuid[])', [[ownerA, ownerB]]);
+    }
+  }
+  console.log('PASS group concurrency cleanup');
+}
 let stage = 'start';
 let failed = false;
 try {
@@ -384,10 +478,11 @@ try {
   if (requested.includes('--audit-notes-only')) await c.query("select set_config('test.operations_phase','audit-notes',false)");
   if (requested.includes('--staff-search-only')) await c.query("select set_config('test.operations_phase','staff-search',false)");
   if (requested.includes('--stays-only')) await c.query("select set_config('test.operations_phase','stays',false)");
-  const single = ['application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql'];
+  const single = ['application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql', 'community_groups.sql'];
   const concurrent = ['camp_room_allocations_concurrency.sql', 'calendar_concurrency.sql', 'community_individual_applications_concurrency.sql', 'community_individual_room_allocations_concurrency.sql'];
-  const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.includes('--stays-only') ? ['application_operations.sql', ...(requested.includes('--stays-concurrency') ? ['--stays-concurrency'] : [])] : requested.includes('--audit-notes-only') ? ['application_operations.sql', ...(requested.includes('--audit-notes-concurrency') ? ['--audit-notes-concurrency'] : [])] : requested.includes('--staff-search-only') ? ['application_operations.sql'] : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency', '--stays-concurrency', '--audit-notes-concurrency'];
+  const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.includes('--stays-only') ? ['application_operations.sql', ...(requested.includes('--stays-concurrency') ? ['--stays-concurrency'] : [])] : requested.includes('--audit-notes-only') ? ['application_operations.sql', ...(requested.includes('--audit-notes-concurrency') ? ['--audit-notes-concurrency'] : [])] : requested.includes('--staff-search-only') ? ['application_operations.sql'] : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency', '--stays-concurrency', '--audit-notes-concurrency', '--groups-concurrency'];
   for (const file of selected) {
+    if (file === '--groups-concurrency') { stage=file; await groupConcurrency(c); continue; }
     if (file === '--audit-notes-concurrency') { stage=file; await auditNotesConcurrency(c); continue; }
     if (file === '--stays-concurrency') { stage=file; await stayConcurrency(c); continue; }
     if (file === '--payments-concurrency') { stage = file; await paymentConcurrency(c); continue; }
