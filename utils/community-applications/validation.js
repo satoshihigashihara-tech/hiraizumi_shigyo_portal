@@ -15,7 +15,9 @@ const CODES = new Set(["invalid-application", "invalid-fields", "required-fields
   "not-found", "not-editable", "not-submittable", "invalid-version", "stale-update", "revision-expired",
   "calendar-unavailable", "calendar-inconsistent", "duplicate-stay", "capacity-full", "guardian-consent",
   "confirmation-required", "invalid-submission-key", "invalid-action", "invalid-status", "reason-required",
-  "reason-too-long", "invalid-deadline", "invalid-path", "invalid-type", "invalid-size", "forbidden", "load-failed"]);
+  "reason-too-long", "invalid-deadline", "invalid-path", "invalid-type", "invalid-size", "forbidden", "load-failed",
+  "invalid-room", "room-required", "invalid-allocation", "invalid-stay", "stay-completed",
+  "room-capacity-full", "facility-capacity-full", "application-inconsistent"]);
 
 export function booleanField(value) {
   if (["true", "on", "1"].includes(value)) return true;
@@ -73,6 +75,7 @@ export function communityFailure(error, fields = {}, fieldErrors = {}) {
   const field = { "start-too-soon": "startDate", "end-too-late": "endDate", "invalid-duration": "endDate",
     "guardian-consent": "guardianConsentRequired", "confirmation-required": "confirmed",
     "invalid-version": "updatedAt", "invalid-place": "usagePlace", "invalid-deadline": "revisionDeadline",
-    "reason-required": "reason", "reason-too-long": "reason" }[code];
+    "reason-required": "reason", "reason-too-long": "reason",
+    "invalid-room": "roomId", "room-required": "roomId", "room-capacity-full": "roomId" }[code];
   return { error: code, fields, fieldErrors: field ? { ...fieldErrors, [field]: code } : fieldErrors };
 }

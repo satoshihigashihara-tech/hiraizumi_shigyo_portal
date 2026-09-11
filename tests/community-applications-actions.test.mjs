@@ -119,10 +119,11 @@ for (const [file, action, rpc, data] of ACTIONS) {
   assert.ok(!calls.some(c => ["redirect", "revalidate"].includes(c[0])));
  });
 }
-test("only T10 actions are exported", async () => {
+test("only T10 and approved T12 actions are exported", async () => {
  for (const file of ["app/actions/community-applications.js", "app/actions/staff-community-applications.js"]) {
   const { api } = await harness(file);
-  assert.deepEqual(Object.keys(api).sort(), ACTIONS.filter(a => a[0] === file).map(a => a[1]).sort());
+  const extra = file.includes("staff-community") ? ["assignCommunityApplicationRoom", "approveCommunityApplication"] : [];
+  assert.deepEqual(Object.keys(api).sort(), [...ACTIONS.filter(a => a[0] === file).map(a => a[1]), ...extra].sort());
  }
 });
 test("empty creation preserves profile defaults, explicit empty fields clear them", async () => {

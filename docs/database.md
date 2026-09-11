@@ -12,9 +12,9 @@
 | 上位資料 | [要件定義書](./requirements.md)、[ルーティング設計書](./routes.md) |
 | 成果物の範囲 | 全利用区分の目標設計。実装・適用済みの範囲は下記と [tasks.md](tasks.md) を参照 |
 
-2026年9月11日現在、SQL 001〜013はSupabase適用済み。013適用後は、ローカル・Supabaseとも単一接続558項目（T10の230＋カレンダー110＋キャンプ218）・別接続40ケース（T10の20＋キャンプ7＋カレンダー13）が成功し、全テスト用スキーマと架空データの後片付けも完了。Supabaseの適用・集約結果・3つの `cleanup_completed = true` はユーザー確認に基づく。SQL 012時点の結果は [tasks.md 第4.6節](tasks.md#46-t09日程管理バックエンドの検証と引き渡しsql-012)、013適用後の確認根拠は [第4.7節](tasks.md#47-t10地域活動個人の実装と検証sql-013) を参照。画面接続・実ログイン・実Storageの受入確認は未実施。
+2026年9月11日現在、SQL 001〜014はSupabase適用済み。014適用後の単一接続916項目・別接続60ケースと全4種類の後片付けはユーザー確認済み。詳細は [tasks.md 第4.8節](tasks.md#48-t12地域活動個人の部屋割当許可sql-014) を参照。013適用後は、ローカル・Supabaseとも単一接続558項目（T10の230＋カレンダー110＋キャンプ218）・別接続40ケース（T10の20＋キャンプ7＋カレンダー13）が成功し、全テスト用スキーマと架空データの後片付けも完了。Supabaseの適用・集約結果・3つの `cleanup_completed = true` はユーザー確認に基づく。SQL 012時点の結果は [tasks.md 第4.6節](tasks.md#46-t09日程管理バックエンドの検証と引き渡しsql-012)、013適用後の確認根拠は [第4.7節](tasks.md#47-t10地域活動個人の実装と検証sql-013) を参照。画面接続・実ログイン・実Storageの受入確認は未実施。
 
-SQL 012時点の日程枠はキャンプ・利用停止のみ。SQL 013で地域活動個人の申請・個人枠・最小審査を追加し、ローカル検証済み（Supabase適用成功をユーザー確認済み）。`room_allocations` は1申請1部屋1人のまま、地域活動の割当／許可APIは未実装。以下の団体の表・自動処理などは目標設計であり、実装済みとは限らない。013の範囲は5.3節、検証は [tasks.md 第4.7節](tasks.md#47-t10地域活動個人の実装と検証sql-013) を参照。
+SQL 012時点の日程枠はキャンプ・利用停止のみ。SQL 013で地域活動個人の申請・個人枠・最小審査を追加し、ローカル検証済み（Supabase適用成功をユーザー確認済み）。`room_allocations` は1申請1部屋1人のまま。SQL 014で地域活動個人の割当／許可APIを追加しローカル検証済み（Supabase適用・DB検証・後片付け完了、5.5節）。以下の団体の表・自動処理などは目標設計であり、実装済みとは限らない。013の範囲は5.3節、検証は [tasks.md 第4.7節](tasks.md#47-t10地域活動個人の実装と検証sql-013) を参照。
 
 ## 1. 設計の考え方
 
@@ -244,6 +244,30 @@ DB関数と制約トリガーで `applications.group_id = group_members.group_id
 **room_allocations** — `room_id uuid FK → rooms.id`、`people_count integer > 0`、`start_date date`、`end_date date` は必須。`application_id uuid FK → applications.id` と `group_id uuid FK → group_applications.id` は任意だが、必ず片方だけを設定する。`released_from date` は任意。開始≦終了。
 
 個人割当はcamp/community_individualだけを対象に人数1。団体割当は部屋ごとの人数を記録し、参加者名を紐付けない。各日の個人割当は合計1、団体割当は各日のactive参加人数と一致することを許可時に検査する。部屋別合計≦各定員、施設合計≦15を割当の保存時にも検査する。早期退去後の割当解放は `released_from` 以降に適用し、履歴は残す。
+
+**T12地域活動個人の実装（SQL 014・Supabase適用・DB検証・後片付け完了）**
+
+新しいテーブルは作らず、SQL 002の `application_id UNIQUE / people_count=1` を使う。通常の地域活動個人だけを対象にし、`original_application_id IS NOT NULL`、camp、団体は新RPCで受け付けない。適用済み001〜013を書き換えず、014で必要な関数を追加・置換する。
+
+| RPC／内部処理 | 契約 |
+|---|---|
+| `assign_community_application_room(uuid,uuid,timestamptz,text)` | 申請ID・部屋ID・親の元更新日時・変更理由。審査中／許可に限り、1人・提出済み期間全体を保存。返却は `result_id / result_status / result_updated_at` |
+| `review_community_application(uuid,text,timestamptz,text,timestamptz)` | 013の引数・返却を維持し `approve` を追加。既存の審査開始・修正依頼・不許可も同じ入口。許可コメントは任意、修正期限は修正依頼時だけ |
+| `get_staff_community_application_room_context(uuid)` | active職員限定、1つの読取スナップショットで申請の版・期間・状態・部屋・滞在・8部屋マスターを返す。割当の空き保証や自動修復はしない |
+| `get_community_application(uuid)` | 013の本人限定取得へ `approval_comment / room_allocation / stay` を追加。内部監査、変更理由、職員IDは返さない |
+| `private.community_snapshot` | 従来の申請・枠・部屋・料金・添付に `stay` を追加。過去の監査は書き換えず、以後の監査へ反映 |
+
+全更新は `private.lock_calendar_for_staff()` で施設ガードを実UPDATEし、待機後の職員権限・activeプロフィールを共有ロックして再検査する。その後、親申請→割当・滞在等をロックする。親の更新日時はマイクロ秒まで一致させ、割当変更も単調増加トリガーで親の版を進める。REPEATABLE READの古いスナップショットは40001で拒否する。通常クライアントの直接書込みは禁止。公開RPCはauthenticatedのみ実行可で、さらにDB内でactive職員を検査する（本人取得だけはactive本人）。内部ヘルパーはanon・authenticated・service_roleへ直接実行を許可しない。
+
+部屋・施設の検査は開始・終了を含む全日で実施する。提出済み個人枠を1人として維持し、部屋割当で2人目を加算しない。部屋未割当・修正依頼中等も施設人数に含める。本人の旧割当は除外して新候補を1人加算する。キャンプ・停止の元データと枠、同一利用者重複、対象個人枠の日程一致・未解放も再検査する。枠欠落や不整合は空きと扱わず拒否する。施設超過は既存 `capacity-full`、追加の防御検査は `facility-capacity-full`、部屋超過は `room-capacity-full`。
+
+初回割当の理由は任意。既存割当変更は2,000文字以内の理由必須。最新の版で同じ有効な部屋・全期間なら親・割当・監査を更新しない。日程変更再提出は013の動作を維持し、旧割当を `released_from=start_date` で全解放する。審査中に理由付きで再割当すると同じ行の期間・部屋を更新し解放を解除する。部分解放や未解放の期間不一致を自動修復しない。監査操作は `assign_room / change_room / reassign_room`。変更理由は公開状態履歴へ転記しない。
+
+許可は審査中だけ。部屋1人・全期間・未解放、施設枠・定員・日程競合に加え、提出済み必須情報、申請メールの写し、必要な同意書メタデータ、提出日時、受付番号、料金と月別内訳合計の一致を確認する。初回受付窓を再適用しない。既存滞在があれば拒否し、初回成功時だけ `before_move_in`（入退去日時NULL）を作る。申請・滞在・公開状態履歴・監査が同じトランザクションで確定する。許可コメントは任意で2,000文字以内。納付済みを条件にせず、番号・料金・納付情報は変更しない。
+
+許可後の部屋変更は入居前・滞在中だけ。退去済み・滞在欠落・解放済みの許可割当は拒否する。利用期間全体の割当を変更し、前後内容は監査へ残す。日単位の部屋分割や入退去の操作は追加しない。修正依頼は枠・部屋を保持、不許可は両方を全解放する。失敗時は状態・版・部屋・滞在・枠・履歴の全変更を取り消す。
+
+本人／職員の部屋応答は `room_id / room_name / people_count / start_date / end_date / released_from / is_current`、滞在は `status / checked_in_at / checked_out_at`。割当なしはnull、解放済みの旧行は `is_current=false` として返す。取得では状態変更・枠修復・監査追加をしない。
 
 ### 5.6 同意書
 
