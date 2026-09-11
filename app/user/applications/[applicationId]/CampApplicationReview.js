@@ -14,7 +14,10 @@ function ReviewItem({ label, children, wide = false }) {
   );
 }
 
-export default function CampApplicationReview({ application }) {
+export default function CampApplicationReview({
+  application,
+  showEstimatedCharge = true,
+}) {
   const { fields, estimatedCharge } = application;
 
   return (
@@ -86,6 +89,7 @@ export default function CampApplicationReview({ application }) {
         </dl>
       </section>
 
+      {showEstimatedCharge && (
       <section className={styles.section} aria-labelledby="charge-heading">
         <div className={styles.sectionHeading}>
           <h2 className={styles.sectionTitle} id="charge-heading">
@@ -112,6 +116,7 @@ export default function CampApplicationReview({ application }) {
           表示額は現在の申請内容による見込みです。提出時にサーバーで再計算されます。
         </p>
       </section>
+      )}
     </div>
   );
 }

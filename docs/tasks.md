@@ -131,7 +131,7 @@ SQL 009は初回提出と修正再提出の期限を分け、ロック取得後�
 
 - 更新Actionは処理ごとに返却方式が異なります。認証画面や添付は主に`?error=...`で移動し、キャンプ申請の入力保存は`useActionState`用の`{ error, fields, fieldErrors }`を返して入力を保持します。キャンプ申請には`deadline-passed`・`not-eligible`・`capacity-full`・`required-fields`・`invalid-phone`・`guardian-consent`、添付には`file-required`・`invalid-size`・`invalid-type`・`invalid-content`・`upload-failed`などがあります。コード文字列をそのまま表示せず日本語の案内にします。
 - T09のキャンプ・利用停止Actionは `{ error, fields, conflicts }` を返して入力を保持します（ルート設計9.4節）。T05の入力保存も同じ入力保持方式へ接続済みです。提出時の確認エラーは確認画面で日本語表示します。
-- 読取画面はまだありません。サーバー用SupabaseクライアントとRLSを使い、本人・職員の権限内で必要な列だけを取得します。更新は用意されたAction／RPCを使います。
+- 本人向けキャンプ申請詳細は接続済みです。申請・納付・滞在の状態、公開理由だけの履歴、料金、現在の部屋を本人限定で取得します。その他の読取画面は、サーバー用SupabaseクライアントとRLSを使い、本人・職員の権限内で必要な列だけを取得します。更新は用意されたAction／RPCを使います。
 - 申請状態、納付状態、滞在状態は別々に表示します。「申請済み」は「許可」ではありません。完了URLの受付番号だけを根拠に提出成功を表示しないでください。
 - 接続に必要な変数名は `NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`。添付保存の管理用 `SUPABASE_SECRET_KEY` はサーバー専用です。値はこの文書に記載しません。
 
