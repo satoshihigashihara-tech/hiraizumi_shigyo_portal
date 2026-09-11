@@ -50,9 +50,27 @@ test("safeReturnTo rejects anything that can leave the origin", async () => {
     "data:text/html,<script>alert(1)</script>",
     "user",
     "../user",
+    // `/..` は根で打ち消されるため、入口の `//` 検査を通過したあと
+    // pathname が `//evil.example` になる。出口でも弾くこと。
+    "/..//evil.example",
+    "/..//evil.example/user",
+    "/../..//evil.example",
+    "/..//evil.example?next=/user",
+    // バックスラッシュは `//` と同じ扱いなので、この経路でも再現する。
+    "/..\\\\evil.example",
   ]) {
     assert.equal(safeReturnTo(value), null, value);
   }
+});
+
+test("safeReturnTo trims surrounding whitespace before judging", async () => {
+  const { safeReturnTo } = await load(RETURN_TO);
+  // 画面は生のクエリ値を、Server Action は trim 済みの値を渡すため、
+  // どちらの呼び出し順でも同じ結果になること。
+  assert.equal(safeReturnTo("  /user  "), "/user");
+  assert.equal(safeReturnTo("\t/staff/applications\n"), "/staff/applications");
+  assert.equal(safeReturnTo("  //evil.example  "), null);
+  assert.equal(safeReturnTo("  https://evil.example  "), null);
 });
 
 test("safeReturnTo normalizes parser tricks down to an internal path", async () => {

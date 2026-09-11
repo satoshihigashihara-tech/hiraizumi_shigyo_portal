@@ -93,6 +93,30 @@ function firstParam(value) {
   return typeof value === "string" ? value : "";
 }
 
+/**
+ * URLクエリの読み取りを1か所へまとめる。
+ *
+ * generateMetadata と LoginPage の双方が同じ値を必要とするため、
+ * 展開と変換をここへ集約する。エラーコードの読み取り方を変えるときに
+ * 2か所を直さなくて済むようにするのが目的。
+ *
+ * @param {Promise<Record<string, string|string[]|undefined>>|undefined} searchParams
+ * @returns {Promise<{errorCode: string, returnTo: string|null}>}
+ */
+async function readQuery(searchParams) {
+  // Next.js 16 では searchParams は Promise
+  // （node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/page.md）
+  const query = (await searchParams) ?? {};
+
+  return {
+    errorCode: firstParam(query.error),
+    // Action 側（app/actions/auth.js）でも必ず検証されるが、画面側でも絞ることで
+    // `//evil.example` のような値を hidden input へ書き戻さない。判定規則は
+    // utils/auth/return-to.js に一本化している（.claude/rules/security.md）。
+    returnTo: safeReturnTo(firstParam(query.returnTo)),
+  };
+}
+
 /*
  * ページタイトルにもエラーを反映する。
  *
@@ -103,8 +127,7 @@ function firstParam(value) {
  * （docs/coding_rules.md 7章）。
  */
 export async function generateMetadata({ searchParams }) {
-  const query = (await searchParams) ?? {};
-  const errorCode = firstParam(query.error);
+  const { errorCode } = await readQuery(searchParams);
 
   return {
     title: errorCode
@@ -115,14 +138,7 @@ export async function generateMetadata({ searchParams }) {
 }
 
 export default async function LoginPage({ searchParams }) {
-  // Next.js 16 では searchParams は Promise
-  // （node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/page.md）
-  const query = (await searchParams) ?? {};
-  const errorCode = firstParam(query.error);
-  // Action 側（app/actions/auth.js）でも必ず検証されるが、画面側でも絞ることで
-  // `//evil.example` のような値を hidden input へ書き戻さない。判定規則は
-  // utils/auth/return-to.js に一本化している（.claude/rules/security.md）。
-  const returnTo = safeReturnTo(firstParam(query.returnTo));
+  const { errorCode, returnTo } = await readQuery(searchParams);
 
   // Object.hasOwn で自前のキーに限定する（messages.js と同じ対策）。
   // `FIELD_ERRORS_BY_CODE[code]` だけでは "toString" などが関数として返る。
