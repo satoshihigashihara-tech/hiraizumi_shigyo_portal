@@ -167,3 +167,9 @@ SQL023はmain・Supabaseへ反映済み。実環境で公開4関数の存在とR
 SQL022適用済みのmainから`codex/group-participant-submissions`でSQL023を実装中。参加者本人の保存・取得・同意書・提出、個別受付番号と料金、全員提出時の団体`under_review`遷移と招待失効が対象。団体共通項目は変更不可。職員審査、参加者削除・交代、部屋・許可・取消、期限処理、UI・メールは含めない。本番SQL023は保存、検証SQLは保存しない。
 
 ローカル結果は新規DB16項目、全回帰Node265件・DB単一接続1,531項目・別接続88ケース、lint・production build成功。Supabase適用、commit、push、画面接続は未実施。別作業の`docs/apple_event.txt`と`docs/presentation/`には触れない。
+
+### T20 後半追記（2026年9月11日）
+
+SQL024はmain・Supabase反映済みで、実DB検証`7 / true`。`codex/group-changes-cancellation`でSQL025をローカル実装中。対象は参加者の修正再提出、不許可後の削除・招待による交代、団体取消申請・職員確定、許可後減員と部屋人数の一括更新。残り1人は団体専有を維持し、0人で団体を終了する。滞在開始後の取消、古い版、権限外操作を拒否する。
+
+ローカルではSQL001〜025適用、対象DB12項目、関連Node41件が成功。期限切れ自動処理はT21。SQL025のSupabase適用、commit、push、画面接続は未実施。本番SQL025は保存し、ROLLBACK検証SQLは保存しない。

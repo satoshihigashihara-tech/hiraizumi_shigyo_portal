@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireActiveUser } from "@/utils/auth/guards";
 import { inviteFailure, isUpdatedAt, isUuid, normalizeInvite, readInviteFields } from "@/utils/group-invitations/validation";
+import { validateReason } from "@/utils/community-groups/review";
 
 function refresh(groupId, applicationId = null) {
   for (const path of ["/user", "/user/groups", `/user/groups/${groupId}`, `/user/groups/${groupId}/participants`]) {
@@ -50,4 +51,26 @@ export async function joinCommunityGroup(formData) {
     || !isUpdatedAt(result?.result_group_updated_at)) return inviteFailure("update-failed", fields);
   refresh(result.result_group_id, result.result_application_id);
   redirect(`/user/applications/${result.result_application_id}/edit?joined=group`);
+}
+
+export async function removeCommunityGroupParticipant(formData) {
+  const { supabase } = await requireActiveUser("/user/groups");
+  const fields = readInviteFields(formData);
+  if (!isUuid(fields.groupId)) return inviteFailure("invalid-group", fields);
+  if (!isUuid(fields.applicationId)) return inviteFailure("invalid-application", fields);
+  if (!isUpdatedAt(fields.updatedAt)) return inviteFailure("invalid-version", fields);
+  const reasonError = validateReason(fields.reason, true);
+  if (reasonError) return inviteFailure(reasonError, fields);
+  const { data, error } = await supabase.rpc("remove_community_group_participant", {
+    target_group_id: fields.groupId, target_application_id: fields.applicationId,
+    expected_updated_at: fields.updatedAt, removal_reason: fields.reason,
+  });
+  if (error) return inviteFailure(error, fields);
+  const result = Array.isArray(data) ? data[0] : null;
+  if (result?.result_group_id !== fields.groupId || result?.result_application_status !== "cancelled"
+    || !["collecting"].includes(result?.result_group_status) || !isUpdatedAt(result?.result_group_updated_at)) {
+    return inviteFailure("update-failed", fields);
+  }
+  refresh(fields.groupId, fields.applicationId);
+  redirect(`/user/groups/${fields.groupId}/participants?updated=participant-removed`);
 }

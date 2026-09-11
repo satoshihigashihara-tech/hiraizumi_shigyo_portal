@@ -74,3 +74,25 @@ test("malformed room plans and success payloads fail closed", async () => {
   h = await harness({ data: [{ result_id: "bad", result_status: "approved", result_updated_at: VERSION }], error: null });
   assert.equal((await h.api.approveCommunityGroup(form())).error, "update-failed");
 });
+
+test("staff can reject one participant and request replacement", async () => {
+  const response = { data: [{ result_id: APP, result_status: "rejected", result_updated_at: VERSION,
+    result_group_id: GROUP, result_group_status: "revision_requested", result_group_updated_at: VERSION }], error: null };
+  const { api, calls } = await harness(response);
+  await assert.rejects(api.rejectCommunityGroupParticipant(form()), /REDIRECT/);
+  assert.equal(calls.find((x) => x[0] === "rpc")[1], "reject_group_participant");
+});
+
+test("staff confirms group cancellation and reduces an approved group atomically", async () => {
+  let response = { data: [{ result_id: GROUP, result_status: "cancelled", result_updated_at: VERSION }], error: null };
+  let h = await harness(response);
+  await assert.rejects(h.api.confirmCommunityGroupCancellation(form()), /REDIRECT/);
+  assert.equal(h.calls.find((x) => x[0] === "rpc")[1], "confirm_community_group_cancellation");
+  response = { data: [{ result_id: GROUP, result_status: "approved", result_updated_at: VERSION,
+    result_application_status: "cancelled", remaining_participants: 1 }], error: null };
+  h = await harness(response);
+  await assert.rejects(h.api.cancelApprovedCommunityGroupParticipant(form({ roomPlan: JSON.stringify([{ roomId: ROOM, peopleCount: 1 }]) })), /REDIRECT/);
+  const call = h.calls.find((x) => x[0] === "rpc");
+  assert.equal(call[1], "cancel_approved_group_participant");
+  assert.deepEqual(call[2].room_plan, [{ room_id: ROOM, people_count: 1 }]);
+});

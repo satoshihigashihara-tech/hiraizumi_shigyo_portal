@@ -16,7 +16,7 @@ const ISSUED = [{ result_group_id: GROUP, result_updated_at: VERSION, invite_tok
 const JOINED = [{ result_group_id: GROUP, result_application_id: APP, result_group_updated_at: VERSION }];
 const copy = (value) => JSON.parse(JSON.stringify(value));
 const form = (fields = {}) => new Map(Object.entries({ groupId: GROUP, updatedAt: VERSION,
-  applicationId: APP, inviteValue: TOKEN, inviteKind: "token", ...fields }));
+  applicationId: APP, inviteValue: TOKEN, inviteKind: "token", reason: "架空の参加者変更", ...fields }));
 
 async function harness(path, { response = { data: ISSUED, error: null }, denied = false } = {}) {
   const calls = [];
@@ -70,7 +70,18 @@ test("join normalizes a manual code, uses caller UUID and redirects after refres
   assert.equal(calls.at(-1)[1], `/user/applications/${APP}/edit?joined=group`);
 });
 
-for (const action of ["issueCommunityGroupInvite", "joinCommunityGroup"]) {
+test("representative removes a participant with fixed identifiers and reason", async () => {
+  const response = { data: [{ result_group_id: GROUP, result_group_status: "collecting",
+    result_group_updated_at: VERSION, result_application_status: "cancelled" }], error: null };
+  const { api, calls } = await harness("app/actions/group-invitations.js", { response });
+  await assert.rejects(api.removeCommunityGroupParticipant(form()), /REDIRECT/);
+  assert.deepEqual(calls.find((call) => call[0] === "rpc"), ["rpc", "remove_community_group_participant", {
+    target_group_id: GROUP, target_application_id: APP, expected_updated_at: VERSION,
+    removal_reason: "架空の参加者変更",
+  }]);
+});
+
+for (const action of ["issueCommunityGroupInvite", "joinCommunityGroup", "removeCommunityGroupParticipant"]) {
   test(`${action} authorization failure precedes input and DB access`, async () => {
     const { api, calls, authError } = await harness("app/actions/group-invitations.js", { denied: true });
     await assert.rejects(api[action](null), (error) => error === authError);
