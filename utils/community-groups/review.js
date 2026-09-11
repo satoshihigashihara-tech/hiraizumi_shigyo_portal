@@ -15,10 +15,10 @@ export function validateReason(value, required = false) {
   return null;
 }
 
-export function parseRoomPlan(value) {
+export function parseRoomPlan(value, allowEmpty = false) {
   let parsed;
   try { parsed = JSON.parse(value); } catch { return null; }
-  if (!Array.isArray(parsed) || !parsed.length || parsed.length > 8) return null;
+  if (!Array.isArray(parsed) || (!allowEmpty && !parsed.length) || parsed.length > 8) return null;
   if (parsed.some((item) => !item || typeof item !== "object" || !isUuid(item.roomId)
     || !Number.isInteger(Number(item.peopleCount)) || Number(item.peopleCount) < 1 || Number(item.peopleCount) > 3)) return null;
   if (new Set(parsed.map((item) => item.roomId)).size !== parsed.length) return null;
