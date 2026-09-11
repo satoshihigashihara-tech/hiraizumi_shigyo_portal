@@ -60,3 +60,21 @@ export async function startCommunityGroupApplication(formData) {
   refresh(fields.groupId);
   redirect(`/user/groups/${fields.groupId}/complete`);
 }
+
+export async function requestCommunityGroupCancellation(formData) {
+  const { supabase } = await requireActiveUser("/user/groups");
+  const fields = readGroupFields(formData);
+  if (!isUuid(fields.groupId)) return groupFailure("invalid-group", fields);
+  if (!isUpdatedAt(fields.updatedAt)) return groupFailure("invalid-version", fields);
+  if (!fields.reason.trim()) return groupFailure("reason-required", fields);
+  if (Array.from(fields.reason.trim()).length > 2000) return groupFailure("reason-too-long", fields);
+  const { data, error } = await supabase.rpc("request_community_group_cancellation", {
+    target_group_id: fields.groupId, expected_updated_at: fields.updatedAt, cancellation_reason: fields.reason,
+  });
+  if (error) return groupFailure(error, fields);
+  const result = Array.isArray(data) ? data[0] : null;
+  if (result?.result_id !== fields.groupId || result?.result_status !== "cancellation_requested"
+    || !isUpdatedAt(result?.result_updated_at)) return groupFailure("update-failed", fields);
+  refresh(fields.groupId);
+  redirect(`/user/groups/${fields.groupId}?updated=cancellation-requested`);
+}

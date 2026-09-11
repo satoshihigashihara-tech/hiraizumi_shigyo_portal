@@ -725,3 +725,13 @@ MVPのSQL018は現在存在する2区分だけを対象とする。団体テー�
 ### T20前半：職員の団体審査接続
 
 `/staff/community/groups/[groupId]`は`getStaffCommunityGroupReview`で固定項目だけを取得する。操作順は目的確認`confirmCommunityGroupPurpose`、各参加者の`startCommunityGroupParticipantReview`と`approveCommunityGroupParticipant`（または期限付き`requestCommunityGroupParticipantRevision`）、部屋別人数をJSONで渡す`setCommunityGroupRooms`、最後に`approveCommunityGroup`。団体不許可は理由必須の`rejectCommunityGroup`。すべて`groupId / applicationId / updatedAt`を画面表示時の値から渡すが、権限・対象・最新状態はDBで再取得する。SQL024未適用時は画面を接続しない。
+
+### T20後半：団体変更・取消接続（SQL 025）
+
+参加者の修正依頼では既存`saveGroupParticipantApplication`・`submitGroupParticipantApplication`を使う。期限は団体の`revision_due_at`で、再提出後は対象者が`submitted`へ戻り、残るactive参加者が全員`submitted`または`approved`なら団体も`under_review`へ戻る。
+
+職員が参加者を不許可にして交代を求める場合は`rejectCommunityGroupParticipant`へ`groupId / applicationId / updatedAt / reason / revisionDeadline`を渡す。代表者は`removeCommunityGroupParticipant`へ`groupId / applicationId / updatedAt / reason`を渡して対象者を外し、既存の招待再発行・参加フローで交代者を追加する。代表者本人の参加枠はこの削除Actionでは外せない。
+
+団体取消画面は`getCommunityGroupCancellation(groupId)`を取得し、`can_request=true`のときだけ`requestCommunityGroupCancellation`へ`groupId / updatedAt / reason`を渡す。職員は`getStaffCommunityGroupCancellation`と`confirmCommunityGroupCancellation`を使う。取消申請中は枠と部屋を保持し、職員確定時に未終了の参加者申請、部屋、団体枠を一括終了する。滞在開始後はボタンを表示せず町への連絡を案内する。
+
+許可後の一部減員は職員の`cancelApprovedCommunityGroupParticipant`へ`groupId / applicationId / updatedAt / reason / roomPlan`を渡す。`roomPlan`は残る参加者数と一致する部屋別人数。残り1人では団体専有を維持し、最後の1人なら空配列`[]`を渡して団体全体を終了する。古い版は再送せず画面を再取得する。

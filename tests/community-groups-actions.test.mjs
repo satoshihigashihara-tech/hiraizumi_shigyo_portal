@@ -113,6 +113,17 @@ test("start trusts saved DB state and sends only concurrency/idempotency fields"
   assert.equal(calls.at(-1)[1], `/user/groups/${ID}/complete`);
 });
 
+test("representative cancellation requires a reason and calls the group cancellation RPC", async () => {
+  const response = { data: [{ result_id: ID, result_status: "cancellation_requested", result_updated_at: VERSION }], error: null };
+  const { api, calls } = await harness("app/actions/community-groups.js", { response });
+  await assert.rejects(api.requestCommunityGroupCancellation(form({ reason: "架空の取消理由" })), /REDIRECT/);
+  assert.deepEqual(calls.find((call) => call[0] === "rpc"), ["rpc", "request_community_group_cancellation", {
+    target_group_id: ID, expected_updated_at: VERSION, cancellation_reason: "架空の取消理由",
+  }]);
+  const invalid = await harness("app/actions/community-groups.js");
+  assert.equal((await invalid.api.requestCommunityGroupCancellation(form({ reason: "" }))).error, "reason-required");
+});
+
 for (const [fields, expected] of [
   [{ groupId: "bad" }, "invalid-group"], [{ updatedAt: "" }, "invalid-version"],
   [{ submissionKey: "bad" }, "invalid-submission-key"], [{ confirmed: "false" }, "confirmation-required"],
@@ -152,6 +163,15 @@ test("owner detail query returns only fixed fields and checks modes", async () =
   const result = copy(await api.getCommunityGroup(ID, "edit"));
   assert.equal(result.error, null); assert.ok(!JSON.stringify(result).includes("PRIVATE"));
   assert.equal((await api.getCommunityGroup(ID, "bad")).error, "not-found");
+});
+
+test("group cancellation query strips internal fields", async () => {
+  const data = { id: ID, group_name: "架空団体", status: "approved", updated_at: VERSION,
+    start_date: "2026-10-01", end_date: "2026-10-03", cancel_reason: null,
+    can_request: true, can_confirm: false, representative_address: "PRIVATE" };
+  const { api } = await harness("utils/community-groups/queries.js", { response: { data, error: null } });
+  const result = copy(await api.getCommunityGroupCancellation(ID));
+  assert.equal(result.error, null); assert.ok(!JSON.stringify(result).includes("PRIVATE"));
 });
 
 test("owner list uses fixed projection, owner filter and bounded pagination", async () => {

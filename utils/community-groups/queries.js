@@ -34,3 +34,13 @@ export async function getCommunityGroups(page = 1) {
     ? { error: "load-failed", groups: [] }
     : { error: null, groups: data.map((row) => pick(row, columns)) };
 }
+
+export async function getCommunityGroupCancellation(groupId) {
+  const { supabase } = await requireActiveUser("/user/groups");
+  if (!isUuid(groupId)) return { error: "not-found", cancellation: null };
+  const { data, error } = await supabase.rpc("get_community_group_cancellation", { target_group_id: groupId });
+  if (error) return { error: groupErrorCode(error) === "not-found" ? "not-found" : "load-failed", cancellation: null };
+  if (!data || data.id !== groupId) return { error: "load-failed", cancellation: null };
+  return { error: null, cancellation: pick(data, ["id", "group_name", "status", "updated_at", "start_date", "end_date",
+    "cancel_reason", "can_request", "can_confirm"]) };
+}

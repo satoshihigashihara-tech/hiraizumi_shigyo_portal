@@ -36,7 +36,8 @@ const ERROR_CODES = new Set([
   "invalid-action", "invalid-status", "invalid-room", "invalid-room-plan", "duplicate-room",
   "room-required", "room-capacity-full", "facility-capacity-full", "allocation-count-mismatch",
   "purpose-review-required", "participants-not-approved", "reason-required", "reason-too-long",
-  "invalid-deadline", "staff-required",
+  "invalid-deadline", "staff-required", "participant-deadline-passed", "representative-participant",
+  "stay-started", "invalid-stay",
 ]);
 
 export function booleanField(value) {
@@ -46,7 +47,7 @@ export function booleanField(value) {
 }
 
 export function readGroupFields(formData) {
-  return Object.fromEntries([...Object.keys(GROUP_FIELD_NAMES), "groupId", "updatedAt", "intent", "submissionKey", "confirmed"]
+  return Object.fromEntries([...Object.keys(GROUP_FIELD_NAMES), "groupId", "updatedAt", "intent", "submissionKey", "confirmed", "reason"]
     .map((key) => [key, getText(formData, key)]));
 }
 
@@ -105,6 +106,7 @@ export function groupFailure(error, fields = {}, fieldErrors = {}) {
     "start-too-soon": "startDate", "end-too-late": "endDate", "invalid-duration": "endDate",
     "invalid-participant-count": "plannedParticipants", "confirmation-required": "confirmed",
     "invalid-version": "updatedAt", "invalid-place": "usagePlace",
+    "reason-required": "reason", "reason-too-long": "reason",
   }[code];
   return { error: code, fields, fieldErrors: field ? { ...fieldErrors, [field]: code } : fieldErrors };
 }
