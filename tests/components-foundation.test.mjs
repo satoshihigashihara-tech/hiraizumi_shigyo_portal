@@ -47,6 +47,9 @@ test("formatDeadline shows the stored exclusive boundary minus one minute", asyn
   for (const value of [null, undefined, "", "  ", "not-a-date", 20261001, "2026-02-31"]) {
     assert.equal(formatDeadline(value), "");
   }
+  // A date-only value is not an exclusive boundary: subtracting a minute from
+  // the 12:00 JST anchor would print "11:59", a deadline that is not in the data.
+  assert.equal(formatDeadline("2026-10-01"), "2026年10月1日");
 });
 
 test("formatJstDateTime never invents a time for date-only input", async () => {

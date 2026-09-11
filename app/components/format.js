@@ -129,6 +129,13 @@ export function formatJstDateTime(value) {
  * @returns {string} 整形結果。不正値は空文字
  */
 export function formatDeadline(value) {
+  // "YYYY-MM-DD" は排他的境界のタイムスタンプではない。toDate が日本時間の
+  // 正午へ寄せるため、1分引くと「11:59」という存在しない期限を表示してしまう。
+  // 期限は常に timestamptz で保存されるので通常は届かないが、渡し間違いに
+  // 気づけるよう時刻を出さない（formatJstDateTime と同じ扱い）。
+  if (typeof value === "string" && DATE_ONLY.test(value)) {
+    return formatJstDate(value);
+  }
   const date = toDate(value);
   if (!date) return "";
   return dateTimeFormatter.format(new Date(date.getTime() - 60_000));

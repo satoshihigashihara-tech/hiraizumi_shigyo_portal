@@ -30,9 +30,14 @@ export default function AlertMessage({
   children,
   items,
 }) {
-  const prefix = TONE_PREFIXES[tone] ?? TONE_PREFIXES.info;
+  // Object.hasOwn で自前のキーに限定する。`??` だけでは "toString" のような
+  // Object.prototype のプロパティ名を渡されたとき関数が左辺に入り、
+  // フォールバックが働かない（status-labels.js・messages.js と同じ対策）。
+  const prefix = Object.hasOwn(TONE_PREFIXES, tone)
+    ? TONE_PREFIXES[tone]
+    : TONE_PREFIXES.info;
   const isError = tone === "error";
-  const toneClass = styles[tone] ?? styles.info;
+  const toneClass = Object.hasOwn(styles, tone) ? styles[tone] : styles.info;
 
   return (
     <div

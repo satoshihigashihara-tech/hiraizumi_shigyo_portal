@@ -22,7 +22,12 @@ export default function StatusBadge({
 }) {
   const tone = statusTone(kind, value);
   const label = statusLabel(kind, value);
-  const kindLabel = STATUS_KIND_LABELS[kind] ?? "状態";
+  // Object.hasOwn で自前のキーに限定する。`??` だけでは "toString" のような
+  // Object.prototype のプロパティ名を渡されたとき関数が左辺に入り、
+  // フォールバックが働かない（status-labels.js・messages.js と同じ対策）。
+  const kindLabel = Object.hasOwn(STATUS_KIND_LABELS, kind)
+    ? STATUS_KIND_LABELS[kind]
+    : "状態";
 
   return (
     <span className={`${styles.badge} ${styles[tone]}`}>
