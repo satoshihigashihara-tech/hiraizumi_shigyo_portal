@@ -14,8 +14,11 @@ import styles from "./page.module.css";
  * 宿泊が確定するように読めるが、docs/requirements.md 4.3 のとおり
  * 「申請と同時に宿泊を確定する機能」は対象外のため。
  *
- * スパルタキャンプの申請入口（/user/applications/new/camp）は認証必須のため、
- * 直接リンクせず /login?returnTo=... を経由する。returnTo の値は
+ * スパルタキャンプの申請入口は認証必須のため、直接リンクせず
+ * /login?returnTo=... を経由する。申請フォーム自体（新規作成画面）は未実装
+ * のため、戻り先は現時点で存在する申請一覧（/user/applications）にする。
+ * ここを申請フォームのパスにすると、ログイン成功後に 404 へ遷移する。
+ * returnTo の値は
  * utils/auth/return-to.js の safeReturnTo() が通す「/ で始まる内部パス」の形で
  * ハードコードする。
  *
@@ -28,13 +31,16 @@ import styles from "./page.module.css";
  * ログイン画面へ渡す戻り先。"/" 部分をエンコードした値を定数にしておき、
  * 文字列の中に直接 %2F を書いて読みにくくならないようにする。
  */
-const CAMP_APPLICATION_PATH = "/user/applications/new/camp";
+const CAMP_APPLICATION_PATH = "/user/applications";
 const CAMP_LOGIN_HREF = `/login?returnTo=${encodeURIComponent(
   CAMP_APPLICATION_PATH,
 )}`;
 
+/*
+ * title は app/layout.js のルート metadata と同一になるため上書きしない
+ * （二重定義すると片方だけ更新され取り残されるため）。
+ */
 export const metadata = {
-  title: "ひらいずみ志業ポータル",
   description:
     "平泉町志業シェアハウスの使用許可申請を受け付けるサイトです。対象者・利用条件・使用料・必要書類を確認し、申請へ進めます。",
 };
@@ -103,7 +109,7 @@ export default function Home() {
           <h2>申請へ進む</h2>
           <h3>スパルタキャンプ利用の申請</h3>
           <p>
-            ログイン後に、申請できるキャンプを選んで手続きを進めます。
+            ログイン後の申請一覧から、手続きの状況確認と続きの操作ができます。
           </p>
           <div className={styles.actions}>
             <LinkButton
@@ -136,7 +142,7 @@ export default function Home() {
 
         <section>
           <h2>利用状況カレンダー</h2>
-          <ComingSoon title="利用状況カレンダー" description="準備中です。" />
+          <ComingSoon description="空き状況の確認は後日この画面でご覧いただけるようになります。" />
         </section>
       </PageShell>
     </div>
