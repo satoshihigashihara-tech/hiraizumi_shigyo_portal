@@ -117,3 +117,11 @@ SQL Editorのテスト用クエリは検証・後片付け・記録が完了し�
 ユーザー承認のPhase 1（納付）だけをローカル実装した。SQL015は未適用。キャンプ／地域活動個人共通の納付期限・未納／納付済み更新、差戻し理由、監査、取得時JST期限超過フラグを追加。既存Actionの入力契約と既存料金額・申請状態・滞在状態は維持。対象Node24テスト、DB91項目、別接続4ケース、014→015の既存16テーブル一致、対象JSのESLintが成功。詳細・再現コマンドはtasks.md末尾、接続契約はroutes.md末尾。
 
 Phase 2・3は未着手。Supabase適用・commit・pushは禁止の指示に従い未実施。全回帰と全体lint/buildはPhase 3後まで保留。新規は事前説明済みのうちPhase 1用6ファイルに限定し、同時操作テストは既存ローカル実行スクリプトを使用。requirements.md、SQL001〜014、秘密情報、docs/apple_event.txtは変更しない。次はPhase 1差分のレビューであり、承認なしでPhase 2へ進めない。
+
+### T14 Phase 2 追記（2026年9月11日）
+
+最新の前提：SQL015のPhase 1はmain `434cc63` にマージ済み、Supabase適用と実単一接続91項目成功をユーザー確認済み。以前の「SQL015未適用・未マージ」記述は作業当時の記録。
+
+clean確認後、上記main起点に `codex/application-stays` を作成し、承認されたPhase 2だけを実装した。新規はSQL016だけ。許可済みの入居前→滞在中→退去済み、DB時刻、翌日解放（予定終了日の翌日を上限）、個人枠／部屋解放とキャンプ全体枠の維持、必要な入退去監査・取得・Actionを追加。料金・申請期間・申請状態・受付番号は維持し、既存納付Actionの契約を変えていない。
+
+ローカル対象Node34件・DB151項目・別接続9ケースと後片付け、SQL015→016の既存16テーブル一致を確認。詳細・再現はtasks.md末尾、接続契約はroutes.md末尾。Supabase操作・commit・push、全回帰・全体lint/buildは未実施。Phase 3以降や画面には着手していない。SQL001〜015・requirements.md・秘密情報・.env.local・docs/apple_event.txt・.claudeは触らない。SQL016は未適用なので、承認なしにSupabase操作やPhase 3へ進めない。

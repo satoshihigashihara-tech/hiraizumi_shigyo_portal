@@ -35,3 +35,21 @@ export function isPaymentOverdue(charge, now = new Date()) {
   const today = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   return charge.payment_due_date < today;
 }
+
+const STAY_CODES = new Set(["invalid-application", "invalid-version", "stale-update", "invalid-status",
+  "invalid-action", "invalid-stay", "stay-completed", "invalid-allocation", "calendar-inconsistent",
+  "outside-stay-period", "camp-unavailable", "camp-dates-changed", "calendar-unavailable", "duplicate-stay",
+  "invalid-room", "room-capacity-full", "facility-capacity-full", "capacity-full", "not-found", "forbidden"]);
+
+export function stayErrorCode(error) {
+  if (["40001", "40P01"].includes(error?.code)) return "stale-update";
+  if (error?.code === "42501") return "forbidden";
+  const code = typeof error === "string" ? error : error?.message;
+  return STAY_CODES.has(code) ? code : "update-failed";
+}
+
+export function stayFailure(error, fields) {
+  const code = stayErrorCode(error);
+  const field = { "invalid-application": "applicationId", "invalid-version": "updatedAt" }[code];
+  return { error: code, fields, fieldErrors: field ? { [field]: code } : {} };
+}
