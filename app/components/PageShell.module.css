@@ -1,0 +1,149 @@
+/*
+ * 利用者画面の共通CSS基準値（デザイントークン）。
+ *
+ * app/globals.css は「事前に相談」対象（docs/frontend-handoff.md）のため、
+ * :root ではなく .shell スコープへトークンを置く。カスタムプロパティは
+ * 子孫へ継承されるので、PageShell の内側にある共通部品はすべて
+ * var(--sg-*) で参照できる。CSS Modules はクラス名だけをハッシュ化し、
+ * カスタムプロパティ名は変換しないため、他ファイルからも同じ名前で参照できる。
+ */
+
+.shell {
+  /* 余白（4px基準） */
+  --sg-space-1: 4px;
+  --sg-space-2: 8px;
+  --sg-space-3: 12px;
+  --sg-space-4: 16px;
+  --sg-space-5: 24px;
+  --sg-space-6: 32px;
+
+  /* 文字サイズ */
+  --sg-font-xs: 12px;
+  --sg-font-sm: 14px;
+  --sg-font-base: 16px;
+  --sg-font-lg: 18px;
+  --sg-font-xl: 20px;
+  --sg-font-2xl: 24px;
+  --sg-line-height: 1.6;
+
+  /* 角丸 */
+  --sg-radius: 8px;
+  --sg-radius-pill: 999px;
+
+  /* 基本色（本文コントラスト4.5:1以上） */
+  --sg-color-surface: #ffffff;
+  --sg-color-text: #1b1d1f;
+  --sg-color-text-muted: #4d5358;
+  --sg-color-border: #c9ced4;
+  --sg-color-focus: #1f3c88;
+
+  /* 5トーン（AlertMessage と StatusBadge が共有） */
+  --sg-neutral-bg: #f1f3f5;
+  --sg-neutral-border: #5c6670;
+  --sg-neutral-text: #343a40;
+
+  --sg-info-bg: #eaf1fb;
+  --sg-info-border: #1f3c88;
+  --sg-info-text: #14306e;
+
+  --sg-success-bg: #e7f4ec;
+  --sg-success-border: #0f5132;
+  --sg-success-text: #0b3d26;
+
+  --sg-warning-bg: #fdf3e3;
+  --sg-warning-border: #8a5a00;
+  --sg-warning-text: #6b4400;
+
+  --sg-danger-bg: #fdecec;
+  --sg-danger-border: #b3261e;
+  --sg-danger-text: #8c1d18;
+
+  width: 100%;
+  max-width: 960px;
+  margin-inline: auto;
+  padding: var(--sg-space-5) var(--sg-space-4);
+  color: var(--sg-color-text);
+  background: var(--sg-color-surface);
+  font-size: var(--sg-font-base);
+  line-height: var(--sg-line-height);
+  /* 長い住所・メールアドレスが375pxで横へ溢れないようにする */
+  overflow-wrap: anywhere;
+}
+
+/* フレックス・グリッドの子要素が内容幅で突っ張るのを防ぐ（375px対策） */
+.shell * {
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--sg-font-2xl);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.description {
+  margin-top: var(--sg-space-2);
+  color: var(--sg-color-text-muted);
+  font-size: var(--sg-font-sm);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-5);
+}
+
+.header + .body {
+  margin-top: var(--sg-space-5);
+}
+
+/* 共通のフォーカス可視化。キーボード操作で必ず位置が分かるようにする */
+.shell :focus-visible {
+  outline: 3px solid var(--sg-color-focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .shell {
+    padding: var(--sg-space-4) var(--sg-space-3);
+  }
+
+  .title {
+    font-size: var(--sg-font-xl);
+  }
+}
+
+/*
+ * app/globals.css が prefers-color-scheme: dark で body を暗色にし
+ * color-scheme: dark を設定しているため、トークンを暗色側へ差し替える。
+ * 共通部品は background と color を必ずセットで指定し、継承任せにしない。
+ */
+@media (prefers-color-scheme: dark) {
+  .shell {
+    --sg-color-surface: #14171a;
+    --sg-color-text: #ececec;
+    --sg-color-text-muted: #b6bcc2;
+    --sg-color-border: #3a4046;
+    --sg-color-focus: #9db8ff;
+
+    --sg-neutral-bg: #22262a;
+    --sg-neutral-border: #9aa3ab;
+    --sg-neutral-text: #e3e6e8;
+
+    --sg-info-bg: #16233d;
+    --sg-info-border: #7ea6f0;
+    --sg-info-text: #cfe0ff;
+
+    --sg-success-bg: #12291d;
+    --sg-success-border: #6ec08f;
+    --sg-success-text: #c6ead4;
+
+    --sg-warning-bg: #2e2311;
+    --sg-warning-border: #d9a440;
+    --sg-warning-text: #f3dcae;
+
+    --sg-danger-bg: #331917;
+    --sg-danger-border: #f08a82;
+    --sg-danger-text: #f8d3d0;
+  }
+}

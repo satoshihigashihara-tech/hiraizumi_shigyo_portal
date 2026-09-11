@@ -48,3 +48,9 @@ next-env.d.ts
 /docs/設定.txt
 /docs/課題.txt
 /output/
+
+# Claude Code の各自のローカル設定
+.claude/settings.local.json
+
+# Claude Code ローカル設定・スキル定義
+.claude/
