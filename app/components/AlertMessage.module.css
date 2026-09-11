@@ -1,0 +1,68 @@
+.alert {
+  padding: var(--sg-space-4, 16px);
+  border: 1px solid transparent;
+  border-left-width: 4px;
+  border-radius: var(--sg-radius, 8px);
+  font-size: var(--sg-font-base, 16px);
+  line-height: var(--sg-line-height, 1.6);
+}
+
+.heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sg-space-2, 8px);
+  font-size: var(--sg-font-base, 16px);
+  font-weight: 700;
+}
+
+/* 種別を必ず文字で示す。色だけで error / warning / success / info を伝えない */
+.prefix {
+  padding: 1px var(--sg-space-2, 8px);
+  border: 1px solid currentColor;
+  border-radius: var(--sg-radius-pill, 999px);
+  font-size: var(--sg-font-xs, 12px);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.body {
+  margin-top: var(--sg-space-2, 8px);
+}
+
+.items {
+  margin-top: var(--sg-space-3, 12px);
+  padding-left: var(--sg-space-5, 24px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-1, 4px);
+}
+
+.items a {
+  text-decoration: underline;
+  color: inherit;
+}
+
+.error {
+  background: var(--sg-danger-bg, #fdecec);
+  border-color: var(--sg-danger-border, #b3261e);
+  color: var(--sg-danger-text, #8c1d18);
+}
+
+.warning {
+  background: var(--sg-warning-bg, #fdf3e3);
+  border-color: var(--sg-warning-border, #8a5a00);
+  color: var(--sg-warning-text, #6b4400);
+}
+
+.success {
+  background: var(--sg-success-bg, #e7f4ec);
+  border-color: var(--sg-success-border, #0f5132);
+  color: var(--sg-success-text, #0b3d26);
+}
+
+.info {
+  background: var(--sg-info-bg, #eaf1fb);
+  border-color: var(--sg-info-border, #1f3c88);
+  color: var(--sg-info-text, #14306e);
+}

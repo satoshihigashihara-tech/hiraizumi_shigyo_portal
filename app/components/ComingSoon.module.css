@@ -1,0 +1,32 @@
+.comingSoon {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-2, 8px);
+  padding: var(--sg-space-4, 16px);
+  border: 1px dashed var(--sg-neutral-border, #5c6670);
+  border-radius: var(--sg-radius, 8px);
+  background: var(--sg-neutral-bg, #f1f3f5);
+  color: var(--sg-neutral-text, #343a40);
+}
+
+.title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sg-space-2, 8px);
+  font-size: var(--sg-font-base, 16px);
+  font-weight: 700;
+}
+
+.badge {
+  padding: 1px var(--sg-space-2, 8px);
+  border: 1px solid currentColor;
+  border-radius: var(--sg-radius-pill, 999px);
+  font-size: var(--sg-font-xs, 12px);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.description {
+  font-size: var(--sg-font-sm, 14px);
+}

@@ -1,0 +1,63 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sg-space-2, 8px);
+  min-height: 44px;
+  padding: 0 var(--sg-space-5, 24px);
+  border: 1px solid transparent;
+  border-radius: var(--sg-radius, 8px);
+  font-family: inherit;
+  font-size: var(--sg-font-base, 16px);
+  font-weight: 600;
+  line-height: var(--sg-line-height, 1.6);
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--sg-color-focus, #1f3c88);
+  border-color: var(--sg-color-focus, #1f3c88);
+  color: #ffffff;
+}
+
+.secondary {
+  background: var(--sg-color-surface, #ffffff);
+  border-color: var(--sg-color-border, #c9ced4);
+  color: var(--sg-color-text, #1b1d1f);
+}
+
+.danger {
+  background: var(--sg-danger-border, #b3261e);
+  border-color: var(--sg-danger-border, #b3261e);
+  color: #ffffff;
+}
+
+.button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+  .fullWidthOnMobile {
+    width: 100%;
+  }
+}
+
+/* タッチ端末でホバー状態が貼り付くのを避ける（app/page.module.css と同じ書き方） */
+@media (hover: hover) and (pointer: fine) {
+  .primary:hover:not(:disabled) {
+    background: #16295e;
+    border-color: #16295e;
+  }
+
+  .secondary:hover:not(:disabled) {
+    background: var(--sg-neutral-bg, #f1f3f5);
+  }
+
+  .danger:hover:not(:disabled) {
+    background: #8c1d18;
+    border-color: #8c1d18;
+  }
+}

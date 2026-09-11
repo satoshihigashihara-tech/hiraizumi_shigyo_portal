@@ -1,0 +1,73 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-2, 8px);
+}
+
+.label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sg-space-2, 8px);
+  font-size: var(--sg-font-sm, 14px);
+  font-weight: 600;
+  color: var(--sg-color-text, #1b1d1f);
+}
+
+/* 「必須」は文字で表示する。色だけに頼らない */
+.required {
+  padding: 1px var(--sg-space-2, 8px);
+  border: 1px solid var(--sg-danger-border, #b3261e);
+  border-radius: var(--sg-radius-pill, 999px);
+  background: var(--sg-danger-bg, #fdecec);
+  color: var(--sg-danger-text, #8c1d18);
+  font-size: var(--sg-font-xs, 12px);
+  font-weight: 600;
+}
+
+.hint {
+  color: var(--sg-color-text-muted, #4d5358);
+  font-size: var(--sg-font-sm, 14px);
+}
+
+.input,
+.textarea,
+.select {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--sg-space-2, 8px) var(--sg-space-3, 12px);
+  border: 1px solid var(--sg-color-border, #c9ced4);
+  border-radius: var(--sg-radius, 8px);
+  background: var(--sg-color-surface, #ffffff);
+  color: var(--sg-color-text, #1b1d1f);
+  /* 16px 未満だと iOS Safari が入力時に自動ズームする */
+  font-size: 16px;
+  line-height: var(--sg-line-height, 1.6);
+  font-family: inherit;
+}
+
+.textarea {
+  resize: vertical;
+}
+
+.input:disabled,
+.textarea:disabled,
+.select:disabled {
+  background: var(--sg-neutral-bg, #f1f3f5);
+  color: var(--sg-color-text-muted, #4d5358);
+  cursor: not-allowed;
+}
+
+/* 枠線の色に加えて、必ず .error の文章も表示する */
+.hasError {
+  border-color: var(--sg-danger-border, #b3261e);
+  border-width: 2px;
+}
+
+.error {
+  display: flex;
+  gap: var(--sg-space-1, 4px);
+  color: var(--sg-danger-text, #8c1d18);
+  font-size: var(--sg-font-sm, 14px);
+  font-weight: 600;
+}

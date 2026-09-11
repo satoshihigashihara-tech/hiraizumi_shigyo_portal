@@ -1,0 +1,68 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sg-space-1, 4px);
+  padding: 2px var(--sg-space-2, 8px);
+  border: 1px solid transparent;
+  border-left-width: 3px;
+  border-radius: var(--sg-radius-pill, 999px);
+  font-size: var(--sg-font-sm, 14px);
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.kind {
+  font-weight: 400;
+}
+
+/* トーンは補助。バッジの中には必ず日本語ラベルの文字を描画する */
+.neutral {
+  background: var(--sg-neutral-bg, #f1f3f5);
+  border-color: var(--sg-neutral-border, #5c6670);
+  color: var(--sg-neutral-text, #343a40);
+}
+
+.info {
+  background: var(--sg-info-bg, #eaf1fb);
+  border-color: var(--sg-info-border, #1f3c88);
+  color: var(--sg-info-text, #14306e);
+}
+
+.success {
+  background: var(--sg-success-bg, #e7f4ec);
+  border-color: var(--sg-success-border, #0f5132);
+  color: var(--sg-success-text, #0b3d26);
+}
+
+.warning {
+  background: var(--sg-warning-bg, #fdf3e3);
+  border-color: var(--sg-warning-border, #8a5a00);
+  color: var(--sg-warning-text, #6b4400);
+}
+
+.danger {
+  background: var(--sg-danger-bg, #fdecec);
+  border-color: var(--sg-danger-border, #b3261e);
+  color: var(--sg-danger-text, #8c1d18);
+}
+
+/* 申請・納付・滞在の3バッジを横並びにする。375pxでは折り返す */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sg-space-2, 8px);
+  align-items: center;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
