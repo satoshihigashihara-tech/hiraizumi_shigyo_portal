@@ -705,3 +705,13 @@ MVPのSQL018は現在存在する2区分だけを対象とする。団体テー�
 申請開始は`startCommunityGroupApplication(formData)`。入力は`groupId / updatedAt / submissionKey / confirmed`だけで、表示中の団体名・人数・日程等を信頼して送らない。submissionKeyは同じ利用者操作の通信再送で同じUUIDを使う。成功結果は`collecting`、SG受付番号、申請開始日時、参加者提出期限を含み、完了画面へ進む。古い版や別キーを自動再送しない。
 
 主なエラーは`required-fields / invalid-participant-count / invalid-duration / start-too-soon / end-too-late / calendar-unavailable / calendar-inconsistent / stale-update / not-editable / confirmation-required / forbidden / update-failed`。画面は内部SQL詳細を表示せず、エラー時は入力を保持する。公開カレンダーから団体名・人数・状態を取得しない。
+
+### T19 団体招待・参加者下書き接続契約（前半、SQL 022）
+
+代表者の招待発行／再発行は`issueCommunityGroupInvite(formData)`を使い、入力は`groupId / updatedAt`だけ。成功時の`invite.token / invite.code / invite.expiresAt / invite.groupUpdatedAt`はこの応答でだけ受け取り、URL・ログ・監査へ平文を保存しない。再発行後は返された`groupUpdatedAt`へ画面の版を更新する。想定画面は`/user/groups/[groupId]/participants`。
+
+招待確認は`getCommunityGroupInvite(inviteValue, inviteKind)`、参加は`joinCommunityGroup(formData)`を使う。`inviteKind`は`token`または`code`、参加Actionには画面側で新しく作ったUUIDの`applicationId`も渡す。同じクリックの通信再送では同じUUIDを再利用する。成功時はDBが返した申請IDの`/user/applications/[applicationId]/edit?joined=group`へ遷移する。招待URLの想定は`/invite/[token]`、手入力は`/invite`。
+
+招待内容はログイン確認後にだけ取得する。取得項目は団体名、日程、目的、地域活動、予定人数、参加期限、現在人数、本人の既存申請ID、参加可否だけ。代表者の住所・電話等は表示しない。代表者用一覧は`getCommunityGroupParticipants(groupId)`を使い、参加者の氏名・申請状態・代表者区分・参加日時だけを表示する。
+
+主なエラーは`invalid-invite / invite-expired / invite-not-available / group-full / duplicate-stay / representative-not-staying / stale-update / forbidden / load-failed / update-failed`。内部SQL詳細を表示しない。参加後の個人入力・提出はT19後半の契約追加まで接続しない。

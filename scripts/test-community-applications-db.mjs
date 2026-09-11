@@ -397,6 +397,93 @@ async function groupConcurrency(c) {
   }
   console.log('PASS group concurrency cleanup');
 }
+// T19: invitation reissue, capacity and duplicate joining on real separate connections.
+async function groupInvitationConcurrency(c) {
+  const scenarios = ['last-slot', 'same-user', 'reissue-versus-join'];
+  const today = (await c.query("select (clock_timestamp() at time zone 'Asia/Tokyo')::date::text as d")).rows[0].d;
+  async function session(client, id) {
+    await client.query("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: id,
+      email: `invite-${id}@example.invalid`, role: 'authenticated' })]);
+    await client.query('set role authenticated');
+  }
+  async function asActor(client, id, sql, values = []) {
+    await session(client, id);
+    try { return await client.query(sql, values); } finally { await client.query('reset role'); }
+  }
+  for (const [index, scenario] of scenarios.entries()) {
+    const representative = randomUUID(), first = randomUUID(), second = randomUUID(), third = randomUUID();
+    const users = [representative, first, second, third];
+    for (const id of users) await c.query('insert into auth.users(id,email) values($1,$2)', [id, `invite-${id}@example.invalid`]);
+    const group = randomUUID(), start = (await c.query('select ($1::date+$2::integer)::text as d', [today, 20 + index * 8])).rows[0].d;
+    const end = (await c.query('select ($1::date+2)::text as d', [start])).rows[0].d;
+    const fields = { group_name: `架空同時招待${index}`, representative_name: '架空代表者', representative_address: '架空住所',
+      representative_phone: '000-0000-0000', start_date: start, end_date: end, usage_place: 'common_and_second_floor',
+      purpose: '架空地域調査', local_activity: '町内で架空調査', special_notes: null,
+      planned_participants: scenario === 'last-slot' ? 2 : 3, representative_stays: false };
+    await asActor(c, representative, 'select * from public.create_community_group_draft($1,$2)', [group, fields]);
+    let version = (await c.query('select updated_at::text as v from public.group_applications where id=$1', [group])).rows[0].v;
+    await asActor(c, representative, 'select * from public.start_community_group_application($1,$2,$3,true)', [group, version, randomUUID()]);
+    version = (await c.query('select updated_at::text as v from public.group_applications where id=$1', [group])).rows[0].v;
+    const invite = (await asActor(c, representative, 'select * from public.issue_community_group_invite($1,$2)', [group, version])).rows[0];
+    const token = invite.invite_token;
+    const appIds = [randomUUID(), randomUUID(), randomUUID()];
+    if (scenario === 'last-slot') await asActor(c, first, "select * from public.join_community_group($1,'token',$2)", [token, appIds[0]]);
+    const a = await connect(), b = await connect();
+    try {
+      await session(a, scenario === 'reissue-versus-join' ? representative : second);
+      await session(b, scenario === 'same-user' ? second : third);
+      await a.query('begin'); await b.query('begin'); await b.query("set local statement_timeout='8s'");
+      if (scenario === 'reissue-versus-join') {
+        version = (await a.query('select updated_at::text as v from public.group_applications where id=$1', [group])).rows[0].v;
+        await a.query('select * from public.issue_community_group_invite($1,$2)', [group, version]);
+      } else {
+        await a.query("select * from public.join_community_group($1,'token',$2)", [token, appIds[1]]);
+      }
+      const leader = (await a.query('select pg_backend_pid() as pid')).rows[0].pid;
+      const peer = (await b.query('select pg_backend_pid() as pid')).rows[0].pid;
+      const pending = b.query("select * from public.join_community_group($1,'token',$2)", [token, appIds[2]])
+        .then(result => ({ ok: true, rows: result.rows }), error => ({ ok: false, code: error.code, message: error.message }));
+      let waited = false;
+      for (let n = 0; n < 100; n++) {
+        if ((await c.query('select $2::integer=any(pg_blocking_pids($1)) as waiting', [peer, leader])).rows[0].waiting) { waited = true; break; }
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      await a.query('commit'); await a.query('reset role');
+      const outcome = await pending;
+      await b.query(scenario === 'same-user' && outcome.ok ? 'commit' : 'rollback'); await b.query('reset role');
+      assert.ok(waited && leader !== peer, `${scenario}: actual wait on separate connections`);
+      if (scenario === 'same-user') {
+        assert.equal(outcome.ok, true, JSON.stringify(outcome));
+        assert.equal(outcome.rows[0].result_application_id, appIds[1]);
+        assert.equal((await c.query('select count(*)::integer as n from public.group_members where group_id=$1', [group])).rows[0].n, 1);
+        assert.equal((await c.query('select count(*)::integer as n from public.applications where group_id=$1', [group])).rows[0].n, 1);
+      } else {
+        assert.equal(outcome.ok, false, scenario);
+        assert.equal(outcome.code, 'P0001');
+        assert.equal(outcome.message, scenario === 'last-slot' ? 'group-full' : 'invalid-invite');
+      }
+      if (scenario === 'last-slot') {
+        assert.equal((await c.query("select count(*)::integer as n from public.group_members where group_id=$1 and state='active'", [group])).rows[0].n, 2);
+      }
+      if (scenario === 'reissue-versus-join') {
+        assert.equal((await c.query('select count(*)::integer as n from public.group_members where group_id=$1', [group])).rows[0].n, 0);
+        assert.equal((await c.query('select count(*)::integer as n from public.group_invites where group_id=$1 and revoked_at is null', [group])).rows[0].n, 1);
+      }
+      console.log('PASS group invitation concurrency', scenario);
+    } finally {
+      await a.query('rollback'); await b.query('rollback'); await c.query('reset role');
+      await c.query('delete from public.audit_logs where entity_id=$1 or actor_user_id=any($2::uuid[])', [group, users]);
+      await c.query('delete from public.calendar_claims where group_id=$1', [group]);
+      await c.query('delete from public.group_invites where group_id=$1', [group]);
+      await c.query('delete from public.group_members where group_id=$1', [group]);
+      await c.query('delete from public.audit_logs where entity_id=any($1::uuid[])', [appIds]);
+      await c.query('delete from public.applications where group_id=$1', [group]);
+      await c.query('delete from public.group_applications where id=$1', [group]);
+      await c.query('delete from auth.users where id=any($1::uuid[])', [users]);
+    }
+  }
+  console.log('PASS group invitation concurrency cleanup');
+}
 let stage = 'start';
 let failed = false;
 try {
@@ -478,10 +565,11 @@ try {
   if (requested.includes('--audit-notes-only')) await c.query("select set_config('test.operations_phase','audit-notes',false)");
   if (requested.includes('--staff-search-only')) await c.query("select set_config('test.operations_phase','staff-search',false)");
   if (requested.includes('--stays-only')) await c.query("select set_config('test.operations_phase','stays',false)");
-  const single = ['application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql', 'community_groups.sql'];
+  const single = ['application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql', 'community_groups.sql', 'group_invitations.sql'];
   const concurrent = ['camp_room_allocations_concurrency.sql', 'calendar_concurrency.sql', 'community_individual_applications_concurrency.sql', 'community_individual_room_allocations_concurrency.sql'];
-  const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.includes('--stays-only') ? ['application_operations.sql', ...(requested.includes('--stays-concurrency') ? ['--stays-concurrency'] : [])] : requested.includes('--audit-notes-only') ? ['application_operations.sql', ...(requested.includes('--audit-notes-concurrency') ? ['--audit-notes-concurrency'] : [])] : requested.includes('--staff-search-only') ? ['application_operations.sql'] : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency', '--stays-concurrency', '--audit-notes-concurrency', '--groups-concurrency'];
+  const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.includes('--stays-only') ? ['application_operations.sql', ...(requested.includes('--stays-concurrency') ? ['--stays-concurrency'] : [])] : requested.includes('--audit-notes-only') ? ['application_operations.sql', ...(requested.includes('--audit-notes-concurrency') ? ['--audit-notes-concurrency'] : [])] : requested.includes('--staff-search-only') ? ['application_operations.sql'] : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency', '--stays-concurrency', '--audit-notes-concurrency', '--groups-concurrency', '--group-invitations-concurrency'];
   for (const file of selected) {
+    if (file === '--group-invitations-concurrency') { stage=file; await groupInvitationConcurrency(c); continue; }
     if (file === '--groups-concurrency') { stage=file; await groupConcurrency(c); continue; }
     if (file === '--audit-notes-concurrency') { stage=file; await auditNotesConcurrency(c); continue; }
     if (file === '--stays-concurrency') { stage=file; await stayConcurrency(c); continue; }

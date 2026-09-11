@@ -563,3 +563,11 @@ main `07a21a0` 起点の `codex/community-application-extension` で、承認済
 | `supabase/tests/community_groups.sql` | 架空データ・末尾ROLLBACKの単一接続検証。SQL Editorでは保存しない |
 
 ローカル結果はSQL001〜021順次適用成功、団体DB95項目、別接続4ケース、Node17件が成功。別接続は団体対団体・団体対個人の両順序・同一キー再送について、異なる接続IDと実待機を確認する。全回帰もNode251件、DB単一接続1456項目・別接続85ケース、lint、production buildが成功した。Supabase適用、commit、pushは未実施。`docs/apple_event.txt`と秘密情報には触れない。
+
+### T19 団体招待・参加者下書き（前半、SQL 022・ローカル作成中）
+
+mainへ反映済み・Supabase適用済みのSQL021を前提に、`codex/group-invitations`で前半だけを実装する。代表者のトークン／手入力コード発行・再発行、ログイン後の安全な招待確認、参加期限・予定人数・重複宿泊を検査した参加、団体に紐づく個人下書き、代表者向け最小参加者一覧が対象。参加者個人フォームの保存・提出、団体審査・部屋・許可・取消、期限切れ自動処理、UI・メールは対象外。
+
+新規は`supabase/migrations/202609110022_group_invitations.sql`、`app/actions/group-invitations.js`、`utils/group-invitations/validation.js / queries.js`、`tests/group-invitations-actions.test.mjs`、`supabase/tests/group_invitations.sql`。既存DBテスト実行スクリプトと関連docsだけを更新した。
+
+対象検証はNode 9件、DB単一接続59項目、別接続3ケースが成功。別接続では残り1枠、同一利用者の別UUID同時参加、再発行中の旧招待参加を、異なる接続IDと実待機で確認した。その後の全回帰もNode 260件、DB単一接続1,515項目・別接続88ケース、lint、production buildがすべて成功。本番用SQL022はSupabase適用時に保存する。検証用`group_invitations.sql`は末尾ROLLBACKを維持し、SQL Editorには保存しない。Supabase適用、commit、push、画面接続は未実施。`docs/apple_event.txt`と秘密情報には触れない。
