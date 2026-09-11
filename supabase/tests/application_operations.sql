@@ -1,4 +1,4 @@
--- SQL 015-019 operations tests. Targeted runners select one phase. ISOLATED TEST PROJECT WITHOUT TRAFFIC.
+-- SQL 015-020 operations tests. Targeted runners select one phase. ISOLATED TEST PROJECT WITHOUT TRAFFIC.
 -- Run this WHOLE file as postgres after the corresponding migration. All fictional records and
 -- temporary helpers roll back. No real Auth login, Storage API or secrets.
 -- On failure ROLLBACK in the same connection. Never replace ROLLBACK with COMMIT.
@@ -171,9 +171,11 @@ begin
   protected_value:=pg_temp.t13_protected(camp_app);
   perform pg_temp.t13_ok(pg_temp.t13_payment(camp_app,'unpaid',c.today,'架空訂正'),'payment after moved out');
   perform pg_temp.t13_check(pg_temp.t13_protected(camp_app)=protected_value,'moved out unchanged');
-  update public.applications set original_application_id=camp_app where id=x;
-  perform pg_temp.t13_error(pg_temp.t13_payment(x,'paid'),'not-found','extensions excluded');
-  update public.applications set original_application_id=null where id=x;
+  if to_regprocedure('public.create_community_application_extension(uuid,uuid,date,text)') is null then
+    update public.applications set original_application_id=camp_app where id=x;
+    perform pg_temp.t13_error(pg_temp.t13_payment(x,'paid'),'not-found','legacy unsupported extensions excluded');
+    update public.applications set original_application_id=null where id=x;
+  end if;
   delete from public.application_charges where application_id=x;
   perform pg_temp.t13_error(pg_temp.t13_payment(x,'paid'),'charge-not-found','missing charge not silently created');
 end; $$;
@@ -509,8 +511,11 @@ begin
   perform pg_temp.t13_ok(pg_temp.t13_call(c.owner_id,format('select public.save_camp_application_draft(%L,%L,%L,%L,%L,%L,%L,%L,null,false,%L)',
     camp_application,'架空キャンプ参加者','非公開住所','000-SECRET','非公開連絡先','非公開住所','000-SECRET','検索試験','shared_ok')),'search camp save');
 
-  insert into public.applications(user_id,usage_type,start_date,end_date,status,original_application_id,user_name)
-  values(c.owner_id,'community_individual',c.today+40,c.today+41,'draft',individual_literal,'除外する延長') returning id into extension_id;
+  -- Before SQL020, legacy search deliberately excluded unsupported extension rows.
+  if to_regprocedure('public.create_community_application_extension(uuid,uuid,date,text)') is null then
+    insert into public.applications(user_id,usage_type,start_date,end_date,status,original_application_id,user_name)
+    values(c.owner_id,'community_individual',c.today+40,c.today+41,'draft',individual_literal,'除外する延長') returning id into extension_id;
+  end if;
 
   before_value:=jsonb_build_object('applications',(select count(*) from public.applications),
     'charges',(select count(*) from public.application_charges),'stays',(select count(*) from public.stays),
@@ -542,8 +547,10 @@ begin
   select item into item_value from jsonb_array_elements(data_value->'items') item where item->>'id'=camp_application::text;
   perform pg_temp.t13_check(item_value->>'camp_name'='特別検索キャンプ'
     and item_value->>'detail_path'='/staff/camps/'||camp_id::text||'/applications/'||camp_application::text,'camp summary and path');
-  perform pg_temp.t13_check(not exists(select 1 from jsonb_array_elements(data_value->'items') item
-    where item->>'id'=extension_id::text),'extension rows excluded');
+  if extension_id is not null then
+    perform pg_temp.t13_check(not exists(select 1 from jsonb_array_elements(data_value->'items') item
+      where item->>'id'=extension_id::text),'legacy unsupported extension rows excluded');
+  end if;
 
   r:=pg_temp.t13_ok(pg_temp.t16_search(c.staff_id,'架空%_記号'),'literal wildcard query');
   perform pg_temp.t13_check(jsonb_array_length(r->0->'data'->'items')=1
@@ -694,6 +701,96 @@ begin
   snap:=pg_temp.t13_snapshot(started_id);
   perform pg_temp.t13_error(pg_temp.t17_request(started_id),'stay-started','started stay must use early checkout');
   perform pg_temp.t13_check(pg_temp.t13_snapshot(started_id)=snap,'started rejection is atomic');
+end; $$;
+
+-- T17 second half: an extension is linked, consecutive, and operationally independent.
+do $$ declare c pg_temp.t13_context%rowtype; owner_id uuid:=pg_temp.t13_user(); original_id uuid;
+  extension_id uuid:=gen_random_uuid(); duplicate_id uuid:=gen_random_uuid(); room_id uuid;
+  r jsonb; original_snapshot jsonb; original_charge uuid; extension_charge uuid; search_items jsonb;
+begin
+  if to_regprocedure('public.create_community_application_extension(uuid,uuid,date,text)') is null then return; end if;
+  select * into c from pg_temp.t13_context;
+  select id into room_id from public.rooms where name='桐';
+  original_id:=pg_temp.t13_draft(owner_id,c.today+35,c.today+37);
+  perform pg_temp.t13_ok(pg_temp.t13_submit(original_id),'extension original submit');
+  perform pg_temp.t13_ok(pg_temp.t13_review(original_id,'start_review'),'extension original review');
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format(
+    'select * from public.assign_community_application_room(%L,%L,%L)',original_id,room_id,pg_temp.t13_version(original_id))),
+    'extension original room');
+  perform pg_temp.t13_ok(pg_temp.t13_review(original_id,'approve'),'extension original approval');
+  original_snapshot:=pg_temp.t13_snapshot(original_id);
+  select id into original_charge from public.application_charges where application_id=original_id;
+
+  r:=pg_temp.t13_ok(pg_temp.t13_call(owner_id,format(
+    'select public.get_community_application_extension_source(%L) as data',original_id)),'extension source');
+  perform pg_temp.t13_check((r->0->'data'->>'can_extend')::boolean
+    and (r->0->'data'->>'extension_start_date')::date=c.today+38,'extension source is consecutive');
+  perform pg_temp.t13_error(pg_temp.t13_call(c.other_id,format(
+    'select public.get_community_application_extension_source(%L)',original_id)),'not-found','other owner cannot read extension source');
+
+  perform pg_temp.t13_ok(pg_temp.t13_call(owner_id,format(
+    'select * from public.create_community_application_extension(%L,%L,%L,%L)',
+    extension_id,original_id,c.today+40,'  架空の継続理由  ')),'create extension');
+  perform pg_temp.t13_check((select original_application_id=original_id and status='draft'
+    and start_date=c.today+38 and end_date=c.today+40 and extension_reason='架空の継続理由'
+    from public.applications where id=extension_id),'extension row is linked, consecutive and normalized');
+  perform pg_temp.t13_check(pg_temp.t13_snapshot(original_id)=original_snapshot,'extension creation leaves original unchanged');
+  perform pg_temp.t13_check(not exists(select 1 from public.application_charges where application_id=extension_id)
+    and not exists(select 1 from public.reception_numbers where application_id=extension_id),
+    'draft extension has no charge or receipt');
+  perform pg_temp.t13_ok(pg_temp.t13_call(owner_id,format(
+    'select * from public.create_community_application_extension(%L,%L,%L,%L)',
+    extension_id,original_id,c.today+40,'架空の継続理由')),'extension create retry is idempotent');
+  perform pg_temp.t13_error(pg_temp.t13_call(owner_id,format(
+    'select * from public.create_community_application_extension(%L,%L,%L,%L)',
+    duplicate_id,original_id,c.today+41,'別の継続理由')),'extension-exists','only one active extension');
+  perform pg_temp.t13_error(pg_temp.t13_save(extension_id,
+    pg_temp.t13_fields(c.today+39,c.today+40)),'invalid-extension-period','generic save cannot break consecutive start');
+  perform pg_temp.t13_ok(pg_temp.t13_save(extension_id,
+    pg_temp.t13_fields(c.today+38,c.today+40)),'complete extension draft');
+  perform pg_temp.t13_ok(pg_temp.t13_submit(extension_id),'submit extension');
+  perform pg_temp.t13_check(pg_temp.t13_snapshot(original_id)=original_snapshot,'extension submission leaves original unchanged');
+  select id into extension_charge from public.application_charges where application_id=extension_id;
+  perform pg_temp.t13_check(extension_charge is not null and extension_charge<>original_charge
+    and exists(select 1 from public.reception_numbers where application_id=extension_id)
+    and exists(select 1 from public.calendar_claims where application_id=extension_id and start_date=c.today+38 and end_date=c.today+40),
+    'extension has separate charge, receipt and calendar claim');
+
+  perform pg_temp.t13_ok(pg_temp.t13_review(extension_id,'start_review'),'extension staff review');
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format(
+    'select * from public.assign_community_application_room(%L,%L,%L)',extension_id,room_id,pg_temp.t13_version(extension_id))),
+    'extension room allocation');
+  perform pg_temp.t13_ok(pg_temp.t13_review(extension_id,'approve'),'extension approval');
+  perform pg_temp.t13_check(exists(select 1 from public.stays where application_id=extension_id and status='before_move_in')
+    and exists(select 1 from public.room_allocations where application_id=extension_id and start_date=c.today+38 and end_date=c.today+40),
+    'extension has separate room allocation and stay');
+  perform pg_temp.t13_ok(pg_temp.t13_payment(extension_id,'paid'),'extension payment update');
+  r:=pg_temp.t13_ok(pg_temp.t13_call(owner_id,format('select public.get_application_payment(%L) as data',extension_id)),
+    'extension owner payment');
+  perform pg_temp.t13_check((r->0->'data'->>'original_application_id')::uuid=original_id
+    and r->0->'data'->'charge'->>'payment_status'='paid','extension payment context');
+  r:=pg_temp.t13_ok(pg_temp.t13_call(owner_id,format('select public.get_application_stay(%L) as data',extension_id)),
+    'extension owner stay');
+  perform pg_temp.t13_check((r->0->'data'->>'original_application_id')::uuid=original_id
+    and r->0->'data'->'stay'->>'status'='before_move_in','extension stay context');
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format(
+    'select * from public.save_application_staff_note(%L,%L,null,%L)',extension_id,pg_temp.t13_version(extension_id),'架空の職員メモ')),
+    'extension staff note');
+  r:=pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format(
+    'select public.search_staff_applications(null,%L,null,null,null,null,null,1) as data','community_individual')),
+    'extension staff search');
+  search_items:=r->0->'data'->'items';
+  perform pg_temp.t13_check(exists(select 1 from jsonb_array_elements(search_items) item
+    where (item->>'id')::uuid=extension_id and (item->>'original_application_id')::uuid=original_id),
+    'extension appears in staff search with original link');
+
+  perform pg_temp.t13_ok(pg_temp.t17_request(extension_id),'extension cancellation request');
+  perform pg_temp.t13_ok(pg_temp.t17_confirm(extension_id),'extension cancellation confirmation');
+  perform pg_temp.t13_check((select status='cancelled' from public.applications where id=extension_id)
+    and (select released_from=start_date from public.calendar_claims where application_id=extension_id)
+    and (select released_from=start_date from public.room_allocations where application_id=extension_id),
+    'extension cancellation releases only extension capacity');
+  perform pg_temp.t13_check(pg_temp.t13_snapshot(original_id)=original_snapshot,'full extension lifecycle leaves original unchanged');
 end; $$;
 select count(*) as passed_checks, bool_and(passed) as all_passed from pg_temp.t13_results;
 rollback;

@@ -11,6 +11,7 @@ const OTHER_ID = "10000000-0000-4000-8000-000000000002";
 const VERSION = "2026-09-10T12:34:56.123456+00:00";
 const KEY = "10000000-0000-4000-8000-000000000003";
 const USER = "10000000-0000-4000-8000-000000000004";
+const EXTENSION_ID = "10000000-0000-4000-8000-000000000005";
 const SAVED = [{ result_id: ID, result_updated_at: VERSION }];
 const SUBMITTED = [{ ...SAVED[0], result_status: "submitted", reception_number: "SG-2026-0001", submission_time: VERSION }];
 const FORM = { applicationId: ID, updatedAt: VERSION, submissionKey: KEY, confirmed: "true",
@@ -126,7 +127,8 @@ for (const [file, action, rpc, data] of ACTIONS) {
 test("only approved community application actions are exported", async () => {
  for (const file of ["app/actions/community-applications.js", "app/actions/staff-community-applications.js"]) {
   const { api } = await harness(file);
-  const extra = file.includes("staff-community") ? ["assignCommunityApplicationRoom", "approveCommunityApplication"] : [];
+  const extra = file.includes("staff-community") ? ["assignCommunityApplicationRoom", "approveCommunityApplication"]
+    : ["createCommunityApplicationExtension"];
   assert.deepEqual(Object.keys(api).sort(), [...ACTIONS.filter(a => a[0] === file).map(a => a[1]), ...extra].sort());
  }
 });
@@ -151,6 +153,28 @@ test("cancellation actions reject missing or oversized reasons before RPC", asyn
    assert.equal((await api[action](form({ reason }))).error, expected);
    assert.equal(calls.filter((call) => call[0] === "rpc").length, 0);
   }
+ }
+});
+test("extension creation sends only its link, end date and normalized reason", async () => {
+ const { api, calls } = await harness("app/actions/community-applications.js", {
+  response: { data: [{ result_id: EXTENSION_ID, result_updated_at: VERSION }] },
+ });
+ await assert.rejects(api.createCommunityApplicationExtension(form({ extensionId: EXTENSION_ID,
+  originalApplicationId: ID, endDate: "2028-03-04", reason: "  架空の継続理由  ", status: "approved" })), /REDIRECT/);
+ assert.deepEqual(calls.find((call) => call[0] === "rpc").slice(1), ["create_community_application_extension", {
+  target_extension_id: EXTENSION_ID, target_original_application_id: ID,
+  target_end_date: "2028-03-04", extension_reason_value: "架空の継続理由",
+ }]);
+ assert.equal(calls.at(-1)[1], `/user/applications/${EXTENSION_ID}/edit?created=extension`);
+});
+test("extension creation validates IDs, date and reason before RPC", async () => {
+ for (const [fields, expected] of [[{ extensionId: "bad" }, "invalid-application"],
+  [{ originalApplicationId: "bad" }, "invalid-application"], [{ endDate: "2028-02-30" }, "invalid-extension-period"],
+  [{ reason: "   " }, "reason-required"], [{ reason: "あ".repeat(2001) }, "reason-too-long"]]) {
+  const { api, calls } = await harness("app/actions/community-applications.js");
+  assert.equal((await api.createCommunityApplicationExtension(form({ extensionId: EXTENSION_ID,
+   originalApplicationId: ID, endDate: "2028-03-04", reason: "架空理由", ...fields }))).error, expected);
+  assert.equal(calls.filter((call) => call[0] === "rpc").length, 0);
  }
 });
 test("empty creation preserves profile defaults, explicit empty fields clear them", async () => {
@@ -252,6 +276,15 @@ test("cancellation context is guarded, fixed-field and read-only", async () => {
  const { api, calls } = await harness("utils/community-applications/queries.js", { response: { data } });
  const result = copy(await api.getCommunityApplicationCancellation(ID));
  assert.equal(result.error, null); assert.equal(result.application.can_request, true);
+ assert.ok(!JSON.stringify(result).includes("PRIVATE"));
+ assert.deepEqual(calls.map((call) => call[0]), ["auth", "rpc"]);
+});
+test("extension source is guarded, fixed-field and read-only", async () => {
+ const data = { id: ID, status: "approved", end_date: "2028-03-01", stay_status: "before_move_in",
+  extension_start_date: "2028-03-02", existing_extension_id: null, can_extend: true, private: "PRIVATE" };
+ const { api, calls } = await harness("utils/community-applications/queries.js", { response: { data } });
+ const result = copy(await api.getCommunityApplicationExtensionSource(ID));
+ assert.equal(result.error, null); assert.equal(result.application.can_extend, true);
  assert.ok(!JSON.stringify(result).includes("PRIVATE"));
  assert.deepEqual(calls.map((call) => call[0]), ["auth", "rpc"]);
 });

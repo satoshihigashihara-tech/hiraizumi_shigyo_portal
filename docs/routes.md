@@ -687,3 +687,11 @@ MVPのSQL018は現在存在する2区分だけを対象とする。団体テー�
 `getCommunityApplicationCancellation(applicationId)` は本人またはactive職員向けの固定項目 `id / status / updated_at / start_date / end_date / cancel_reason / stay_status / can_request / can_confirm` を返す。本人以外はnot-found。`/user/applications/[applicationId]/cancel` は `can_request=true` の場合だけ表示し、滞在開始後は操作を出さず町への連絡と早期退去を案内する。
 
 本人Action `requestCommunityApplicationCancellation(formData)` と職員Action `confirmCommunityApplicationCancellation(formData)` の入力は `applicationId / updatedAt / reason`。理由は空白除去後1〜2000文字。成功時は本人詳細または職員詳細へ戻る。主なエラーは `reason-required / reason-too-long / invalid-version / stale-update / invalid-status / invalid-stay / stay-started / invalid-allocation / calendar-inconsistent / not-found / forbidden / update-failed`。画面はDBが返した最新状態を再取得し、古い版を自動再送しない。
+
+### T17 地域活動の個人利用の延泊接続契約（SQL 020）
+
+`/user/applications/[applicationId]/extension` は `getCommunityApplicationExtensionSource(applicationId)` を呼ぶ。固定返却は `id / status / end_date / stay_status / extension_start_date / existing_extension_id / can_extend`。`can_extend=true` のときだけ、終了日と理由を入力できる。開始日は元の終了翌日を表示専用とし、利用者入力にしない。
+
+`createCommunityApplicationExtension(formData)` の入力は `extensionId / originalApplicationId / endDate / reason`。extensionIdは画面で新しいUUIDを1回生成し、通信再送では同じ値を使う。理由は空白除去後1〜2000文字。成功後は `/user/applications/[extensionId]/edit?created=extension` へ進み、通常の個人申請入力を確認・保存してから提出する。主なエラーは `invalid-extension-period / extension-not-available / extension-exists / reason-required / reason-too-long / not-found / forbidden / update-failed`。
+
+本人一覧の `original_application_id` がnullでない行は「延泊」と表示し、元申請への導線を出す。職員検索・部屋・納付・滞在・メモの取得にも同項目がある。延泊は別申請なので、料金・受付番号・申請状態・部屋・滞在・取消操作はその延泊IDで行う。元申請のIDや版を延泊側の更新Actionへ送らない。

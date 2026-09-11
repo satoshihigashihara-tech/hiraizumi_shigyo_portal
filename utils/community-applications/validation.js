@@ -17,7 +17,8 @@ const CODES = new Set(["invalid-application", "invalid-fields", "required-fields
   "confirmation-required", "invalid-submission-key", "invalid-action", "invalid-status", "reason-required",
   "reason-too-long", "invalid-deadline", "invalid-path", "invalid-type", "invalid-size", "forbidden", "load-failed",
   "invalid-room", "room-required", "invalid-allocation", "invalid-stay", "stay-completed",
-  "stay-started", "room-capacity-full", "facility-capacity-full", "application-inconsistent"]);
+  "stay-started", "invalid-extension", "invalid-extension-period", "extension-not-available", "extension-exists",
+  "room-capacity-full", "facility-capacity-full", "application-inconsistent"]);
 
 export function booleanField(value) {
   if (["true", "on", "1"].includes(value)) return true;
@@ -76,6 +77,8 @@ export function communityFailure(error, fields = {}, fieldErrors = {}) {
     "guardian-consent": "guardianConsentRequired", "confirmation-required": "confirmed",
     "invalid-version": "updatedAt", "invalid-place": "usagePlace", "invalid-deadline": "revisionDeadline",
     "reason-required": "reason", "reason-too-long": "reason",
-    "invalid-room": "roomId", "room-required": "roomId", "room-capacity-full": "roomId" }[code];
+    "invalid-room": "roomId", "room-required": "roomId", "room-capacity-full": "roomId",
+    "invalid-extension-period": "endDate", "extension-not-available": "originalApplicationId",
+    "extension-exists": "originalApplicationId" }[code];
   return { error: code, fields, fieldErrors: field ? { ...fieldErrors, [field]: code } : fieldErrors };
 }
