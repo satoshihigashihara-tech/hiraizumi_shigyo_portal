@@ -305,6 +305,13 @@ test("community consent upload uses owner guard and versioned service RPC; submi
  assert.equal(calls.find(c => c[0] === "admin-rpc")[2].target_object_path, `applications/${ID}/${KEY}`);
  assert.ok(!calls.some(c => c[0] === "remove"));
 });
+test("group participant consent uses its dedicated versioned service RPC", async () => {
+ const { api, calls } = await harness("app/actions/guardian-consent.js", { readResponse: { data: { ...CURRENT, usage_type: "community_group", status: "draft" } }, metadata: { data: [{ previous_object_path: null, delete_previous: true, result_updated_at: VERSION }] } });
+ await assert.rejects(api.uploadGuardianConsent(form({ guardianConsentFile: PDF })), /REDIRECT/);
+ const invocation = calls.find(c => c[0] === "admin-rpc");
+ assert.equal(invocation[1], "register_group_guardian_consent_document");
+ assert.equal(invocation[2].expected_updated_at, VERSION);
+});
 test("consent stale failure removes only newly uploaded object", async () => {
  const { api, calls } = await harness("app/actions/guardian-consent.js", { readResponse: { data: CURRENT }, metadata: { error: { message: "stale-update" } } });
  await assert.rejects(api.uploadGuardianConsent(form({ guardianConsentFile: PDF })), e => e.url.endsWith("?error=stale-update"));

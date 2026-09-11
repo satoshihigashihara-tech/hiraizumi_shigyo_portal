@@ -715,3 +715,9 @@ MVPのSQL018は現在存在する2区分だけを対象とする。団体テー�
 招待内容はログイン確認後にだけ取得する。取得項目は団体名、日程、目的、地域活動、予定人数、参加期限、現在人数、本人の既存申請ID、参加可否だけ。代表者の住所・電話等は表示しない。代表者用一覧は`getCommunityGroupParticipants(groupId)`を使い、参加者の氏名・申請状態・代表者区分・参加日時だけを表示する。
 
 主なエラーは`invalid-invite / invite-expired / invite-not-available / group-full / duplicate-stay / representative-not-staying / stale-update / forbidden / load-failed / update-failed`。内部SQL詳細を表示しない。参加後の個人入力・提出はT19後半の契約追加まで接続しない。
+
+### T19 団体参加者フォーム接続契約（後半、SQL 023）
+
+取得は`getGroupParticipantApplication(applicationId, mode)`、保存は`saveGroupParticipantApplication(formData)`、提出は`submitGroupParticipantApplication(formData)`を使う。保存入力は`applicationId / updatedAt`と本人・緊急連絡先・任意メモ・保護者同意要否だけ。日程、場所、目的、町内活動は送信しない。
+
+提出入力は`applicationId / updatedAt / submissionKey / confirmed`だけ。同じ操作の再送では同じキーと版を使う。`result_group_status=under_review`なら全員提出完了を案内する。同意書は既存`uploadGuardianConsent`を使う。主なエラーは`participant-deadline-passed / required-fields / guardian-consent / duplicate-stay / stale-update / not-editable / not-submittable / forbidden / update-failed`。
