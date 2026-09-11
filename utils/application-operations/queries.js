@@ -12,7 +12,7 @@ async function readPayment(supabase, applicationId) {
   if (error) return { error: paymentErrorCode(error) === "not-found" ? "not-found" : "load-failed", application: null };
   if (data?.id !== applicationId || !isUpdatedAt(data.updated_at)
     || !["camp", "community_individual"].includes(data.usage_type)) return { error: "load-failed", application: null };
-  const application = pick(data, ["id", "usage_type", "camp_id", "status", "updated_at"]);
+  const application = pick(data, ["id", "usage_type", "camp_id", "original_application_id", "status", "updated_at"]);
   application.charge = data.charge ? {
     ...pick(data.charge, ["total_amount", "payment_status", "payment_due_date", "paid_at"]),
     is_overdue: isPaymentOverdue(data.charge),
@@ -39,7 +39,7 @@ async function readStay(supabase, applicationId) {
   if (data?.id !== applicationId || !isUpdatedAt(data.updated_at)
     || !["camp", "community_individual"].includes(data.usage_type)) return { error: "load-failed", application: null };
   return { error: null, application: {
-    ...pick(data, ["id", "usage_type", "camp_id", "status", "updated_at", "start_date", "end_date"]),
+    ...pick(data, ["id", "usage_type", "camp_id", "original_application_id", "status", "updated_at", "start_date", "end_date"]),
     stay: data.stay ? pick(data.stay, ["status", "checked_in_at", "checked_out_at"]) : null,
     room_allocation: data.room_allocation ? pick(data.room_allocation,
       ["room_id", "room_name", "people_count", "start_date", "end_date", "released_from", "is_current"]) : null,
@@ -62,7 +62,7 @@ export async function getStaffApplicationNotes(applicationId) {
   const { data, error } = await supabase.rpc("get_staff_application_notes", { target_application_id: applicationId });
   if (error) return { error: noteErrorCode(error) === "not-found" ? "not-found" : "load-failed", application: null };
   if (data?.id !== applicationId || !isUpdatedAt(data.updated_at) || !Array.isArray(data.notes)) return { error: "load-failed", application: null };
-  return { error: null, application: { ...pick(data, ["id", "usage_type", "camp_id", "updated_at"]),
+  return { error: null, application: { ...pick(data, ["id", "usage_type", "camp_id", "original_application_id", "updated_at"]),
     notes: data.notes.map((note) => pick(note, ["id", "body", "author_user_id", "created_at", "updated_at"])),
   } };
 }
@@ -72,6 +72,7 @@ const nullableDate = (value) => value === null || (typeof value === "string" && 
 const validSearchItem = (item) => {
   if (!item || !isUuid(item.id) || !STAFF_SEARCH_USAGE_TYPES.includes(item.usage_type)
     || !APPLICATION_STATUSES.includes(item.status) || !isUpdatedAt(item.updated_at)
+    || (item.original_application_id != null && !isUuid(item.original_application_id))
     || !nullableString(item.applicant_name) || !nullableString(item.camp_name)
     || !nullableString(item.reception_number) || !nullableDate(item.start_date) || !nullableDate(item.end_date)
     || item.people_count !== 1 || (item.total_amount !== null && (!Number.isInteger(item.total_amount) || item.total_amount < 0))
@@ -109,7 +110,7 @@ export async function searchStaffApplications(searchParams = {}) {
     || !Array.isArray(data.items) || data.items.length > 50 || !data.items.every(validSearchItem)) {
     return { ...empty, error: "load-failed" };
   }
-  const keys = ["id", "usage_type", "camp_id", "applicant_name", "camp_name", "status", "start_date", "end_date",
+  const keys = ["id", "usage_type", "camp_id", "original_application_id", "applicant_name", "camp_name", "status", "start_date", "end_date",
     "reception_number", "people_count", "total_amount", "payment_status", "payment_due_date", "stay_status", "updated_at", "detail_path"];
   return { error: null, filters, applications: data.items.map((item) => pick(item, keys)),
     pagination: { page: data.page, pageSize: data.page_size, totalCount: data.total_count, hasNext: data.has_next } };

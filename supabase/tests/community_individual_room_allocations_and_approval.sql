@@ -314,9 +314,11 @@ begin
   perform pg_temp.t12i_error(pg_temp.t12i_review(camp_app,'approve'),'not-found','community API cannot approve camp');
   perform pg_temp.t12i_error(pg_temp.t12i_call(c.staff_id,format('select * from public.assign_camp_application_room(%L,%L,%L)',x,room,pg_temp.t12i_version(x))),'not-found','camp API cannot assign community');
   perform pg_temp.t12i_error(pg_temp.t12i_call(c.staff_id,format('select * from public.review_camp_application(%L,''approve'',%L)',x,pg_temp.t12i_version(x))),'not-found','camp API cannot approve community');
-  update public.applications set original_application_id=camp_app where id=x;
-  perform pg_temp.t12i_error(pg_temp.t12i_assign(x,room),'not-found','extension records outside T12 scope');
-  update public.applications set original_application_id=null where id=x;
+  if to_regprocedure('public.create_community_application_extension(uuid,uuid,date,text)') is null then
+    update public.applications set original_application_id=camp_app where id=x;
+    perform pg_temp.t12i_error(pg_temp.t12i_assign(x,room),'not-found','legacy extension records outside T12 scope');
+    update public.applications set original_application_id=null where id=x;
+  end if;
   foreach state_value in array array['draft','submitted','revision_requested','rejected','cancelled','cancellation_requested'] loop
     update public.applications set status=state_value where id=x;
     perform pg_temp.t12i_error(pg_temp.t12i_assign(x,room),'invalid-status','assign rejects '||state_value);

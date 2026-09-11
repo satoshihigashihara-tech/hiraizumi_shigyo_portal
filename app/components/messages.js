@@ -88,6 +88,10 @@ export const ERROR_MESSAGES = {
   "invalid-action": "この操作は受け付けられません。",
   "stay-completed": "退去済みのため、この操作はできません。",
   "stay-started": "すでに滞在が始まっています。キャンセルではなく、町へ連絡して早期退去の手続きをしてください。",
+  "invalid-extension": "継続元の申請情報が正しくありません。申請一覧からやり直してください。",
+  "invalid-extension-period": "継続期間は、元の利用終了日の翌日から連続する日程で指定してください。",
+  "extension-not-available": "現在の状態または日程では継続申請できません。町の担当へお問い合わせください。",
+  "extension-exists": "この申請には進行中の継続申請があります。申請一覧から続きの申請をご確認ください。",
   "invalid-application": "対象の申請が見つかりません。申請一覧からやり直してください。",
   "invalid-submission-key": "提出を受け付けられませんでした。画面を読み込み直してください。",
 

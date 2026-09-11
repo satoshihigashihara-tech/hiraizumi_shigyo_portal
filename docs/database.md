@@ -615,3 +615,9 @@ staff_notesは `id / application_id / body / author_user_id / created_at / updat
 `request_community_application_cancellation` はactive本人・通常のcommunity_individual・最新updated_at・理由1〜2000文字を検査する。申請済み／審査中／修正依頼／許可から取消申請中へ変更できるが、許可済みはstayがbefore_move_inの場合だけ。calendar_claims、room_allocations、stays、application_charges、charge_months、受付番号は変更しない。
 
 `confirm_community_application_cancellation` はactive職員・最新updated_at・取消申請中・理由を検査し、cancelledへの状態遷移とindividual枠・存在する部屋割当の `released_from=start_date`、状態履歴、監査を同一トランザクションで保存する。stayと料金は履歴として維持する。ロック順は施設→操作者の権限行→申請→滞在→部屋→個人枠。監査用スナップショットに氏名・住所・電話・メール・自由記述をコピーしない。
+
+### T17 地域活動の個人利用の延泊（SQL 020・ローカル検証済み）
+
+`applications.original_application_id` で延泊元を結ぶ。有効状態（不許可・取消以外）は元申請ごとに1件という部分一意索引を持つ。トリガーで両方が同一本人のcommunity_individual、元が通常申請、延泊開始が元終了翌日であることを全更新経路で保証する。延泊提出時には元申請が許可済みであることを再確認するため、汎用保存から開始日や親リンクを改ざんできない。
+
+`create_community_application_extension` は施設ロック、active本人、元申請と滞在状態、理由、D+14〜D+60、2〜15日、重複を検査し、延泊を下書きとして作る。同じextension UUIDの再送は同じ行を返す。提出後は既存の個人枠・採番・料金・審査・部屋・許可をその延泊IDで使用する。SQL020は既存の職員検索・メモ・納付・滞在・取消契約を延泊にも拡張し、元申請の行・料金・部屋・滞在・履歴を変更しない。
