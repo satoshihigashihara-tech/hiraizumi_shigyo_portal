@@ -1,0 +1,200 @@
+/*
+ * 利用者ホーム（/user）のスタイル。
+ *
+ * この画面は PageShell の内側にあるので、余白・文字サイズ・色・ダークモードは
+ * CSS基準値（--sg-*）をそのまま使える（app/components/README.md）。
+ * ここに持たせるのは「この画面だけの並びと囲み」だけ。
+ * app/globals.css は「事前に相談」対象のため変更しない（docs/frontend-handoff.md）。
+ *
+ * 375px対策：.shell * { min-width: 0 } が PageShell 側にあるため、
+ * ここでは幅を固定する指定を置かない。横並びは必ず折り返す。
+ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-3, 12px);
+}
+
+.sectionTitle {
+  font-size: var(--sg-font-lg, 18px);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.note {
+  color: var(--sg-color-text-muted, #4d5358);
+  font-size: var(--sg-font-sm, 14px);
+}
+
+/* 「次に必要な操作」。操作が要る申請だけを上に集める */
+.actionList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-3, 12px);
+  list-style: none;
+}
+
+/*
+ * 背景色ではなく左の太い線で「注目」を示す。色を認識できなくても、
+ * 見出し「次に必要な操作」と本文で内容が伝わるようにしてある
+ * （docs/coding_rules.md 7章）。
+ */
+.actionItem {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sg-space-2, 8px);
+  padding: var(--sg-space-3, 12px) var(--sg-space-4, 16px);
+  border: 1px solid var(--sg-warning-border, #8a5a00);
+  border-left-width: 4px;
+  border-radius: var(--sg-radius, 8px);
+  color: var(--sg-warning-text, #6b4400);
+  background: var(--sg-warning-bg, #fdf3e3);
+}
+
+/* 広い画面では、ボタンを内容の幅に戻す（375pxでは全幅のまま押しやすくする） */
+@media (min-width: 600px) {
+  .actionItem {
+    align-items: flex-start;
+  }
+}
+
+.actionItemTitle {
+  font-weight: 700;
+}
+
+/* 期限は色ではなく文字で伝える。太字は補助 */
+.actionDue {
+  font-size: var(--sg-font-sm, 14px);
+  font-weight: 700;
+}
+
+/* 申請カード */
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-4, 16px);
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-3, 12px);
+  padding: var(--sg-space-4, 16px);
+  border: 1px solid var(--sg-color-border, #c9ced4);
+  border-radius: var(--sg-radius, 8px);
+  color: var(--sg-color-text, #1b1d1f);
+  background: var(--sg-color-surface, #ffffff);
+}
+
+.cardTitle {
+  font-size: var(--sg-font-base, 16px);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/*
+ * 項目名と値。375pxでは縦積み、狭い画面から広い画面へ2列へ変える。
+ * dt/dd を直接 grid の子にすると行の対応が崩れるため、1組ずつ div で包む。
+ */
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-2, 8px);
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.factKey {
+  color: var(--sg-color-text-muted, #4d5358);
+  font-size: var(--sg-font-xs, 12px);
+}
+
+.factValue {
+  font-size: var(--sg-font-sm, 14px);
+}
+
+@media (min-width: 600px) {
+  .fact {
+    flex-direction: row;
+    gap: var(--sg-space-3, 12px);
+  }
+
+  /* 項目名の幅をそろえる。縮まないが、はみ出す前に値側が折り返す */
+  .factKey {
+    flex: 0 0 7em;
+    font-size: var(--sg-font-sm, 14px);
+  }
+
+  .factValue {
+    flex: 1 1 auto;
+  }
+}
+
+/* カード内の「次に必要な操作」。上に区切り線を引いて役割の違いを示す */
+.action {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sg-space-2, 8px);
+  padding-top: var(--sg-space-3, 12px);
+  border-top: 1px solid var(--sg-color-border, #c9ced4);
+}
+
+.actionSummary {
+  font-size: var(--sg-font-sm, 14px);
+}
+
+/*
+ * 町からの連絡（修正理由・不許可理由）。
+ * 色だけに頼らないよう「町からの連絡：」の文字を必ず添える。
+ */
+.reason {
+  padding: var(--sg-space-2, 8px) var(--sg-space-3, 12px);
+  border-left: 4px solid var(--sg-info-border, #1f3c88);
+  border-radius: 0 var(--sg-radius, 8px) var(--sg-radius, 8px) 0;
+  color: var(--sg-info-text, #14306e);
+  background: var(--sg-info-bg, #eaf1fb);
+  font-size: var(--sg-font-sm, 14px);
+}
+
+.reasonKey {
+  font-weight: 700;
+}
+
+/* LinkButton は inline-flex。stretch で全幅にし、押す位置を迷わせない */
+.cardLink,
+.sectionLink {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+@media (min-width: 600px) {
+  .cardLink,
+  .sectionLink {
+    align-items: flex-start;
+  }
+}
+
+/* その他の操作。375pxでは縦積み、広い画面では横へ並べて折り返す */
+.links {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sg-space-2, 8px);
+}
+
+@media (min-width: 600px) {
+  .links {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+}

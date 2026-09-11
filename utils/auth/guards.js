@@ -1,17 +1,19 @@
 import { redirect } from "next/navigation";
+// 戻り先の検証は画面・Server Action と共通の1か所に置く
+// （utils/auth/return-to.js）。同じ判定をここへ複製すると、
+// 片方だけ直したときに防御がずれる（.claude/rules/security.md）。
+import { safeReturnTo } from "@/utils/auth/return-to";
 import { createClient } from "@/utils/supabase/server";
 
+/**
+ * 戻り先を安全な内部パスへ絞る。判定できない値は fallback へ落とす。
+ *
+ * @param {unknown} value
+ * @param {string} fallback
+ * @returns {string}
+ */
 function safeInternalPath(value, fallback) {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
-    return fallback;
-  }
-
-  try {
-    const url = new URL(value, "http://local");
-    return `${url.pathname}${url.search}`;
-  } catch {
-    return fallback;
-  }
+  return safeReturnTo(value) ?? fallback;
 }
 
 function loginPath(returnTo) {
