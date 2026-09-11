@@ -1,7 +1,10 @@
 import "server-only";
 
 import { requireActiveUser } from "@/utils/auth/guards";
-import { isCampApplicationId } from "@/utils/camp-applications/validation";
+import {
+  isCampApplicationId,
+  validateCampDraftFields,
+} from "@/utils/camp-applications/validation";
 
 const CAMP_ENTRY_PATH = "/user/applications/new/camp";
 const CAMP_COLUMNS = [
@@ -83,6 +86,8 @@ const APPLICATION_COLUMNS = [
   "room_preference",
   "revision_due_at",
   "decision_reason",
+  "submitted_at",
+  "last_submitted_at",
   "updated_at",
   "camps(name,start_date,end_date)",
 ];
@@ -149,6 +154,8 @@ function isApplicationPayload(application, profile) {
     "room_preference",
     "revision_due_at",
     "decision_reason",
+    "submitted_at",
+    "last_submitted_at",
     "updated_at",
   ];
   const profileTextFields = PROFILE_COLUMNS;
@@ -183,17 +190,38 @@ function isApplicationPayload(application, profile) {
   );
 }
 
-export async function getCampApplicationForEdit(applicationId) {
-  const returnTo = isCampApplicationId(applicationId)
-    ? `/user/applications/${applicationId}/edit`
-    : "/user/applications";
+function estimateCampCharge(startDate, endDate) {
+  const months = new Map();
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+
+  for (let day = start; day <= end; day = new Date(day.getTime() + 86_400_000)) {
+    const month = `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, "0")}-01`;
+    months.set(month, (months.get(month) ?? 0) + 1);
+  }
+
+  const breakdown = Array.from(months, ([month, usageDays]) => ({
+    month,
+    usageDays,
+    dailyRate: 300,
+    monthlyCap: 9000,
+    amount: Math.min(usageDays * 300, 9000),
+  }));
+
+  return {
+    months: breakdown,
+    totalAmount: breakdown.reduce((sum, row) => sum + row.amount, 0),
+  };
+}
+
+async function readCampApplication(applicationId, returnTo) {
   const { supabase, user } = await requireActiveUser(returnTo);
 
   if (!isCampApplicationId(applicationId)) {
     return { error: "not-found", application: null };
   }
 
-  const [applicationResult, profileResult, consentResult] = await Promise.all([
+  const [applicationResult, profileResult, consentResult, numberResult] = await Promise.all([
     supabase
       .from("applications")
       .select(APPLICATION_COLUMNS.join(","))
@@ -211,16 +239,23 @@ export async function getCampApplicationForEdit(applicationId) {
       .select("id,mime_type,size_bytes,updated_at")
       .eq("application_id", applicationId)
       .maybeSingle(),
+    supabase
+      .from("reception_numbers")
+      .select("display_number")
+      .eq("application_id", applicationId)
+      .maybeSingle(),
   ]);
 
   const application = applicationResult.data;
   const profile = profileResult.data;
   const consent = consentResult.data;
+  const reception = numberResult.data;
 
   if (
     applicationResult.error ||
     profileResult.error ||
     consentResult.error ||
+    numberResult.error ||
     !isApplicationPayload(application, profile) ||
     (consent &&
       (!isCampApplicationId(consent.id) ||
@@ -229,7 +264,10 @@ export async function getCampApplicationForEdit(applicationId) {
         ) ||
         !Number.isInteger(consent.size_bytes) ||
         consent.size_bytes < 1 ||
-        consent.size_bytes > 5 * 1024 * 1024))
+        consent.size_bytes > 5 * 1024 * 1024)) ||
+    (reception &&
+      (typeof reception.display_number !== "string" ||
+        !/^SG-\d{4}-\d+$/.test(reception.display_number)))
   ) {
     return {
       error: application ? "load-failed" : "not-found",
@@ -251,6 +289,9 @@ export async function getCampApplicationForEdit(applicationId) {
           ? application.decision_reason ?? ""
           : "",
       updatedAt: application.updated_at,
+      submittedAt: application.submitted_at,
+      lastSubmittedAt: application.last_submitted_at,
+      receptionNumber: reception?.display_number ?? null,
       fields: initialFields(application, profile),
       consent: consent
         ? {
@@ -259,6 +300,54 @@ export async function getCampApplicationForEdit(applicationId) {
             updatedAt: consent.updated_at,
           }
         : null,
+      estimatedCharge: estimateCampCharge(
+        application.start_date,
+        application.end_date,
+      ),
     },
   };
+}
+
+export async function getCampApplicationForEdit(applicationId) {
+  const returnTo = isCampApplicationId(applicationId)
+    ? `/user/applications/${applicationId}/edit`
+    : "/user/applications";
+  return readCampApplication(applicationId, returnTo);
+}
+
+export async function getCampApplicationForConfirm(applicationId) {
+  const returnTo = isCampApplicationId(applicationId)
+    ? `/user/applications/${applicationId}/confirm`
+    : "/user/applications";
+  const result = await readCampApplication(applicationId, returnTo);
+  if (result.error || !result.application) return result;
+
+  const { application } = result;
+  if (!["draft", "revision_requested"].includes(application.status)) {
+    return { error: "not-submittable", application };
+  }
+
+  const fieldErrors = validateCampDraftFields(application.fields, "confirm");
+  if (Object.keys(fieldErrors).length > 0) {
+    return { error: Object.values(fieldErrors)[0], application };
+  }
+  if (application.fields.guardianConsentRequired === "true" && !application.consent) {
+    return { error: "guardian-consent", application };
+  }
+
+  return result;
+}
+
+export async function getCampApplicationForComplete(applicationId) {
+  const returnTo = isCampApplicationId(applicationId)
+    ? `/user/applications/${applicationId}/complete`
+    : "/user/applications";
+  const result = await readCampApplication(applicationId, returnTo);
+  if (result.error || !result.application) return result;
+
+  if (!result.application.submittedAt || !result.application.receptionNumber) {
+    return { error: "not-submittable", application: result.application };
+  }
+
+  return result;
 }
