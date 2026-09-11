@@ -1,7 +1,0 @@
-{
-  "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "plansDirectory": "./.claude/plans",
-  "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
-  }
-}

@@ -51,3 +51,6 @@ next-env.d.ts
 
 # Claude Code の各自のローカル設定
 .claude/settings.local.json
+
+# Claude Code ローカル設定・スキル定義
+.claude/
