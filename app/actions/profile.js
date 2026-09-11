@@ -35,7 +35,7 @@ function valueOrNull(value) {
   return value || null;
 }
 
-export async function saveProfile(formData) {
+async function saveProfileValues(formData, returnState) {
   const { supabase, user } = await requireActiveUser("/user/profile");
   const fields = {
     fullName: getText(formData, "fullName"),
@@ -46,18 +46,24 @@ export async function saveProfile(formData) {
     emergencyPhone: getText(formData, "emergencyPhone"),
   };
 
-  const hasLongValue = Object.entries(fields).some(
-    ([name, value]) => value.length > FIELD_LIMITS[name],
-  );
+  const fieldErrors = {};
+  for (const [name, value] of Object.entries(fields)) {
+    if (value.length > FIELD_LIMITS[name]) fieldErrors[name] = "too-long";
+  }
 
-  if (hasLongValue) {
+  if (Object.keys(fieldErrors).length > 0) {
+    if (returnState) return { error: "too-long", fieldErrors, fields };
     redirect(profilePath({ error: "too-long" }));
   }
 
-  if (
-    (fields.phone && !PHONE_PATTERN.test(fields.phone)) ||
-    (fields.emergencyPhone && !PHONE_PATTERN.test(fields.emergencyPhone))
-  ) {
+  if (fields.phone && !PHONE_PATTERN.test(fields.phone)) {
+    fieldErrors.phone = "invalid-phone";
+  }
+  if (fields.emergencyPhone && !PHONE_PATTERN.test(fields.emergencyPhone)) {
+    fieldErrors.emergencyPhone = "invalid-phone";
+  }
+  if (Object.keys(fieldErrors).length > 0) {
+    if (returnState) return { error: "invalid-phone", fieldErrors, fields };
     redirect(profilePath({ error: "invalid-phone" }));
   }
 
@@ -74,6 +80,7 @@ export async function saveProfile(formData) {
     .eq("id", user.id);
 
   if (error) {
+    if (returnState) return { error: "save-failed", fieldErrors: {}, fields };
     redirect(profilePath({ error: "save-failed" }));
   }
 
@@ -81,4 +88,12 @@ export async function saveProfile(formData) {
   revalidatePath("/user/applications/new/camp");
   revalidatePath("/user/applications/new/community-activity");
   redirect(profilePath({ saved: "1" }));
+}
+
+export async function saveProfile(formData) {
+  return saveProfileValues(formData, false);
+}
+
+export async function saveProfileState(_previousState, formData) {
+  return saveProfileValues(formData, true);
 }
