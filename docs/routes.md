@@ -324,6 +324,148 @@ Client Componentへ渡すpropsは表示に必要な最小限とし、団体代�
 
 同意書のDB項目には公開URLではなくStorage上のパスを保持する。団体代表者や他参加者へパスや参照手段を返さない。
 
+### 9.4 T09バックエンドの接続契約（SQL 012）
+
+以下の処理はコード作成・ローカル検証済み。SQL 012はSupabase適用成功をユーザーが確認した。適用後はanon権限による公開カレンダー取得の表示形式・エラーなしをユーザーが確認済み。単一接続328項目（T09の110＋既存218）と別接続20ケース、検証用データの後片付けも、SQL 012適用後のSupabaseで成功をユーザーが確認した。画面接続は未実施で、対応する画面・保護layoutは未作成。SQL 012のカレンダーはキャンプと利用停止を扱う。SQL 013による個人の追加は9.5節、団体は後続タスク。
+
+`utils/calendar/queries.js` はサーバー専用。ページの月クエリは本書10章の規則で正規化した後に渡す。取得関数自身は不正値をエラーにし、当月へ自動補正しない。
+
+| 取得関数 | 入力 | 返却 |
+|---|---|---|
+| `getPublicCalendar` | `YYYY-MM` | `{ error, days }`。各日は `date / availability` の2項目だけ |
+| `getStaffCalendar` | `YYYY-MM` | `{ error, entries }`。各行は `entry_type / entry_id / start_date / end_date / title / people_count / internal_reason / updated_at` |
+| `getStaffCalendarDay` | `YYYY-MM-DD` | `{ error, entries }`。各行は `entry_type / entry_id / camp_id / reception_number / display_name / people_count / status / start_date / end_date / internal_reason / updated_at` |
+| `getStaffBlockedPeriods` | `YYYY-MM` | `{ error, periods }`。職員月取得のうち利用停止だけ。同じ行形式 |
+| `getStaffBlockedPeriod` | 利用停止UUID | `{ error, period }`。単一の `id / start_date / end_date / internal_reason / updated_at`。削除済みは取得対象外 |
+
+成功時の `error` はNULL。失敗時は `invalid-month / invalid-period / not-found / load-failed` と空配列またはNULLを返す。職員用の全関数は入力検査前に `requireStaff` を呼ぶ。未ログイン・権限不足の遷移は既存ガードに従う。
+
+公開値の表示は `available → 申請可能`、`unavailable → 利用不可`、`not_yet_open → 受付開始前`。職員の日別取得にはキャンプの合計行と個別申請行が含まれるため、両方の人数を加算しない。内部理由・職員応答を公開側のpropsや共有キャッシュへ流用しない。
+
+| Action | フォームの入力名 | 成功時の遷移 |
+|---|---|---|
+| `createStaffCamp` | `campName / startDate / endDate / applicationDeadline` | `/staff/camps/[campId]` |
+| `updateStaffCamp` | 上記＋ `campId / updatedAt / reason` | `/staff/camps/[campId]?updated=saved` |
+| `deleteStaffCamp` | `campId / updatedAt / reason` | `/staff/camps?updated=deleted` |
+| `createStaffBlockedPeriod` | `startDate / endDate / internalReason` | `/staff/calendar/blocked-periods?updated=saved` |
+| `updateStaffBlockedPeriod` | 上記＋ `blockedPeriodId / updatedAt / reason` | 同上 |
+| `deleteStaffBlockedPeriod` | `blockedPeriodId / updatedAt / reason` | `/staff/calendar/blocked-periods?updated=deleted` |
+
+キャンプのActionは `app/actions/staff-camps.js`、利用停止は `app/actions/staff-calendar.js`。期間は日付文字列、期限は日本時間の `YYYY-MM-DDTHH:mm`。期限の指定分を含め、次の分の00秒をDB境界へ変換する。編集用表示ではDB境界の1分前を日本時間に直す。既存DBの期限値はSQL 012で書き換えない。
+
+`updatedAt` は取得した元レコードの `updated_at` の文字列をそのままhidden入力等で渡す。JavaScriptのDateを経由させず、マイクロ秒を保持する。変更理由は編集・削除で必須（最新日時かつ完全に同じ内容の編集だけ省略可）。キャンプ名は1〜120文字、内部理由・変更理由は1〜2000文字。
+
+**これら6つのActionは、入力・DBエラー時に遷移せず `{ error, fields, conflicts }` を返す。** `fields` に入力を保持して同じ画面へ表示する。既存 `createStaffCamp` のエラー時クエリ遷移からの変更点であり、フォーム接続時に対応する。フォームActionの入力は `FormData` 1引数。`useActionState` を使う場合は `(previousState, formData)` を受けるアダプターで1引数のActionへ渡す。成功時は表示更新後に遷移する。
+
+| 主なエラー | 表示する内容・対応 |
+|---|---|
+| `invalid-period / invalid-name / invalid-deadline / invalid-version` | 日付・名称・期限・更新情報の不備を修正。期限は開始日の00:00を越えない |
+| `reason-required / reason-too-long` | 理由を入力、または2000文字以内に修正 |
+| `date-conflict / camp-has-applications` | `conflicts` の必要概要を職員だけに表示。影響する申請・日程を確認後、再操作 |
+| `stale-update` | 別の更新が先に完了したため保存されなかったと案内。入力を保持し、再読込み後に利用者が判断。自動上書きしない |
+| `not-found / invalid-status / forbidden / update-failed` | 対象不存在・削除済み・権限不足・保存失敗を案内。DB内部エラーは表示しない |
+
+`conflicts` は `type / id / campId / name / receptionNumber / status / startDate / endDate` の配列。日程競合・既存申請による変更拒否以外は空配列。住所・電話・メール・生のDBエラーは含めない。
+
+`addCampEligibleUsers` の入力・クエリ返却は従来どおり。キャンプ申請Actionにも `stale-update / calendar-unavailable` を追加し、提出後の職員カレンダー等を再取得対象にする。既存の個人審査・部屋割当Actionの契約は維持する。
+
+### 9.5 T10バックエンドの接続契約（SQL 013）
+
+地域活動の個人だけを扱う。バックエンドのコード・ローカル検証、SQL 013のSupabase適用、単一接続558項目・別接続40ケースと全後片付けが完了。Supabaseの適用・各集約結果・後片付けの成功は2026年9月11日のユーザー確認に基づく。以下の契約で画面に接続できる。画面・実ログイン・実Storageの受入確認は未実施。SQLとActionをそろえて接続する。キャンセル・延長、許可・部屋割り、納付変更、入退去、団体の操作は今回用意しない。
+
+本人Actionは `app/actions/community-applications.js`。どのActionも最初にactiveなログイン本人を確認し、DBでも所有者・区分・状態・日程を検査する。入力は `FormData` 1引数。`useActionState` では `(previousState, formData)` のアダプターを介する。
+
+| Action | 入力 | 成功時 |
+|---|---|---|
+| `createCommunityApplicationDraft` | `applicationId`（保存操作用UUID）、任意の下記項目、`intent` | UUID付き下書きを作成。`intent=confirm` なら共通申請の `/confirm`、それ以外は `/edit?saved=1` |
+| `saveCommunityApplicationDraft` | UUID、`updatedAt`、編集可能な全項目、`intent` | 下書きまたは修正依頼の内容を保存。同上 |
+| `submitCommunityApplication` | UUID、`updatedAt`、`submissionKey`（UUID）、`confirmed=true` | 初回／再提出をDBで確定し `/user/applications/[applicationId]/complete` |
+
+新規開始ページのGETはURLの `start / end` を初期値として取り込み、保存・確認への明示操作まで作成しない。新規登録・ログインの `returnTo` に日程付きの安全な本人URLを渡す。作成操作のUUIDは通信再送時に同じ値を使い、再送による重複下書きを防ぐ。初期作成で省略した項目はプロフィール初期値を使い、空文字を明示した項目は空にする。既存保存は部分更新ではなく全編集項目の置換。
+
+| フォーム名 | DB名・条件 |
+|---|---|
+| `applicantName / applicantAddress / applicantPhone` | `user_name / user_address / user_phone`。100／500／20文字以内 |
+| `emergencyContactName / emergencyContactAddress / emergencyContactPhone` | `emergency_name / emergency_address / emergency_phone`。同上 |
+| `usagePurpose / localActivity / notes` | `purpose / local_activity / special_notes`。各2000文字以内、notesだけ提出時も任意 |
+| `usagePlace` | `common_and_second_floor` 固定 |
+| `guardianConsentRequired` | `true / false` を明示（`on / off / 1 / 0` も受付）。未回答は提出不可。trueなら同意書必須 |
+| `startDate / endDate` | `YYYY-MM-DD`。下書きは両方空可。設定する場合は実在する2〜15日 |
+
+メールは入力から保存せず、提出時の認証情報をDBで写す。申請者・使用者は本人1人。人数・所有者・金額・状態・納付情報・キャンプID・部屋希望は個人フォームの保存対象にしない。電話番号は既存プロフィールと同じ形式を使用する。
+
+更新日時は `updated_at` の元の文字列をマイクロ秒まで保持する。同意書差替・職員操作でも更新される。確認画面を取得したら、新しい提出のための `submissionKey` を用意する。同じ提出通信を再送するときだけキーと元の `updatedAt` を再利用する。別の修正再提出は新しいキーと、保存後に取得した版を使う。戻る・再読込みを含め、`stale-update` を無視して最新の版へ差し替え自動送信しない。
+
+エラーは遷移せず **`{ error, fields, fieldErrors }`**。fieldsには入力を保持し、fieldErrorsはフォーム名→エラーコード。ClientへDBのmessage/detail、他人の競合概要、内部監査、Storageパスを返さない。成功は必要ルートを再検証した後に遷移する。
+
+| 主なエラー | 表示・対応 |
+|---|---|
+| `required-fields / invalid-fields / field-too-long / invalid-phone / invalid-place` | 必須・形式・文字数を直す。保持した入力を再表示 |
+| `invalid-period / invalid-duration` | 実在する日付、1泊2日〜14泊15日に直す |
+| `start-too-soon / end-too-late` | 初回／変更日程をJST当日+14〜60日の条件内に直す |
+| `calendar-unavailable / capacity-full / duplicate-stay` | 利用停止等・満員・本人の重複を案内。競合相手の個人情報は出さない |
+| `guardian-consent / confirmation-required` | 必要な同意書、最終確認同意を案内 |
+| `invalid-version / stale-update` | 別の更新により保存・提出されなかったと案内し、入力を保持して再取得後に本人が判断 |
+| `revision-expired / not-editable / not-submittable` | 現在の状態・期限を表示。勝手に取消せず、必要なら問い合わせへ案内 |
+| `not-found / forbidden / calendar-inconsistent / update-failed` | 閲覧不能・権限不足・保存不能として扱い、DB内部情報は表示しない |
+
+`utils/community-applications/queries.js` の取得はすべて本人のactive認証から開始し、キャッシュ共有や業務更新をしない。
+
+| 取得関数 | 返却・接続先 |
+|---|---|
+| `getCommunityApplications(page=1)` | `{ error, applications }`。本人のcommunity_individualだけ、1ページ50件、作成日時・ID降順。固定のID・状態・日程・更新／提出日時・理由・期限。キャンプ等との統合一覧はT08/T16で別途接続 |
+| `getCommunityApplication(id, mode='detail')` | `{ error, application }`。modeはdetail／edit／confirm／complete。必須値・受付窓・定員等の確認結果をconfirmで返す。完了はDBに提出日時・受付番号がある場合だけ |
+
+applicationは `id / status / updated_at / fields / reserved_start_date / reserved_end_date / submitted_at / last_submitted_at / revision_due_at / decision_reason / reception_number / has_consent / can_edit / events / estimated_months / charge`。fieldsは上表のDB列名。修正中はfieldsの日程が候補、reservedの日程が元の提出期間。不許可等の状態では枠が有効とは限らないため、予約確定と表示しない。eventsは本人開示可能な状態・理由・日時だけ。chargeは合計・納付状態・納付期限・月別内訳、estimated_monthsは保存中の日程の見込内訳。金額・番号をURLクエリから表示しない。メール表示はServerで取得する本人の認証情報を使う。
+
+職員Actionは `app/actions/staff-community-applications.js`。全操作で `requireStaff` とDBのactive職員検査が必要。共通入力は `applicationId / updatedAt`。成功後は `/staff/community/applications/[applicationId]?updated=状態` に遷移し、エラー形式は本人Actionと同じ。
+
+| Action | 状態・追加入力 |
+|---|---|
+| `startCommunityApplicationReview` | submitted→under_review。理由・期限は保存しない |
+| `requestCommunityApplicationRevision` | under_review→revision_requested。`reason`必須、`revisionDeadline`任意 |
+| `rejectCommunityApplication` | under_review→rejected。`reason`必須。個人枠を全解放し、番号・料金・履歴を維持 |
+
+理由は2000文字以内。修正期限はJST `YYYY-MM-DDTHH:mm` の指定分を含める（23:59なら翌日00:00を排他的境界として保存）。空欄なら期限なしで、団体の3日後を自動補完しない。期限は未来かつ利用開始日の00:00以下。提出済み／審査中の直接編集は不可。修正候補の保存だけでは元の枠・料金を動かさず、再提出が成功したときだけ入れ替える。
+
+既存 `uploadGuardianConsent` に地域活動では `applicationId / updatedAt / guardianConsentFile` を渡す。保存内容の変更と添付を同時に送らず、保存成功後の版で添付し、添付成功後に再取得した版で確認・提出する。PDF/JPEG/PNG、5MiB以下、ファイル署名検査は既存方式。提出済み旧ファイルは残し、DBが許可した下書きの旧ファイルだけ削除する。この既存Actionの失敗は `?error=...` 遷移方式で、File入力は再選択が必要（T06のUIで扱う）。
+
+カレンダーの関数名・返却列は9.4節を維持する。個人が15人の日は公開でunavailable。職員月は `entry_type=individual`、職員日は `entry_type=application, camp_id=NULL`。個人の日程競合は職員エラーの `type=application` として最小概要を返す。職員画面はこのNULLを使い地域活動の詳細URLへつなぐ。
+
+### 9.6 T12地域活動個人の部屋割当・許可（SQL 014）
+
+SQL 014と更新後のActionをそろえて接続する。2026年9月11日現在はローカル検証済み。SQL 014のSupabase適用と既存回帰を含む単一接続916項目・別接続60ケース・全後片付けの成功はユーザー確認済み。画面未作成。接続先は既存の `/staff/community/applications/[applicationId]` と本人詳細で、新しい画面URLを作らない。通常の地域活動個人だけを扱い、キャンプ・延長元付き申請・団体は新RPCで拒否する。
+
+| Action | フォーム入力 | 成功時 |
+|---|---|---|
+| `assignCommunityApplicationRoom` | `applicationId / updatedAt / roomId / reason` | 詳細へ `?updated=room-assigned`。初回は審査中、変更は審査中または許可後の入居前・滞在中 |
+| `approveCommunityApplication` | `applicationId / updatedAt / approvalComment` | 詳細へ `?updated=approved`。審査中・有効な部屋割当・必要条件をDBで再確認し入居前滞在を作成 |
+
+両方とも `app/actions/staff-community-applications.js` から公開する。既存3操作の契約は9.5節を維持する。人数・日程・所有者・金額・状態はフォームから更新しない。初回割当のreasonと許可コメントは任意、既存部屋の変更・解放後の再割当のreasonは必須。最大2,000文字。許可コメントと内部の部屋変更理由は別フィールド。割当・許可では `revisionDeadline` を使わない。
+
+更新日時は申請の `updated_at` の文字列をマイクロ秒まで保持し、送信直前に最新版へ差し替えない。割当後は新しい詳細を取得し、その版で許可する。最新版の同じ割当は履歴を追加しない。古い版・40001・40P01は自動再送しない。
+
+エラー形式は `{ error, fields, fieldErrors }` を維持する。reason／approvalComment／roomIdを含む入力を保持し、DBのdetail・hintを返さない。認証ガードの失敗は既存のログイン／権限エラー遷移。DBや入力の失敗では成功遷移や表示更新を行わない。
+
+| エラー | 日本語表示と対応 |
+|---|---|
+| `room-required` | 許可前に部屋を割り当ててください |
+| `invalid-room / room-capacity-full` | 部屋を選び直すか、期間中の割当状況を確認してください |
+| `capacity-full / facility-capacity-full` | 施設定員15人を超えるため保存できません |
+| `calendar-unavailable / duplicate-stay` | 日程の競合を確認してください |
+| `invalid-version / stale-update` | 入力を保持し、最新情報を読み直して職員が再判断してください |
+| `reason-required / reason-too-long` | 変更理由を入力、または2,000文字以内へ修正。許可コメントの長さエラーはapprovalCommentへ表示 |
+| `invalid-status / stay-completed` | 現在の申請・滞在状態では操作できません |
+| `invalid-allocation / invalid-stay / calendar-inconsistent / application-inconsistent` | 保存済み情報が整合していません。管理担当へ確認してください。画面から自動修復しない |
+| `guardian-consent / required-fields / invalid-email` | 提出済み情報・必要な同意書を確認してください |
+| `forbidden / not-found / update-failed` | 権限・対象申請を確認。内部SQL情報を表示しない |
+
+`utils/community-applications/queries.js` の `getStaffCommunityApplicationRoomContext(applicationId)` はactive職員だけの読取。返却は `{ error, application }`。applicationは `id / status / updated_at / start_date / end_date / approval_comment / room_allocation / stay / rooms`。roomsは8部屋の `id / name / capacity` で、保存時の空きを保証しない。取得は1回の読取専用RPCで行い、表示中の部屋と親の版を同じスナップショットから取得する。職員の審査情報全体・一覧検索はこの取得の対象外。
+
+本人の既存 `getCommunityApplication` には `approval_comment / room_allocation / stay` を追加する。本人／職員ともroom_allocationは `room_id / room_name / people_count / start_date / end_date / released_from / is_current`、stayは `status / checked_in_at / checked_out_at`。存在しなければnull。**`is_current=false` の旧割当を現在の部屋として表示しない。** 日程変更再提出後は旧割当が残るため、再審査で理由付きの再割当を促す。同日程の修正なら割当は維持される。
+
+本人には内部の部屋変更理由・職員ID・監査スナップショットを渡さない。職員監査の取得は既存RLSの `audit_logs` を `entity_type='application' / entity_id=applicationId` で絞る。更新成功後は職員詳細・一覧・ホーム、カレンダー、本人詳細・一覧・編集・確認・完了を再検証してから遷移する。画面接続後の実ログイン・実Storage・ブラウザ受入は別途実施する。
+
 ## 10. URLクエリ
 
 | 対象 | クエリ例 | 用途・検証 |
@@ -500,3 +642,12 @@ MVPでは `app/user` と `app/staff` 配下に個別の `loading.js`、`error.js
 | [画面設計・ルーティング設計をAIと作る](./curriculum/AI駆動開発ハンズオン：写真共有アプリ/5.画面設計・ルーティング設計をAIと作る.txt) | App RouterのURL対応、画面目的、認証、Server / Client Component、取得・更新、画面遷移の確認項目 |
 | [Next.js基礎](./curriculum/Next.js%20%26%20Supabase（アプリの形へ）/1.Next.js基礎.txt) | `app`、`page.js`、`layout.js`、`loading.js`、`error.js`、`not-found.js` の基本 |
 
+### T13 Phase 1：納付バックエンド（SQL 015・ローカル検証済み、Supabase未適用）
+
+`app/actions/staff-application-operations.js` の `updateApplicationPayment(formData)` を職員詳細に接続する。入力は `applicationId / updatedAt / paymentStatus / paymentDueDate / reason`。`updatedAt` は取得した申請の文字列をマイクロ秒まで保持。状態は `unpaid / paid`、期限は `YYYY-MM-DD`（空欄で解除）。納付済みから未納への差戻しだけ理由必須、2000文字以内。納付確認日時はDBで記録し、納付済みの期限だけ変更する場合は保持する。
+
+成功時はDBが返した利用区分・camp_idから既存の職員詳細URLへ `?updated=payment-updated` で遷移。本人・職員の関連詳細と一覧を再検証する。失敗は `{ error, fields, fieldErrors }` で入力保持。`invalid-payment-status / invalid-payment-deadline / reason-required / reason-too-long / invalid-version / stale-update / invalid-status / charge-not-found / not-found / forbidden / update-failed` を扱う。古い版・40001・40P01は自動再送せず再読込みを案内する。既存の申請・審査・添付Actionの入力契約は変更していない。
+
+`utils/application-operations/queries.js` の `getApplicationPayment(applicationId)` はactive本人（職員権限もDBで認可）、`getStaffApplicationPayment(applicationId)` はactive職員。1回の読取RPCで `{ error, application }` を返す。applicationは `id / usage_type / camp_id / status / updated_at / charge`。chargeは `total_amount / payment_status / payment_due_date / paid_at / is_overdue / months`、下書き等で料金行がなければnull。monthsは既存の月別内訳5項目。内部理由・監査・職員IDは返さない。
+
+`is_overdue` は取得時点の日本時間で「未納かつ期限翌日以降」を計算する。共有キャッシュへ保存しない。既存 `getCommunityApplication` のchargeにも同項目だけ追加（既存項目は維持）。期限超過は表示用の派生値であり、DBの納付状態は未納のまま。画面は未実装。

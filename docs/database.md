@@ -10,7 +10,11 @@
 | DB | Supabase Database（PostgreSQL） |
 | 認証・添付 | Supabase Auth / 非公開Supabase Storage |
 | 上位資料 | [要件定義書](./requirements.md)、[ルーティング設計書](./routes.md) |
-| 成果物の範囲 | テーブル・制約・権限・更新処理の設計。SQLマイグレーション、DB作成、パッケージ導入は未実施 |
+| 成果物の範囲 | 全利用区分の目標設計。実装・適用済みの範囲は下記と [tasks.md](tasks.md) を参照 |
+
+2026年9月11日現在、SQL 001〜014はSupabase適用済み。014適用後の単一接続916項目・別接続60ケースと全4種類の後片付けはユーザー確認済み。詳細は [tasks.md 第4.8節](tasks.md#48-t12地域活動個人の部屋割当許可sql-014) を参照。013適用後は、ローカル・Supabaseとも単一接続558項目（T10の230＋カレンダー110＋キャンプ218）・別接続40ケース（T10の20＋キャンプ7＋カレンダー13）が成功し、全テスト用スキーマと架空データの後片付けも完了。Supabaseの適用・集約結果・3つの `cleanup_completed = true` はユーザー確認に基づく。SQL 012時点の結果は [tasks.md 第4.6節](tasks.md#46-t09日程管理バックエンドの検証と引き渡しsql-012)、013適用後の確認根拠は [第4.7節](tasks.md#47-t10地域活動個人の実装と検証sql-013) を参照。画面接続・実ログイン・実Storageの受入確認は未実施。
+
+SQL 012時点の日程枠はキャンプ・利用停止のみ。SQL 013で地域活動個人の申請・個人枠・最小審査を追加し、ローカル検証済み（Supabase適用成功をユーザー確認済み）。`room_allocations` は1申請1部屋1人のまま。SQL 014で地域活動個人の割当／許可APIを追加しローカル検証済み（Supabase適用・DB検証・後片付け完了、5.5節）。以下の団体の表・自動処理などは目標設計であり、実装済みとは限らない。013の範囲は5.3節、検証は [tasks.md 第4.7節](tasks.md#47-t10地域活動個人の実装と検証sql-013) を参照。
 
 ## 1. 設計の考え方
 
@@ -159,6 +163,37 @@ erDiagram
 
 提出済みの写しをプロフィール同期で更新しない。修正依頼で変更する場合は、更新前後を監査履歴に保存する。団体参加者の日程・目的は団体情報を正とし、参加者による個別変更を禁止する。共通情報の修正はDB関数で関連申請・料金・枠を同時更新する。すでに個別許可がある状態で許可内容が変わる修正は職員による再審査を必要とし、過去の内容は監査履歴に残す。
 
+**T10の実装範囲（SQL 013・Supabase適用済み）**
+
+SQL 013では `usage_type` を `camp / community_individual` に限定し、団体の値・`group_id` は追加しない。campは `camp_id` 必須、community_individualは `camp_id / room_preference` がNULL。新規下書きのUUIDは明示保存前に用意してRPCへ渡し、同一UUIDの再送は既存の本人行を返す。表示目的のGETで下書きを作らない。
+
+| 追加列 | 目的 |
+|---|---|
+| `revision_start_date / revision_end_date` | 修正保存中の候補日程。元の提出日程と枠は再提出成功まで維持。個人だけに使用 |
+| `last_submission_key` | 直近の成功した提出操作を識別するUUID |
+| `last_submission_version` | その提出が受け付けた更新日時。同一キー・同一版の通信再送は番号・料金・履歴を再作成しない |
+
+個人の日程は両方未入力または実在する2〜15日。修正候補も両方未設定または同じ構造条件。開始14日後以降・終了60日以内は初回提出と日程変更再提出で、ロック取得後のJST現在日を用いて検査する。職員指定の修正期限は任意で、団体の標準期限・自動取消は適用しない。下書き保存は受付窓・満員でも入力を保持できる。
+
+作成・保存・提出・添付差替・最小審査は施設ロックを共有し、activeな本人または職員を待機後も確認する。申請行と関連行をロックし、保存・提出・添付・審査に元の `updated_at` を要求する。初回採番は関連更新の後に共通カウンターを更新する。40001／40P01は自動再送せず、古い画面として返す。SQL 012までのキャンプ保存／添付RPCにも区分検査を加え、個人を更新日時なしで更新する迂回を防ぐ（旧ファイル・引数は変更しない）。
+
+| 公開RPC | 入力・責務 |
+|---|---|
+| `create_community_application_draft` | UUID、任意の `draft_fields jsonb`。プロフィール初期値・本人固定・下書き作成 |
+| `save_community_application_draft` | UUID、元の更新日時、編集可能な全項目のJSON。下書き／修正依頼だけ保存 |
+| `submit_community_application` | UUID、元の更新日時、提出キーUUID、確認同意true。必須・同意書・日程・日別定員を再検査し、枠・料金・採番・提出履歴を一括確定 |
+| `review_community_application` | UUID、`start_review / request_revision / reject`、元の更新日時、理由、任意修正期限。active職員だけ |
+| `get_community_application` | UUID。active本人だけの読取専用JSON。確認時の問題も返し、業務更新しない |
+| `register_community_guardian_consent_document` | UUID、想定所有者・更新日時、パス・MIME・サイズ。サービス権限だけ。本人・状態を再確認し親の版を進める |
+
+通常RPCはauthenticatedのみ実行可で、内部ヘルパーは利用者・anon・service_roleから直接実行できない。個人情報の本人／職員RLS、職員専用監査の分離を維持する。利用者の直接INSERT／UPDATE／DELETE権限は追加しない。
+
+個人枠は `calendar_claims.claim_type = individual` とUQの `application_id`（FK RESTRICT）で1申請1行。キャンプ・停止・個人の参照先はCHECKで一つに限定する。submitted／under_review／revision_requested／approved／cancellation_requestedを有効に数え、拒否・取消の終了状態は解放する。取消への操作はT17で実装予定。日程変更再提出では同じ行を新期間に置き換える。
+
+定員は個人の各日を1人と数え、`released_from` 当日以降を除く。個人同士は各日15人まで共存でき、キャンプ・停止との重複は端点を含めて拒否する。個人の枠が欠落しても元申請を数え、書込時は枠の日程不整合を拒否する。職員のキャンプ・停止編集にも `camp_id IS NULL` の個人を含める。公開応答は日付・可否だけ、職員月はindividual行、職員日は既存application行（camp_idがNULL）として返す。
+
+料金は初回と日程変更再提出だけ更新し、同日程なら確定額・内訳を維持する。日程変更でも納付状態・納付期限は維持する。番号と初回提出日時は再提出で変えず、最終提出日時を更新する。申請・枠・部屋行（存在時）・料金・月別内訳・添付の前後を職員監査に残す。提出済みの旧同意書は差替後も削除せず、当時のパスを監査に残す。下書きだけの旧ファイルはDBが `delete_previous` を許した場合に既存Storage Actionで削除する。
+
 ### 5.4 団体・参加者・招待
 
 **group_applications**
@@ -210,6 +245,30 @@ DB関数と制約トリガーで `applications.group_id = group_members.group_id
 
 個人割当はcamp/community_individualだけを対象に人数1。団体割当は部屋ごとの人数を記録し、参加者名を紐付けない。各日の個人割当は合計1、団体割当は各日のactive参加人数と一致することを許可時に検査する。部屋別合計≦各定員、施設合計≦15を割当の保存時にも検査する。早期退去後の割当解放は `released_from` 以降に適用し、履歴は残す。
 
+**T12地域活動個人の実装（SQL 014・Supabase適用・DB検証・後片付け完了）**
+
+新しいテーブルは作らず、SQL 002の `application_id UNIQUE / people_count=1` を使う。通常の地域活動個人だけを対象にし、`original_application_id IS NOT NULL`、camp、団体は新RPCで受け付けない。適用済み001〜013を書き換えず、014で必要な関数を追加・置換する。
+
+| RPC／内部処理 | 契約 |
+|---|---|
+| `assign_community_application_room(uuid,uuid,timestamptz,text)` | 申請ID・部屋ID・親の元更新日時・変更理由。審査中／許可に限り、1人・提出済み期間全体を保存。返却は `result_id / result_status / result_updated_at` |
+| `review_community_application(uuid,text,timestamptz,text,timestamptz)` | 013の引数・返却を維持し `approve` を追加。既存の審査開始・修正依頼・不許可も同じ入口。許可コメントは任意、修正期限は修正依頼時だけ |
+| `get_staff_community_application_room_context(uuid)` | active職員限定、1つの読取スナップショットで申請の版・期間・状態・部屋・滞在・8部屋マスターを返す。割当の空き保証や自動修復はしない |
+| `get_community_application(uuid)` | 013の本人限定取得へ `approval_comment / room_allocation / stay` を追加。内部監査、変更理由、職員IDは返さない |
+| `private.community_snapshot` | 従来の申請・枠・部屋・料金・添付に `stay` を追加。過去の監査は書き換えず、以後の監査へ反映 |
+
+全更新は `private.lock_calendar_for_staff()` で施設ガードを実UPDATEし、待機後の職員権限・activeプロフィールを共有ロックして再検査する。その後、親申請→割当・滞在等をロックする。親の更新日時はマイクロ秒まで一致させ、割当変更も単調増加トリガーで親の版を進める。REPEATABLE READの古いスナップショットは40001で拒否する。通常クライアントの直接書込みは禁止。公開RPCはauthenticatedのみ実行可で、さらにDB内でactive職員を検査する（本人取得だけはactive本人）。内部ヘルパーはanon・authenticated・service_roleへ直接実行を許可しない。
+
+部屋・施設の検査は開始・終了を含む全日で実施する。提出済み個人枠を1人として維持し、部屋割当で2人目を加算しない。部屋未割当・修正依頼中等も施設人数に含める。本人の旧割当は除外して新候補を1人加算する。キャンプ・停止の元データと枠、同一利用者重複、対象個人枠の日程一致・未解放も再検査する。枠欠落や不整合は空きと扱わず拒否する。施設超過は既存 `capacity-full`、追加の防御検査は `facility-capacity-full`、部屋超過は `room-capacity-full`。
+
+初回割当の理由は任意。既存割当変更は2,000文字以内の理由必須。最新の版で同じ有効な部屋・全期間なら親・割当・監査を更新しない。日程変更再提出は013の動作を維持し、旧割当を `released_from=start_date` で全解放する。審査中に理由付きで再割当すると同じ行の期間・部屋を更新し解放を解除する。部分解放や未解放の期間不一致を自動修復しない。監査操作は `assign_room / change_room / reassign_room`。変更理由は公開状態履歴へ転記しない。
+
+許可は審査中だけ。部屋1人・全期間・未解放、施設枠・定員・日程競合に加え、提出済み必須情報、申請メールの写し、必要な同意書メタデータ、提出日時、受付番号、料金と月別内訳合計の一致を確認する。初回受付窓を再適用しない。既存滞在があれば拒否し、初回成功時だけ `before_move_in`（入退去日時NULL）を作る。申請・滞在・公開状態履歴・監査が同じトランザクションで確定する。許可コメントは任意で2,000文字以内。納付済みを条件にせず、番号・料金・納付情報は変更しない。
+
+許可後の部屋変更は入居前・滞在中だけ。退去済み・滞在欠落・解放済みの許可割当は拒否する。利用期間全体の割当を変更し、前後内容は監査へ残す。日単位の部屋分割や入退去の操作は追加しない。修正依頼は枠・部屋を保持、不許可は両方を全解放する。失敗時は状態・版・部屋・滞在・枠・履歴の全変更を取り消す。
+
+本人／職員の部屋応答は `room_id / room_name / people_count / start_date / end_date / released_from / is_current`、滞在は `status / checked_in_at / checked_out_at`。割当なしはnull、解放済みの旧行は `is_current=false` として返す。取得では状態変更・枠修復・監査追加をしない。
+
 ### 5.6 同意書
 
 **consent_documents** — `application_id uuid UQ FK → applications.id`、`object_path text UQ`、`mime_type text`、`size_bytes integer` は必須。MIMEは `application/pdf / image/jpeg / image/png`、サイズは1〜5,242,880バイト（試作版の5MBは5MiBと定義）。
@@ -243,6 +302,8 @@ DBとStorageは同じトランザクションにならない。新しいラン�
 
 ### 5.8 カレンダーの枠
 
+下表は全区分対応後の設計である。SQL 012で追加する列・制約・入口は直後の「T09の実装範囲」を参照する。
+
 **calendar_claims**
 
 | カラム | 型・必須 | 制約・用途 |
@@ -255,6 +316,42 @@ DBとStorageは同じトランザクションにならない。新しいラン�
 各FKに非NULLの部分UQを設け、対象ごとに枠1行とする。現在の有効範囲は開始日から `min(end_date, released_from - 1日)` まで。範囲が空なら占有なし。
 
 個人枠は1人分、団体・キャンプ・停止枠は排他的な期間。キャンプ参加者自身のcalendar_claims行は作らず、対象キャンプ内の有効個別申請を数えて15人制限を検査する。団体参加者にも個人枠は作らず、団体専有と二重計上しない。
+
+**T09の実装範囲（SQL 012）**
+
+- `blocked_periods` は `id / start_date / end_date / internal_reason / created_by / deleted_at / created_at / updated_at` を持つ。内部理由は空白除去後1〜2000文字。削除は論理削除とする。
+- `calendar_claims` の種別は `camp / blocked` のみ。`camp_id / blocked_period_id` は種別に対応する一方だけ必須で、それぞれUQ、FKは `ON DELETE RESTRICT`。`application_id / group_id` はまだ追加しない。日付は0001〜9999年、開始≦終了、解放開始日は開始日〜終了日翌日の範囲に制限する。
+- 元のキャンプ・利用停止の登録／更新トリガーが枠を同期する。削除済みは `released_from = start_date` として全解放する。通常クライアントに元データ・枠の直接書込み権限は与えず、業務RPCが先に施設ロックを取得する。管理者による直接SQLはこの業務検査を迂回できるため、通常の登録・編集にはRPCを使う。
+- 既存キャンプを削除済み分も含めて移行する。日付範囲・有効キャンプの重複・有効提出済み申請との日程不一致を検査し、不整合ならSQL 012全体を取り消す。既存の申請・部屋・料金を自動修正しない。
+- キャンプの個人申請を別枠に数えない。参加者の不許可でもキャンプ枠は維持する。地域活動の個人枠はT10、団体枠はT18以降で制約・参照先とともに追加する。
+
+**T09の更新RPCと権限**
+
+| RPC | 保証する内容 |
+|---|---|
+| `create_staff_camp` | 既存の引数とUUID返却を維持。日程競合・期限境界を検査し、キャンプ・枠・監査を作る |
+| `update_staff_camp` | 対象ID、名称、期間、期限、`expected_updated_at`、変更理由を受け取る。期間変更は有効提出済み申請がない場合だけ。下書きの日程・更新日時と最小限の変更監査を同時更新 |
+| `delete_staff_camp` | 対象ID、更新日時、理由が必須。有効提出済み申請がなければ論理削除・枠解放。下書きと履歴は残す |
+| `save_staff_blocked_period` | IDがNULLなら登録、IDありなら編集。期間と内部理由を検査し、編集では更新日時・変更理由も検査 |
+| `delete_staff_blocked_period` | 対象ID、更新日時、理由を検査し、論理削除・枠解放 |
+
+作成以外の返却は `result_id / result_updated_at`。編集時は最新の更新日時と完全に同じ内容なら更新・監査追加なし。古い更新日時は同一内容でも `stale-update`。更新日時はSQL 010の単調増加トリガーをキャンプ・利用停止・枠にも適用し、マイクロ秒を保持する。
+
+有効な職員だけが更新可能。施設ロック後に職員権限行・activeプロフィールを共有ロックして再確認し、対象行を更新ロックする。申請の複数行はID順。全影響範囲で他の枠と有効申請を再検査し、競合は `date-conflict`、提出済み申請によるキャンプ変更拒否は `camp-has-applications` とする。職員専用の詳細は種別・ID・氏名／名称・受付番号・期間・状態だけで、住所・連絡先を含めない。元データ・枠・下書き同期・監査は1トランザクションで保存する。
+
+下書き作成、提出、対象メール追加も施設ロックを取得する入口へ更新する。提出時はキャンプの枠・削除状態を再検査し、競合の内部詳細を申請者に返さない。SQL 009・011の現在時刻による期限検査、SQL 010の定員・許可処理は維持する。
+
+**T09の取得RPC**
+
+| RPC | 入力・返却と閲覧権限 |
+|---|---|
+| `get_public_calendar` | 月初日→月内全日の `date / availability` のみ。anon・authenticatedが実行可。内部表のSELECT権限は不要 |
+| `get_staff_calendar` | 月初日→重なる有効キャンプ・利用停止の種別、ID、期間、名称、人数、内部理由、元データの更新日時 |
+| `get_staff_calendar_day` | 日付→当日のキャンプ・利用停止と有効個別申請の必要な概要。住所・電話・メール・緊急連絡先は返さない |
+
+公開表示は日本時間の当日を基準に、13日後までを `unavailable`、61日後以降を `not_yet_open`、14〜60日後は有効枠があれば `unavailable`、なければ `available` とする。1回の応答内で基準日を固定し、日単位の案内として使う。申請可能期間全体の検査はT10で実装する。
+
+職員用RPC・新表のSELECTはactive職員のみ。新表はRLSを有効化し、通常クライアントに直接書込みを許可しない。内部関数はクライアントから実行できない。取得処理は状態変更・枠修復・監査追加を行わず、認可や日本時間の日付が古くなる共有キャッシュを追加しない。
 
 ### 5.9 状態履歴・内部記録・設定
 
@@ -280,7 +377,7 @@ DBとStorageは同じトランザクションにならない。新しいラン�
 
 **account_cleanup_jobs** — `user_id uuid`（Auth削除後も再試行記録を残すためFKなし）、`status text (queued / processing / done / failed / cancelled)`、`attempts integer >= 0`、`next_attempt_at timestamptz` は必須。`locked_until timestamptz`、`last_error text`、`completed_at timestamptz` は任意。user_idに未完了ジョブの部分UQ。内部処理だけが読み書きする。
 
-**facility_guard** — `id smallint PK CHECK (id = 1)` の1行のみ。施設全体が15人の試作版なので、日程・人数・部屋・参加者・アカウント初期化準備の更新はこの行を `FOR UPDATE` でロックしてから検査する。これは短いDBトランザクション内だけのロックで、職員の画面編集ロックではない。
+**facility_guard** — `id smallint PK CHECK (id = 1)` の1行のみ。施設全体が15人の試作版なので、日程・人数・部屋・参加者・アカウント初期化準備の更新はこの行をロックしてから検査する。SQL 010・012・013の入口は `UPDATE ... SET id = id` による実更新を使い、REPEATABLE READの古いスナップショットもSQLSTATE `40001` で拒否する。これは短いDBトランザクション内だけのロックで、職員の画面編集ロックではない。後続機能も同じ順序にそろえる。
 
 ## 6. 状態と更新の契約
 
@@ -474,3 +571,11 @@ FK参照元には上記と重複しない索引を付ける。機密列への索
 保存期間・正式な料金制度・電子申請の効力等は要件定義書第28章の確認事項を引き継ぐ。保存期限が未確定の管理記録に自動削除日数を設定しない。
 
 次の工程では、この設計からテーブル・制約・RLS・RPC・CronをSQLマイグレーションにし、架空データで受入確認する。設計書を保存しただけではSupabase上にテーブルや自動処理は作成されない。
+
+### T13 Phase 1 実装補足（SQL 015）
+
+`202609110015_application_payments.sql` は新表・既存データ移行なしで `update_application_payment(uuid,timestamptz,text,date,text)` と `get_application_payment(uuid)` を追加する。キャンプ／通常地域活動個人が対象で、延長元付き・団体は対象外。更新は提出履歴と料金行がある申請（退去済み・不許可等の記録を含む）の職員操作のみ。下書き・料金欠落は拒否する。
+
+既存の施設実更新ロック・職員active再検査・申請行ロック・申請updated_at照合・料金行ロックを使用する。期限・状態・paid_atだけを変更し、親申請のupdated_atと `audit_logs.action=update_payment` を同一トランザクションで更新する。監査は料金行と親版の変更前後、職員ID、日時、差戻し理由を保持。最新版本の同内容保存は無更新、古い版は拒否。金額・月別内訳・申請状態・滞在・部屋・日程枠・受付番号・本人向け申請状態履歴は不変。
+
+両RPCは空search_pathのsecurity definerで、PUBLIC／anon／service_role実行を拒否し、authenticatedだけに実行権限を付与。取得はactive本人または職員を検査して必要列だけ返す。期限超過は取得側でJST基準に導出し、保存状態を増やさない。SQL 001〜014は変更していない。Supabaseへの015適用は未実施。

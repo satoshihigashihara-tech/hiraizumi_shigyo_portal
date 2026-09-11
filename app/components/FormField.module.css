@@ -1,0 +1,122 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-2, 8px);
+}
+
+.label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sg-space-2, 8px);
+  font-size: var(--sg-font-sm, 14px);
+  font-weight: 600;
+  color: var(--sg-color-text, #1b1d1f);
+}
+
+/* 「必須」は文字で表示する。色だけに頼らない */
+.required {
+  padding: 1px var(--sg-space-2, 8px);
+  border: 1px solid var(--sg-danger-border, #b3261e);
+  border-radius: var(--sg-radius-pill, 999px);
+  background: var(--sg-danger-bg, #fdecec);
+  color: var(--sg-danger-text, #8c1d18);
+  font-size: var(--sg-font-xs, 12px);
+  font-weight: 600;
+}
+
+.hint {
+  color: var(--sg-color-text-muted, #4d5358);
+  font-size: var(--sg-font-sm, 14px);
+}
+
+.input,
+.textarea,
+.select {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--sg-space-2, 8px) var(--sg-space-3, 12px);
+  border: 1px solid var(--sg-color-border, #c9ced4);
+  border-radius: var(--sg-radius, 8px);
+  background: var(--sg-color-surface, #ffffff);
+  color: var(--sg-color-text, #1b1d1f);
+  /* 16px 未満だと iOS Safari が入力時に自動ズームする */
+  font-size: 16px;
+  line-height: var(--sg-line-height, 1.6);
+  font-family: inherit;
+}
+
+.textarea {
+  resize: vertical;
+}
+
+.input:disabled,
+.textarea:disabled,
+.select:disabled {
+  background: var(--sg-neutral-bg, #f1f3f5);
+  color: var(--sg-color-text-muted, #4d5358);
+  cursor: not-allowed;
+}
+
+/*
+ * チェックボックス・ラジオ。
+ * fieldset は既定の枠線と余白を持ち、内容幅より縮まない性質があるため、
+ * .field と同じ縦並びにするには打ち消しが必要（375px で横へ溢れさせない）。
+ */
+.fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fieldset > legend {
+  /* legend の既定の左右余白を消し、通常の項目名と同じ位置に揃える */
+  padding: 0;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sg-space-2, 8px) var(--sg-space-5, 24px);
+}
+
+/* 入力欄と文字をまとめて押せるようにし、指で押せる高さ44pxを確保する */
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-space-2, 8px);
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.control {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--sg-info-border, #1f3c88);
+}
+
+.control:disabled {
+  cursor: not-allowed;
+}
+
+/* 枠線を持たない入力欄なので、輪郭線でエラーを示す（.error の文章も必ず出す） */
+.controlHasError {
+  outline: 2px solid var(--sg-danger-border, #b3261e);
+  outline-offset: 2px;
+}
+
+/* 枠線の色に加えて、必ず .error の文章も表示する */
+.hasError {
+  border-color: var(--sg-danger-border, #b3261e);
+  border-width: 2px;
+}
+
+.error {
+  display: flex;
+  gap: var(--sg-space-1, 4px);
+  color: var(--sg-danger-text, #8c1d18);
+  font-size: var(--sg-font-sm, 14px);
+  font-weight: 600;
+}
