@@ -484,6 +484,45 @@ async function groupInvitationConcurrency(c) {
   }
   console.log('PASS group invitation concurrency cleanup');
 }
+// T21: a participant submission and Cron expiry serialize on the facility row.
+async function groupExpirationConcurrency(c) {
+  const rep=randomUUID(),u1=randomUUID(),u2=randomUUID(),group=randomUUID(),a1=randomUUID(),a2=randomUUID();
+  const users=[rep,u1,u2];
+  for (const id of users) await c.query('insert into auth.users(id,email) values($1,$2)',[id,`expiry-${id}@example.invalid`]);
+  const dates=(await c.query("select current_date+30 as s,current_date+32 as e")).rows[0];
+  await c.query('begin');
+  await c.query(`insert into public.group_applications(id,representative_user_id,group_name,start_date,end_date,usage_place,purpose,local_activity,
+    planned_participants,status,submitted_at,participant_due_at) values($1,$2,'架空同時期限団体',$3,$4,'common_and_second_floor','架空目的','架空活動',2,'collecting',clock_timestamp(),clock_timestamp()+interval '1 hour')`,[group,rep,dates.s,dates.e]);
+  await c.query(`insert into public.applications(id,user_id,usage_type,group_id,status,start_date,end_date,user_name,user_address,user_phone,email_snapshot,
+    emergency_name,emergency_address,emergency_phone,requires_guardian_consent,submitted_at,last_submitted_at)
+    values($1,$2,'community_group',$3,'submitted',$4,$5,'架空一郎','架空住所','000-0000-0000',$6,'架空連絡先','架空住所','000-0000-0000',false,clock_timestamp(),clock_timestamp()),
+      ($7,$8,'community_group',$3,'draft',$4,$5,'架空二郎','架空住所','000-0000-0000',null,'架空連絡先','架空住所','000-0000-0000',false,null,null)`,
+    [a1,u1,group,dates.s,dates.e,`expiry-${u1}@example.invalid`,a2,u2]);
+  await c.query('insert into public.group_members(group_id,application_id) values($1,$2),($1,$3)',[group,a1,a2]);
+  await c.query('commit');
+  const version=(await c.query('select updated_at::text v from public.applications where id=$1',[a2])).rows[0].v;
+  const submit=await connect(),cron=await connect();
+  try {
+    await submit.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:u2,email:`expiry-${u2}@example.invalid`,role:'authenticated'})]);
+    await submit.query('set role authenticated'); await submit.query('begin'); await cron.query('begin');
+    await submit.query('select * from public.submit_group_participant_application($1,$2,$3,true)',[a2,version,randomUUID()]);
+    const leader=(await submit.query('select pg_backend_pid() pid')).rows[0].pid;
+    const peer=(await cron.query('select pg_backend_pid() pid')).rows[0].pid;
+    const pending=cron.query("select * from private.expire_due_community_groups(500,clock_timestamp()+interval '2 hours')");
+    let waited=false; for(let n=0;n<100;n++){if((await c.query('select $2::integer=any(pg_blocking_pids($1)) waiting',[peer,leader])).rows[0].waiting){waited=true;break;} await new Promise(r=>setTimeout(r,20));}
+    await submit.query('commit'); const expiry=await pending; await cron.query('commit');
+    assert.ok(waited&&leader!==peer,'expiry must wait on participant submission');
+    assert.equal(expiry.rows.length,0); assert.equal((await c.query('select status from public.group_applications where id=$1',[group])).rows[0].status,'under_review');
+    console.log('PASS group expiration concurrency submission-wins');
+  } finally {
+    await submit.query('rollback');await cron.query('rollback');await c.query('reset role');
+    await c.query('delete from public.audit_logs where entity_id=any($1::uuid[]) or actor_user_id=any($2::uuid[])',[[group,a1,a2],users]);
+    await c.query('delete from public.calendar_claims where group_id=$1',[group]);await c.query('delete from public.group_invites where group_id=$1',[group]);
+    await c.query('delete from public.group_members where group_id=$1',[group]);await c.query('delete from public.applications where group_id=$1',[group]);
+    await c.query('delete from public.group_applications where id=$1',[group]);await c.query('delete from auth.users where id=any($1::uuid[])',[users]);
+  }
+  console.log('PASS group expiration concurrency cleanup');
+}
 let stage = 'start';
 let failed = false;
 try {
@@ -565,11 +604,12 @@ try {
   if (requested.includes('--audit-notes-only')) await c.query("select set_config('test.operations_phase','audit-notes',false)");
   if (requested.includes('--staff-search-only')) await c.query("select set_config('test.operations_phase','staff-search',false)");
   if (requested.includes('--stays-only')) await c.query("select set_config('test.operations_phase','stays',false)");
-  const single = ['application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql', 'community_groups.sql', 'group_invitations.sql', 'group_participant_submissions.sql', 'group_review_and_approval.sql', 'group_changes_and_cancellation.sql'];
+  const single = ['application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql', 'community_groups.sql', 'group_invitations.sql', 'group_participant_submissions.sql', 'group_review_and_approval.sql', 'group_changes_and_cancellation.sql', 'group_deadline_expiration.sql'];
   const concurrent = ['camp_room_allocations_concurrency.sql', 'calendar_concurrency.sql', 'community_individual_applications_concurrency.sql', 'community_individual_room_allocations_concurrency.sql'];
-  const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.includes('--stays-only') ? ['application_operations.sql', ...(requested.includes('--stays-concurrency') ? ['--stays-concurrency'] : [])] : requested.includes('--audit-notes-only') ? ['application_operations.sql', ...(requested.includes('--audit-notes-concurrency') ? ['--audit-notes-concurrency'] : [])] : requested.includes('--staff-search-only') ? ['application_operations.sql'] : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency', '--stays-concurrency', '--audit-notes-concurrency', '--groups-concurrency', '--group-invitations-concurrency'];
+  const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.includes('--stays-only') ? ['application_operations.sql', ...(requested.includes('--stays-concurrency') ? ['--stays-concurrency'] : [])] : requested.includes('--audit-notes-only') ? ['application_operations.sql', ...(requested.includes('--audit-notes-concurrency') ? ['--audit-notes-concurrency'] : [])] : requested.includes('--staff-search-only') ? ['application_operations.sql'] : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency', '--stays-concurrency', '--audit-notes-concurrency', '--groups-concurrency', '--group-invitations-concurrency', '--group-expiration-concurrency'];
   for (const file of selected) {
     if (file === '--group-invitations-concurrency') { stage=file; await groupInvitationConcurrency(c); continue; }
+    if (file === '--group-expiration-concurrency') { stage=file; await groupExpirationConcurrency(c); continue; }
     if (file === '--groups-concurrency') { stage=file; await groupConcurrency(c); continue; }
     if (file === '--audit-notes-concurrency') { stage=file; await auditNotesConcurrency(c); continue; }
     if (file === '--stays-concurrency') { stage=file; await stayConcurrency(c); continue; }
