@@ -1,0 +1,165 @@
+/*
+ * 利用者画面の共通レイアウト（app/user/layout.js）のスタイル。
+ *
+ * このヘッダーは PageShell（.shell）の外側にある。
+ * CSS基準値（--sg-*）は PageShell.module.css の .shell に定義されていて
+ * 子孫へしか継承されないため、外側のこのヘッダーには届かない
+ * （app/components/README.md「原則として PageShell の内側で使ってください」）。
+ *
+ * それでもヘッダーにはログアウトの SubmitButton を置く必要があり、
+ * Button.module.css は --sg-color-surface / -border / -text / -focus /
+ * --sg-neutral-bg / --sg-space-2 / --sg-space-5 / --sg-radius /
+ * --sg-font-base / --sg-line-height を参照する。トークンが届かないと
+ * すべてフォールバック（明色）になり、ダークモードで白いボタンだけが残る。
+ * そのため、この .layout でも同じトークンを定義して子孫へ配る。
+ *
+ * 値は PageShell.module.css と同じものを書いている。2か所に同じ値があるのは
+ * 望ましくないので、本来は :root か共通の親へ1か所だけ置きたい。ただし
+ * app/globals.css は「事前に相談」対象のため、この画面PRでは動かさない
+ * （docs/frontend-handoff.md）。配色を変えるときは PageShell.module.css と
+ * このファイルを必ず同時に直すこと。
+ *
+ * 色は必ず背景と文字をセットで指定する。globals.css が
+ * prefers-color-scheme: dark で body を暗色にし color-scheme: dark を設定するため、
+ * 片方だけ指定すると暗い背景に暗い文字が乗る（app/components/README.md）。
+ */
+
+.layout {
+  /* 余白・字送り・角丸（Button.module.css とこのファイルが参照する分） */
+  --sg-space-2: 8px;
+  --sg-space-3: 12px;
+  --sg-space-4: 16px;
+  --sg-space-5: 24px;
+  --sg-radius: 8px;
+  --sg-font-base: 16px;
+  --sg-line-height: 1.6;
+
+  /* 基本色（PageShell.module.css の .shell と同じ値） */
+  --sg-color-surface: #ffffff;
+  --sg-color-text: #1b1d1f;
+  --sg-color-text-muted: #4d5358;
+  --sg-color-border: #c9ced4;
+  --sg-color-focus: #1f3c88;
+  --sg-neutral-bg: #f1f3f5;
+
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 100%;
+  color: var(--sg-color-text);
+  background: var(--sg-color-surface);
+}
+
+@media (prefers-color-scheme: dark) {
+  .layout {
+    --sg-color-surface: #14171a;
+    --sg-color-text: #ececec;
+    --sg-color-text-muted: #b6bcc2;
+    --sg-color-border: #3a4046;
+    --sg-color-focus: #9db8ff;
+    --sg-neutral-bg: #22262a;
+  }
+}
+
+/* フォーカス位置がキーボード操作で必ず分かるようにする（.shell の外側の分） */
+.layout :focus-visible {
+  outline: 3px solid var(--sg-color-focus);
+  outline-offset: 2px;
+}
+
+/*
+ * 本文へのスキップリンク。
+ * display:none だとフォーカスを受け取れないので、画面外へ逃がしてから
+ * フォーカス時に戻す。
+ */
+.skipLink {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 10;
+  padding: var(--sg-space-2) var(--sg-space-4);
+  color: #ffffff;
+  background: #1f3c88;
+  border-radius: 0 0 var(--sg-radius) 0;
+  font-size: 14px;
+}
+
+.skipLink:focus {
+  left: 0;
+}
+
+.header {
+  border-bottom: 1px solid var(--sg-color-border);
+  color: var(--sg-color-text);
+  background: var(--sg-color-surface);
+}
+
+/* 本文（PageShell）の最大幅960pxと左右padding 16pxへ揃える */
+.headerInner {
+  width: 100%;
+  max-width: 960px;
+  margin-inline: auto;
+  padding: var(--sg-space-3) var(--sg-space-4);
+}
+
+/* サービス名とログアウトを両端へ。375pxでは折り返す */
+.brandRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sg-space-2);
+}
+
+.brand {
+  font-size: var(--sg-font-base);
+  font-weight: 700;
+  line-height: 1.4;
+  /* 長いサービス名が375pxで横へ溢れないようにする */
+  overflow-wrap: anywhere;
+}
+
+.logoutForm {
+  display: flex;
+}
+
+.nav {
+  margin-top: var(--sg-space-2);
+}
+
+/*
+ * 横並びのメニュー。375pxでは折り返して縦積みになり、横スクロールを出さない。
+ * list-style を消すぶん、項目の区切りは間隔で見せる。
+ */
+.navList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--sg-space-2);
+  list-style: none;
+}
+
+/*
+ * 指で押せる大きさを確保する（縦8px×2＋行の高さでおよそ40px）。
+ * 下線は付けず、周囲の余白と hover/focus の背景で押せることを示す。
+ */
+.navLink {
+  display: inline-block;
+  padding: var(--sg-space-2) var(--sg-space-3);
+  border-radius: var(--sg-radius);
+  color: var(--sg-color-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* タッチ端末でホバー状態が貼り付くのを避ける（Button.module.css と同じ書き方） */
+@media (hover: hover) and (pointer: fine) {
+  .navLink:hover {
+    color: var(--sg-color-text);
+    background: var(--sg-neutral-bg);
+  }
+}
+
+/* PageShell 側が自前の背景と余白を持つので、ここでは伸ばすだけ */
+.main {
+  flex: 1;
+}
