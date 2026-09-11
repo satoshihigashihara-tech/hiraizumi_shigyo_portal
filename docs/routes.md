@@ -641,3 +641,13 @@ MVPでは `app/user` と `app/staff` 配下に個別の `loading.js`、`error.js
 | [要件定義書](./requirements.md) | 対象範囲、役割、申請・団体フロー、状態、権限、職員機能、画面要件、非機能要件 |
 | [画面設計・ルーティング設計をAIと作る](./curriculum/AI駆動開発ハンズオン：写真共有アプリ/5.画面設計・ルーティング設計をAIと作る.txt) | App RouterのURL対応、画面目的、認証、Server / Client Component、取得・更新、画面遷移の確認項目 |
 | [Next.js基礎](./curriculum/Next.js%20%26%20Supabase（アプリの形へ）/1.Next.js基礎.txt) | `app`、`page.js`、`layout.js`、`loading.js`、`error.js`、`not-found.js` の基本 |
+
+### T13 Phase 1：納付バックエンド（SQL 015・ローカル検証済み、Supabase未適用）
+
+`app/actions/staff-application-operations.js` の `updateApplicationPayment(formData)` を職員詳細に接続する。入力は `applicationId / updatedAt / paymentStatus / paymentDueDate / reason`。`updatedAt` は取得した申請の文字列をマイクロ秒まで保持。状態は `unpaid / paid`、期限は `YYYY-MM-DD`（空欄で解除）。納付済みから未納への差戻しだけ理由必須、2000文字以内。納付確認日時はDBで記録し、納付済みの期限だけ変更する場合は保持する。
+
+成功時はDBが返した利用区分・camp_idから既存の職員詳細URLへ `?updated=payment-updated` で遷移。本人・職員の関連詳細と一覧を再検証する。失敗は `{ error, fields, fieldErrors }` で入力保持。`invalid-payment-status / invalid-payment-deadline / reason-required / reason-too-long / invalid-version / stale-update / invalid-status / charge-not-found / not-found / forbidden / update-failed` を扱う。古い版・40001・40P01は自動再送せず再読込みを案内する。既存の申請・審査・添付Actionの入力契約は変更していない。
+
+`utils/application-operations/queries.js` の `getApplicationPayment(applicationId)` はactive本人（職員権限もDBで認可）、`getStaffApplicationPayment(applicationId)` はactive職員。1回の読取RPCで `{ error, application }` を返す。applicationは `id / usage_type / camp_id / status / updated_at / charge`。chargeは `total_amount / payment_status / payment_due_date / paid_at / is_overdue / months`、下書き等で料金行がなければnull。monthsは既存の月別内訳5項目。内部理由・監査・職員IDは返さない。
+
+`is_overdue` は取得時点の日本時間で「未納かつ期限翌日以降」を計算する。共有キャッシュへ保存しない。既存 `getCommunityApplication` のchargeにも同項目だけ追加（既存項目は維持）。期限超過は表示用の派生値であり、DBの納付状態は未納のまま。画面は未実装。

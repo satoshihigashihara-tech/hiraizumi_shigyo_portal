@@ -1,6 +1,7 @@
 import "server-only";
 
 import { requireActiveUser, requireStaff } from "@/utils/auth/guards";
+import { isPaymentOverdue } from "@/utils/application-operations/validation";
 import { isUuid, communityErrorCode, FIELD_NAMES } from "@/utils/community-applications/validation";
 
 const START_PATH = "/user/applications/new/community-activity";
@@ -24,7 +25,7 @@ export async function getCommunityApplication(applicationId, mode = "detail") {
   application.events = (Array.isArray(data.events) ? data.events : []).map((row) => pick(row, ["from_status", "to_status", "public_reason", "occurred_at"]));
   const months = (rows) => (Array.isArray(rows) ? rows : []).map((row) => pick(row, ["month", "usage_days", "daily_rate", "monthly_cap", "amount"]));
   application.estimated_months = months(data.estimated_months);
-  application.charge = data.charge ? { ...pick(data.charge, ["total_amount", "payment_status", "payment_due_date"]), months: months(data.charge.months) } : null;
+  application.charge = data.charge ? { ...pick(data.charge, ["total_amount", "payment_status", "payment_due_date"]), is_overdue: isPaymentOverdue(data.charge), months: months(data.charge.months) } : null;
   if (mode === "complete" && (!data.submitted_at || !data.reception_number)) return { error: "not-submittable", application: null };
   if (["edit", "confirm"].includes(mode) && !data.can_edit) return { error: data.status === "revision_requested" ? "revision-expired" : "not-editable", application };
   if (mode === "confirm" && data.validation_error) return { error: communityErrorCode(data.validation_error), application };

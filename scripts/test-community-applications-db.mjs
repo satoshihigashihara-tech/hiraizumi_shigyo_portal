@@ -80,6 +80,62 @@ async function cleanupUpgrade(c, fixture) {
   await c.query('commit');
   assert.equal((await c.query('select count(*)::integer as n from public.applications where id=any($1::uuid[])', [fixture.applications])).rows[0].n, 0);
 }
+// Phase 1 only: exercise real waiting on two local connections; no hosted DB.
+async function paymentConcurrency(c) {
+  const fixture = await prepareUpgrade(c);
+  const a = await connect(), b = await connect();
+  const app = fixture.applications[0];
+  const actor = fixture.staff;
+  async function session(client) {
+    await client.query("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: actor, role: 'authenticated' })]);
+    await client.query('set role authenticated');
+  }
+  try {
+    for (const scenario of ['same-version', 'review-versus-payment', 'staff-disabled-while-waiting', 'repeatable-read']) {
+      const target = scenario === 'review-versus-payment' ? fixture.applications[1] : app;
+      const version = (await c.query('select updated_at::text as v from public.applications where id=$1', [target])).rows[0].v;
+      await session(a); await session(b);
+      await a.query('begin');
+      await b.query(scenario === 'repeatable-read' ? 'begin isolation level repeatable read' : 'begin');
+      if (scenario === 'repeatable-read') await b.query('select count(*) from public.applications');
+      if (scenario === 'staff-disabled-while-waiting') {
+        await a.query('reset role');
+        await a.query('select private.lock_calendar_facility()');
+        await a.query("update public.profiles set account_state='disabled' where id=$1", [actor]);
+      } else {
+        await a.query("select * from public.update_application_payment($1,$2,'paid',$3)", [target, version,
+          scenario === 'repeatable-read' ? '2028-01-02' : '2028-01-01']);
+      }
+      const peer = (await b.query('select pg_backend_pid() as pid')).rows[0].pid;
+      const leader = (await a.query('select pg_backend_pid() as pid')).rows[0].pid;
+      const promise = (scenario === 'review-versus-payment'
+        ? b.query("select * from public.review_community_application($1,'reject',$2,'架空の不許可')", [target, version])
+        : b.query("select * from public.update_application_payment($1,$2,'unpaid',null,'架空訂正')", [target, version]))
+        .then(() => ({ ok: true }), error => ({ ok: false, code: error.code, message: error.message }));
+      let waited = false;
+      for (let i = 0; i < 100; i++) {
+        if ((await c.query('select $2::integer=any(pg_blocking_pids($1)) as waiting', [peer, leader])).rows[0].waiting) { waited = true; break; }
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      await a.query('reset role');
+      const expected = await storedRows(a);
+      await a.query('commit');
+      const rejected = await promise;
+      await b.query('rollback'); await b.query('reset role');
+      assert.ok(waited && peer !== leader, `${scenario}: must prove actual waiting on distinct connections`);
+      assert.equal(rejected.ok, false, scenario);
+      assert.equal(rejected.code, scenario === 'repeatable-read' ? '40001' : scenario === 'staff-disabled-while-waiting' ? '42501' : 'P0001');
+      if (['same-version', 'review-versus-payment'].includes(scenario)) assert.equal(rejected.message, 'stale-update');
+      assert.deepEqual(await storedRows(c), expected, `${scenario}: losing transaction leaves no partial updates`);
+      if (scenario === 'staff-disabled-while-waiting') await c.query("update public.profiles set account_state='active' where id=$1", [actor]);
+      console.log('PASS payment concurrency', scenario);
+    }
+  } finally {
+    await a.query('rollback'); await b.query('rollback');
+    await cleanupUpgrade(c, fixture);
+  }
+  console.log('PASS payment concurrency cleanup');
+}
 let stage = 'start';
 let failed = false;
 try {
@@ -109,6 +165,8 @@ try {
   `);
   let upgrade;
   let beforeUpgrade;
+  let paymentUpgrade;
+  let beforePaymentUpgrade;
   for (const file of (await readdir(join(root, 'supabase/migrations'))).filter(x => x.endsWith('.sql')).sort()) {
     stage = file; await c.query(await readFile(join(root, 'supabase/migrations', file), 'utf8'));
     console.log('PASS migration', file);
@@ -121,13 +179,20 @@ try {
       assert.deepEqual(await storedRows(c), beforeUpgrade);
       await cleanupUpgrade(c, upgrade);
       console.log('PASS 013 to 014 upgrade: 16 tables unchanged; fictional fixtures removed');
+      paymentUpgrade = await prepareUpgrade(c); beforePaymentUpgrade = await storedRows(c);
+    }
+    if (file === '202609110015_application_payments.sql') {
+      assert.deepEqual(await storedRows(c), beforePaymentUpgrade);
+      await cleanupUpgrade(c, paymentUpgrade);
+      console.log('PASS 014 to 015 upgrade: 16 tables unchanged; fictional fixtures removed');
     }
   }
   const requested = process.argv.slice(2);
-  const single = ['camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql'];
+  const single = ['application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql'];
   const concurrent = ['camp_room_allocations_concurrency.sql', 'calendar_concurrency.sql', 'community_individual_applications_concurrency.sql', 'community_individual_room_allocations_concurrency.sql'];
-  const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.length ? requested : [...single, ...concurrent];
+  const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency'];
   for (const file of selected) {
+    if (file === '--payments-concurrency') { stage = file; await paymentConcurrency(c); continue; }
     assert.ok([...single, ...concurrent].includes(file), 'Unknown test file'); stage = file;
     const result = await c.query(await readFile(join(root, 'supabase/tests', file), 'utf8'));
     if (!concurrent.includes(file)) {
