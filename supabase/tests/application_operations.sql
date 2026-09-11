@@ -202,7 +202,7 @@ begin
     perform pg_temp.t13_ok(pg_temp.t13_review(x,'approve'),'stay fixture approval');
   else
     r:=pg_temp.t13_ok(pg_temp.t13_call(staff_id,format('select public.create_staff_camp(%L,%L,%L,%L) as id',
-      '架空入退去キャンプ',d+100,d+102,clock_timestamp()+interval '1 day')),'stay camp fixture');
+      '架空入退去キャンプ',d+50,d+52,clock_timestamp()+interval '1 day')),'stay camp fixture');
     camp:=(r->0->>'id')::uuid;
     perform pg_temp.t13_ok(pg_temp.t13_call(staff_id,format('select public.add_camp_eligible_users(%L,%L::text[])',camp,
       array[(select email from auth.users where id=owner_id)])),'stay eligible fixture');
