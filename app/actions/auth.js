@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
+// 戻り先の検証は画面（app/login/page.js）と共通の1か所に置く。
+// "use server" のこのファイルは同期関数を export できないため、
+// 純粋モジュール側から双方が import する（utils/auth/return-to.js）。
+import { safeReturnTo } from "@/utils/auth/return-to";
 
 function getText(formData, name) {
   const value = formData.get(name);
@@ -12,19 +16,6 @@ function getText(formData, name) {
 function getPassword(formData) {
   const value = formData.get("password");
   return typeof value === "string" ? value : "";
-}
-
-function getSafeReturnTo(value) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return null;
-  }
-
-  try {
-    const url = new URL(value, "http://local");
-    return `${url.pathname}${url.search}`;
-  } catch {
-    return null;
-  }
 }
 
 function loginErrorUrl(code, returnTo) {
@@ -74,7 +65,7 @@ async function userIsStaff(supabase, userId) {
 export async function login(formData) {
   const email = getText(formData, "email").toLowerCase();
   const password = getPassword(formData);
-  const returnTo = getSafeReturnTo(getText(formData, "returnTo"));
+  const returnTo = safeReturnTo(getText(formData, "returnTo"));
 
   if (!email || !password) {
     redirect(loginErrorUrl("required", returnTo));
@@ -99,7 +90,7 @@ export async function login(formData) {
 export async function signUp(formData) {
   const email = getText(formData, "email").toLowerCase();
   const password = getPassword(formData);
-  const returnTo = getSafeReturnTo(getText(formData, "returnTo"));
+  const returnTo = safeReturnTo(getText(formData, "returnTo"));
 
   if (!email || !password) {
     redirect(loginErrorUrl("required", returnTo));

@@ -6,6 +6,7 @@ import LinkButton from "@/app/components/LinkButton";
 import PageShell from "@/app/components/PageShell";
 import SubmitButton from "@/app/components/SubmitButton";
 import { errorMessage } from "@/app/components/messages";
+import { safeReturnTo } from "@/utils/auth/return-to";
 import styles from "./page.module.css";
 
 /*
@@ -22,12 +23,39 @@ import styles from "./page.module.css";
  * （app/actions/auth.js の loginErrorUrl）。この画面はそのコードを
  * messages.js の errorMessage() で日本語へ変換して表示し、コード文字列を
  * 画面へ出さない（docs/coding_rules.md 4章）。
+ *
+ * 未確定事項：ログイン済みの利用者が /login を直接開いたときの扱いは
+ * docs/routes.md 8章に規定がなく、現状はフォームをそのまま表示する。
+ * 本接続時に「/user・/staff へ送る」か「そのまま表示する」かを決める。
  */
 
-export const metadata = {
-  title: "ログイン｜ひらいずみ志業ポータル",
-  description: "ひらいずみ志業ポータルへログインします。",
+/**
+ * エラーコード → 画面上部の見出し。
+ *
+ * 既定は「ログインできませんでした」だが、`login-required`（有効期限切れ。
+ * app/actions/camp-applications.js・guardian-consent.js が返す）は
+ * ログインを試した結果ではないため、本文と噛み合う見出しへ差し替える。
+ */
+const ERROR_TITLES_BY_CODE = {
+  "login-required": "もう一度ログインしてください",
 };
+
+const DEFAULT_ERROR_TITLE = "ログインできませんでした";
+
+/**
+ * エラーコードに対応する見出しを返す。
+ *
+ * Object.hasOwn で自前のキーに限定する（messages.js と同じ対策）。
+ * `ERROR_TITLES_BY_CODE[code]` だけでは "toString" などが関数として返る。
+ *
+ * @param {string} code
+ * @returns {string}
+ */
+function errorTitle(code) {
+  return Object.hasOwn(ERROR_TITLES_BY_CODE, code)
+    ? ERROR_TITLES_BY_CODE[code]
+    : DEFAULT_ERROR_TITLE;
+}
 
 /*
  * エラーコード → 項目別エラー（入力欄の下に出す分）。
@@ -43,7 +71,11 @@ export const metadata = {
  * 「エラー箇所へ移動する」リンクも出せる（docs/requirements.md 8.3）。
  */
 const FIELD_ERRORS_BY_CODE = {
-  // 「6文字以上」はパスワードだけの条件（app/actions/auth.js の signUp）
+  // 「6文字以上」はパスワードだけの条件（app/actions/auth.js の signUp）。
+  // login Action は required / invalid しか返さないため、このコードは
+  // /login のフォーム送信では発生しない。`/login?error=short` を直接開いた
+  // ときの表示崩れを防ぐために残しており、/signup を実装する際は
+  // その画面へ移すか、両画面で共有する辞書へ切り出す（イシュー #17 の後続）。
   short: { password: "short" },
 };
 
@@ -61,27 +93,25 @@ function firstParam(value) {
   return typeof value === "string" ? value : "";
 }
 
-/**
- * returnTo を同一オリジンの内部パスだけに絞る。
+/*
+ * ページタイトルにもエラーを反映する。
  *
- * app/actions/auth.js の getSafeReturnTo と同じ規則。Action 側でも必ず
- * 検証されるが、画面側でも絞ることで `//evil.example` のような値を
- * hidden input へ書き戻さない（.claude/rules/security.md）。
- *
- * @param {string} value
- * @returns {string|null} 安全な内部パス。判定できなければ null
+ * エラーはリダイレクト後のページ全体読み込みで描画されるため、
+ * AlertMessage のライブリージョン（role="alert"）は「読み込み後の変化」が
+ * 起きず読み上げられないことが多い。スクリーンリーダーは新しいページの
+ * タイトルを読むため、失敗した事実をタイトル側でも伝える
+ * （docs/coding_rules.md 7章）。
  */
-function safeReturnTo(value) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return null;
-  }
+export async function generateMetadata({ searchParams }) {
+  const query = (await searchParams) ?? {};
+  const errorCode = firstParam(query.error);
 
-  try {
-    const url = new URL(value, "http://local");
-    return `${url.pathname}${url.search}`;
-  } catch {
-    return null;
-  }
+  return {
+    title: errorCode
+      ? `${errorTitle(errorCode)}｜ログイン｜ひらいずみ志業ポータル`
+      : "ログイン｜ひらいずみ志業ポータル",
+    description: "ひらいずみ志業ポータルへログインします。",
+  };
 }
 
 export default async function LoginPage({ searchParams }) {
@@ -89,6 +119,9 @@ export default async function LoginPage({ searchParams }) {
   // （node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/page.md）
   const query = (await searchParams) ?? {};
   const errorCode = firstParam(query.error);
+  // Action 側（app/actions/auth.js）でも必ず検証されるが、画面側でも絞ることで
+  // `//evil.example` のような値を hidden input へ書き戻さない。判定規則は
+  // utils/auth/return-to.js に一本化している（.claude/rules/security.md）。
   const returnTo = safeReturnTo(firstParam(query.returnTo));
 
   // Object.hasOwn で自前のキーに限定する（messages.js と同じ対策）。
@@ -105,14 +138,19 @@ export default async function LoginPage({ searchParams }) {
         description="登録済みのメールアドレスとパスワードを入力してください。"
       >
         {errorCode && (
-          <AlertMessage tone="error" title="ログインできませんでした">
+          <AlertMessage tone="error" title={errorTitle(errorCode)}>
             <p>{errorMessage(errorCode)}</p>
           </AlertMessage>
         )}
 
         {returnTo && (
           <AlertMessage tone="info" title="ログインが必要な画面です">
-            <p>ログインすると、直前に開いていた画面へ戻ります。</p>
+            {/*
+             * 「直前の画面へ戻る」とは言い切らない。app/actions/auth.js の
+             * destinationForRole は、職員が /user/... を、一般利用者が
+             * /staff/... を returnTo に持つとき別の画面へ送るため。
+             */}
+            <p>ログインすると、権限に応じた画面へ移動します。</p>
           </AlertMessage>
         )}
 
@@ -120,14 +158,28 @@ export default async function LoginPage({ searchParams }) {
           {/* 安全と判定できた内部パスだけを Action へ渡す */}
           {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
 
-          {/* id は name と同じにする（app/components/README.md） */}
+          {/*
+           * id は name と同じにする（app/components/README.md）。
+           *
+           * 未対応：認証失敗後に入力済みのメールアドレスが消える
+           * （docs/requirements.md 8.3「入力済みの内容を保持する」）。
+           * 現在の login Action は redirect するだけで入力値を返さないため、
+           * 画面側だけでは解決できない。本接続で Action を useActionState 対応
+           * （`{ error, fields, fieldErrors }` を返す形）へ変更したら、
+           * ここへ defaultValue={state?.fields?.email} を渡す。FormField は
+           * 非制御入力なので defaultValue を足すだけで保持が成立する。
+           * パスワードは保持しない（現状の挙動のままでよい）。
+           *
+           * autoComplete は current-password と対になる username を使う。
+           * email でも動作するが、パスワードマネージャの認識率が上がる。
+           */}
           <FormField
             id="email"
             name="email"
             label="メールアドレス"
             type="email"
             inputMode="email"
-            autoComplete="email"
+            autoComplete="username"
             placeholder="example@example.com"
             required
             error={fieldErrors?.email}
