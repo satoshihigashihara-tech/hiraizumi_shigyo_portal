@@ -6,7 +6,8 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 
 test("profile query is protected and selects only the current user", () => {
   const query = read("utils/profile/queries.js");
-  assert.match(query, /requireActiveUser\("\/user\/profile"\)/);
+  assert.match(query, /getUserProfile\(returnTo = "\/user\/profile"\)/);
+  assert.match(query, /requireActiveUser\(returnTo\)/);
   assert.match(query, /\.eq\("id", user\.id\)/);
   assert.doesNotMatch(query, /service_role|SUPABASE_SECRET_KEY/);
 });

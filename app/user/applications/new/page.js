@@ -32,15 +32,25 @@ export default function NewApplicationPage() {
         </LinkButton>
       </section>
 
+      <section className={styles.available} aria-labelledby="community-application-heading">
+        <div className={styles.availableCopy}>
+          <h2 className={styles.sectionTitle} id="community-application-heading">
+            地域活動で利用する（個人）
+          </h2>
+          <p className={styles.description}>
+            町内で行う活動の内容と、2日から15日までの利用期間を入力して申請します。
+          </p>
+        </div>
+        <LinkButton href="/user/applications/new/community-activity" variant="primary" fullWidthOnMobile>
+          個人申請を始める
+        </LinkButton>
+      </section>
+
       <section className={styles.upcoming} aria-labelledby="upcoming-heading">
         <h2 className={styles.sectionTitle} id="upcoming-heading">
           これから利用できる手続き
         </h2>
         <div className={styles.upcomingList}>
-          <ComingSoon
-            title="地域活動で利用する（個人）"
-            description="地域活動の日程を選ぶ手続きは現在準備中です。"
-          />
           <ComingSoon
             title="団体を作る"
             description="団体の登録と参加者を招待する手続きは現在準備中です。"
@@ -56,4 +66,3 @@ export default function NewApplicationPage() {
     </PageShell>
   );
 }
-

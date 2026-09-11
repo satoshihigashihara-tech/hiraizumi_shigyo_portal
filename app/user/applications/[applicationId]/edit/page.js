@@ -1,19 +1,24 @@
-import { createGuardianConsentDownloadUrl } from "@/app/actions/guardian-consent";
+import { createGuardianConsentDownloadUrl, uploadGuardianConsent } from "@/app/actions/guardian-consent";
 import AlertMessage from "@/app/components/AlertMessage";
 import LinkButton from "@/app/components/LinkButton";
 import PageShell from "@/app/components/PageShell";
+import FormField from "@/app/components/FormField";
+import SubmitButton from "@/app/components/SubmitButton";
 import { errorMessage } from "@/app/components/messages";
 import {
   formatJstDateTime,
   formatPeriod,
 } from "@/app/components/format";
 import { getCampApplicationForEdit } from "@/utils/camp-applications/queries";
+import { getCommunityApplication } from "@/utils/community-applications/queries";
+import { getUserApplicationUsageType } from "@/utils/user-applications/queries";
 import CampApplicationForm from "./CampApplicationForm";
+import CommunityApplicationForm from "./CommunityApplicationForm";
 import styles from "./page.module.css";
 
 export const metadata = {
-  title: "キャンプ申請を入力｜ひらいずみ志業ポータル",
-  description: "キャンプ利用申請の内容を入力し、下書きを保存します。",
+  title: "申請内容を入力｜ひらいずみ志業ポータル",
+  description: "利用申請の内容を入力し、下書きを保存します。",
 };
 
 function firstQueryValue(value) {
@@ -23,6 +28,39 @@ function firstQueryValue(value) {
 export default async function CampApplicationEditPage({ params, searchParams }) {
   const { applicationId } = await params;
   const query = (await searchParams) ?? {};
+  const kind = await getUserApplicationUsageType(applicationId, `/user/applications/${applicationId}/edit`);
+  if (kind.usageType === "community_individual") {
+    const result = await getCommunityApplication(applicationId, "edit");
+    const application = result.application;
+    const download = application?.has_consent ? await createGuardianConsentDownloadUrl(applicationId) : { error: null, url: null };
+    const errorCode = firstQueryValue(query.error);
+    return <PageShell title="地域活動の個人申請を入力" description="入力内容を保存し、確認画面へ進んでください。">
+      {firstQueryValue(query.saved) === "1" && <AlertMessage tone="success" title="下書きを保存しました" />}
+      {firstQueryValue(query.uploaded) === "1" && <AlertMessage tone="success" title="保護者同意書を保存しました" />}
+      {errorCode && <AlertMessage tone="error" title="保護者同意書を保存できませんでした"><p>{errorMessage(errorCode)}</p></AlertMessage>}
+      {result.error && <AlertMessage tone="error" title="申請を開けませんでした"><p>{errorMessage(result.error)}</p></AlertMessage>}
+      {application?.status === "revision_requested" && <AlertMessage tone="warning" title="申請内容の修正が必要です">
+        <p>{application.decision_reason || "町からの案内を確認して修正してください。"}</p>
+        {application.revision_due_at && <p>修正期限：{formatJstDateTime(application.revision_due_at)}</p>}
+      </AlertMessage>}
+      {!result.error && application?.can_edit && <>
+        <CommunityApplicationForm applicationId={application.id} updatedAt={application.updated_at} initialFields={application.fields} />
+        <section className={styles.consent} aria-labelledby="community-consent-heading">
+          <div className={styles.sectionHeader}><h2 className={styles.sectionTitle} id="community-consent-heading">保護者同意書</h2>
+            <p className={styles.sectionDescription}>該当する場合にPDF・JPEG・PNGのいずれかを添付してください。添付前に上の下書きを保存してください。</p></div>
+          {application.has_consent && <div className={styles.attached}><p className={styles.attachedTitle}>添付済み</p>
+            {download.url ? <LinkButton href={download.url}>添付ファイルを確認</LinkButton> : <p className={styles.downloadError}>{errorMessage(download.error)}</p>}</div>}
+          <form className={styles.uploadForm} action={uploadGuardianConsent}>
+            <input type="hidden" name="applicationId" value={application.id} />
+            <input type="hidden" name="updatedAt" value={application.updated_at} />
+            <FormField id="guardianConsentFile" name="guardianConsentFile" label={application.has_consent ? "差し替えるファイル" : "添付するファイル"} type="file" accept="application/pdf,image/jpeg,image/png" hint="PDF・JPEG・PNG、5MB以下。1申請につき1ファイルです。" />
+            <SubmitButton variant="secondary" pendingLabel="ファイルを保存中…" fullWidthOnMobile>{application.has_consent ? "ファイルを差し替える" : "ファイルを添付する"}</SubmitButton>
+          </form>
+        </section>
+      </>}
+      <div className={styles.backLink}><LinkButton href="/user/applications" fullWidthOnMobile>申請一覧へ戻る</LinkButton></div>
+    </PageShell>;
+  }
   const errorCode = firstQueryValue(query.error);
   const saved = firstQueryValue(query.saved) === "1";
   const uploaded = firstQueryValue(query.uploaded) === "1";

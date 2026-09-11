@@ -1,10 +1,10 @@
 import PageShell from "@/app/components/PageShell";
 import styles from "./page.module.css";
 
-export default function CampApplicationEditLoading() {
+export default function ApplicationEditLoading() {
   return (
     <PageShell
-      title="キャンプ申請を入力"
+      title="申請内容を入力"
       description="申請内容を読み込んでいます。"
     >
       <div

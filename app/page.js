@@ -1,5 +1,4 @@
 import AlertMessage from "@/app/components/AlertMessage";
-import ComingSoon from "@/app/components/ComingSoon";
 import LinkButton from "@/app/components/LinkButton";
 import PageShell from "@/app/components/PageShell";
 import styles from "./page.module.css";
@@ -15,15 +14,13 @@ import styles from "./page.module.css";
  * 「申請と同時に宿泊を確定する機能」は対象外のため。
  *
  * スパルタキャンプの申請入口は認証必須のため、直接リンクせず
- * /login?returnTo=... を経由する。申請フォーム自体（新規作成画面）は未実装
- * のため、戻り先は現時点で存在する申請一覧（/user/applications）にする。
- * ここを申請フォームのパスにすると、ログイン成功後に 404 へ遷移する。
+ * /login?returnTo=... を経由する。トップでは複数の申請や進行中の手続きを
+ * 選べる申請一覧（/user/applications）を戻り先にする。
  * returnTo の値は
  * utils/auth/return-to.js の safeReturnTo() が通す「/ で始まる内部パス」の形で
  * ハードコードする。
  *
- * 地域活動の申請入口は未実装のため、押せるように見えるボタンを置かず
- * ComingSoon で案内する。公開カレンダーは実データ画面へ接続済み。
+ * 地域活動・個人の申請入口と公開カレンダーは実データ画面へ接続済み。
  */
 
 /*
@@ -33,6 +30,9 @@ import styles from "./page.module.css";
 const CAMP_APPLICATION_PATH = "/user/applications";
 const CAMP_LOGIN_HREF = `/login?returnTo=${encodeURIComponent(
   CAMP_APPLICATION_PATH,
+)}`;
+const COMMUNITY_LOGIN_HREF = `/login?returnTo=${encodeURIComponent(
+  "/user/applications/new/community-activity",
 )}`;
 
 /*
@@ -128,10 +128,12 @@ export default function Home() {
           </div>
 
           <h3 className={styles.subsectionTitle}>地域活動での利用</h3>
-          <ComingSoon
-            title="地域活動での利用申請"
-            description="準備中です。後日この画面から申請できるようになります。"
-          />
+          <p>個人で利用する方は、ログイン後に日程と町内で行う活動を入力できます。</p>
+          <div className={styles.actions}>
+            <LinkButton href={COMMUNITY_LOGIN_HREF} variant="primary" fullWidthOnMobile>
+              ログインして個人申請へ進む
+            </LinkButton>
+          </div>
         </section>
 
         <section className={styles.section}>

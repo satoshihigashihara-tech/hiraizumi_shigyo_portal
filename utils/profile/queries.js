@@ -26,8 +26,8 @@ function normalizeProfile(data) {
   };
 }
 
-export async function getUserProfile() {
-  const { supabase, user } = await requireActiveUser("/user/profile");
+export async function getUserProfile(returnTo = "/user/profile") {
+  const { supabase, user } = await requireActiveUser(returnTo);
   const { data, error } = await supabase
     .from("profiles")
     .select(FIELDS.join(","))

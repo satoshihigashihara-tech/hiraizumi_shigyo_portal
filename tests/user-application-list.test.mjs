@@ -10,7 +10,7 @@ test("user application list uses active-user RLS query and fixed owner filter", 
   assert.match(query, /loadUserApplications\("\/user"\)/);
   assert.match(query, /\.eq\("user_id", user\.id\)/);
   assert.doesNotMatch(query, /service_role|SUPABASE_SECRET_KEY/);
-  assert.match(query, /detail_path: row\.usage_type === "camp"/);
+  assert.match(query, /\["camp", "community_individual"\]\.includes\(row\.usage_type\)/);
 });
 
 test("user home uses the same real owner query without mock data", () => {
