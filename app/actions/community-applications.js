@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireActiveUser } from "@/utils/auth/guards";
+import { getText } from "@/utils/calendar/validation";
 import { readFields, toDatabaseFields, validateFields, communityFailure, booleanField, isUuid, isUpdatedAt, FIELD_NAMES } from "@/utils/community-applications/validation";
 
 const START_PATH = "/user/applications/new/community-activity";
@@ -49,4 +50,24 @@ export async function submitCommunityApplication(formData) {
     || !/^SG-\d{4}-\d{4,}$/.test(result?.reception_number ?? "") || !isUpdatedAt(result?.submission_time)) return communityFailure("update-failed", fields);
   refresh(fields.applicationId);
   redirect(`/user/applications/${fields.applicationId}/complete`);
+}
+
+export async function requestCommunityApplicationCancellation(formData) {
+  const { supabase } = await requireActiveUser("/user/applications");
+  const fields = Object.fromEntries(["applicationId", "updatedAt", "reason"].map((key) => [key, getText(formData, key)]));
+  if (!isUuid(fields.applicationId)) return communityFailure("invalid-application", fields);
+  if (!isUpdatedAt(fields.updatedAt)) return communityFailure("invalid-version", fields);
+  const reason = fields.reason.trim();
+  if (!reason) return communityFailure("reason-required", fields);
+  if (Array.from(reason).length > 2000) return communityFailure("reason-too-long", fields);
+  const { data, error } = await supabase.rpc("request_community_application_cancellation", {
+    target_application_id: fields.applicationId, expected_updated_at: fields.updatedAt,
+    cancellation_reason: reason,
+  });
+  if (error) return communityFailure(error, fields);
+  const result = Array.isArray(data) ? data[0] : null;
+  if (result?.result_id !== fields.applicationId || result?.result_status !== "cancellation_requested"
+    || !isUpdatedAt(result?.result_updated_at)) return communityFailure("update-failed", fields);
+  refresh(fields.applicationId);
+  redirect(`/user/applications/${fields.applicationId}?updated=cancellation-requested`);
 }

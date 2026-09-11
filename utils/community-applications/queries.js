@@ -54,3 +54,13 @@ export async function getStaffCommunityApplicationRoomContext(applicationId) {
     ...roomResult(data), rooms: data.rooms.map((room) => pick(room, ["id", "name", "capacity"])),
   } };
 }
+
+export async function getCommunityApplicationCancellation(applicationId) {
+  const { supabase } = await requireActiveUser("/user/applications");
+  if (!isUuid(applicationId)) return { error: "not-found", application: null };
+  const { data, error } = await supabase.rpc("get_community_application_cancellation", { target_application_id: applicationId });
+  if (error) return { error: communityErrorCode(error) === "not-found" ? "not-found" : "load-failed", application: null };
+  if (!data || data.id !== applicationId) return { error: "load-failed", application: null };
+  return { error: null, application: pick(data, ["id", "status", "updated_at", "start_date", "end_date",
+    "cancel_reason", "stay_status", "can_request", "can_confirm"]) };
+}

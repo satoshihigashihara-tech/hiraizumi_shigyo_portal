@@ -609,3 +609,9 @@ staff_notesは `id / application_id / body / author_user_id / created_at / updat
 `search_staff_applications(text,text,text,text,text,date,date,integer)` はactive職員だけが呼べる読取専用RPC。現在実装済みのキャンプと「地域活動の個人利用」の通常申請だけを対象にし、延長元付き申請と未実装の団体は除外する。氏名・受付番号・キャンプ名は100文字以内の部分一致で、`%`・`_`・バックスラッシュを文字としてエスケープする。期間指定は申請期間との重なりで判定し、許可した利用区分・申請状態・納付状態・滞在状態だけを受理する。
 
 納付状態は日本時間の実行日から `unpaid / overdue / paid` を排他的に算出し、DB行を書き換えない。1ページ50件、最大10000ページ、作成日時・ID降順。総件数と次ページ有無を同じ読取スナップショットで返す。一覧項目はID、区分、キャンプID・名、氏名、申請状態、期間、受付番号、人数1、合計・納付状態・期限、滞在状態、更新日時、正規詳細パスだけ。住所・電話・メール・緊急連絡先・自由記述・同意書・部屋・職員メモ・監査は返さない。SQL018は関数追加だけで既存行や索引を変更しない。
+
+### T17 地域活動の個人利用の取消（SQL 019・ローカル検証済み）
+
+`request_community_application_cancellation` はactive本人・通常のcommunity_individual・最新updated_at・理由1〜2000文字を検査する。申請済み／審査中／修正依頼／許可から取消申請中へ変更できるが、許可済みはstayがbefore_move_inの場合だけ。calendar_claims、room_allocations、stays、application_charges、charge_months、受付番号は変更しない。
+
+`confirm_community_application_cancellation` はactive職員・最新updated_at・取消申請中・理由を検査し、cancelledへの状態遷移とindividual枠・存在する部屋割当の `released_from=start_date`、状態履歴、監査を同一トランザクションで保存する。stayと料金は履歴として維持する。ロック順は施設→操作者の権限行→申請→滞在→部屋→個人枠。監査用スナップショットに氏名・住所・電話・メール・自由記述をコピーしない。

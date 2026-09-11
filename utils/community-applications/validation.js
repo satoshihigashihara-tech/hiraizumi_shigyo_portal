@@ -17,7 +17,7 @@ const CODES = new Set(["invalid-application", "invalid-fields", "required-fields
   "confirmation-required", "invalid-submission-key", "invalid-action", "invalid-status", "reason-required",
   "reason-too-long", "invalid-deadline", "invalid-path", "invalid-type", "invalid-size", "forbidden", "load-failed",
   "invalid-room", "room-required", "invalid-allocation", "invalid-stay", "stay-completed",
-  "room-capacity-full", "facility-capacity-full", "application-inconsistent"]);
+  "stay-started", "room-capacity-full", "facility-capacity-full", "application-inconsistent"]);
 
 export function booleanField(value) {
   if (["true", "on", "1"].includes(value)) return true;
