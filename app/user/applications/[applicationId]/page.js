@@ -23,8 +23,8 @@ import CommunityApplicationDetail from "./CommunityApplicationDetail";
 import styles from "./page.module.css";
 
 export const metadata = {
-  title: "キャンプ申請詳細｜ひらいずみ志業ポータル",
-  description: "キャンプ利用申請の内容、審査、料金、部屋、滞在の状態を確認します。",
+  title: "申請詳細｜ひらいずみ志業ポータル",
+  description: "申請内容、審査、料金、部屋、滞在の状態を確認します。",
 };
 
 function ApplicationNotice({ application }) {
