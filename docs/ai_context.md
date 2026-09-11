@@ -177,3 +177,7 @@ SQL024はmain・Supabase反映済みで、実DB検証`7 / true`。`codex/group-c
 ### T21 団体期限処理（2026年9月11日）
 
 SQL026をローカル実装中。毎分のSupabase CronがDB関数を直接呼び、提出・修正期限切れの団体を一括終了する。公開Next.js Cron RouteやEdge Functionは追加しない。本番SQL026は保存、ROLLBACK検証SQLは保存しない。
+
+### T22 アカウント初期化（2026年9月11日）
+
+SQL027と`process-account-cleanup` Edge Functionをローカル実装中。退去済み、または宿泊しない代表者として団体終了済みの利用者だけを候補にし、未終了申請・未終了団体・職員を保護する。DBは`cleanup_pending`と再試行ジョブを確定し、Edge Functionだけが秘密鍵でAuthユーザーを削除する。SQL027だけでは自動削除は開始せず、Vaultの`account_cleanup_url`と`account_cleanup_cron_secret`を設定した時点で有効になる。本番SQL027は保存、ROLLBACK検証SQLは保存しない。
