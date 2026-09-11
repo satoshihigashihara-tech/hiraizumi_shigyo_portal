@@ -1,6 +1,6 @@
-# 利用者画面の共通部品
+# 利用者・職員画面の共通UI部品
 
-イシュー #16 で用意した共通土台です。画面イシュー（#17〜#24）はここの部品と仮データを使い、各画面で独自のバッジ・エラー表示・仮データを作らないようにします。
+イシュー #16 で用意した共通土台です。利用者画面に加え、職員画面でもこのフォルダの部品を再利用します。各画面で独自のバッジ・エラー表示・ボタンを作らないようにします。仮データは利用者画面の初期実装専用であり、職員画面では使いません。
 
 ## 運用ルール
 
@@ -32,14 +32,27 @@
 | `PageShell.js` | Server | `title` / `description` / `children` |
 | `StatusBadge.js` | Server | `kind`(`application`\|`group`\|`payment`\|`stay`、既定 `application`) / `value` / `showKind` |
 | `StatusBadge.js` の `StatusRow` | Server | `children`（バッジ併記用。375pxで折り返す） |
-| `FormField.js` | Server | `id` / `name` / `label` / `as`(`input`\|`textarea`\|`select`\|`checkbox`\|`radio`) / `type` / `defaultValue` / `placeholder` / `hint` / `error` / `required` / `disabled` / `options` / `rows` / `autoComplete` / `inputMode` / `maxLength` / `value`(`checkbox`) / `defaultChecked`(`checkbox`) |
+| `FormField.js` | Server | `id` / `name` / `label` / `as`(`input`\|`textarea`\|`select`\|`checkbox`\|`radio`) / `type` / `defaultValue` / `placeholder` / `hint` / `error` / `required` / `disabled` / `options` / `rows` / `autoComplete` / `inputMode` / `maxLength` / `accept` / `value`(`checkbox`) / `defaultChecked`(`checkbox`) |
 | `AlertMessage.js` | Server | `tone`(`error`\|`warning`\|`success`\|`info`) / `title` / `children` / `items` |
 | `AlertMessage.js` の `errorAlertItems` | 関数 | `fieldErrors` → `[{ href, label }]` |
 | `EmptyState.js` | Server | `title` / `description` / `action` |
-| `SubmitButton.js` | **Client** | `children` / `pendingLabel` / `variant` / `disabled` / `pending` / `fullWidthOnMobile` |
-| `LinkButton.js` | Server | `href`(必須) / `children` / `variant` / `fullWidthOnMobile`（`http(s)` / `mailto:` / `tel:` と同一オリジンの相対パスだけを描画し、それ以外の `href` は何も描画しない） |
+| `SubmitButton.js` | **Client** | `children` / `pendingLabel` / `variant`(`primary`\|`secondary`\|`danger`) / `disabled` / `pending` / `fullWidthOnMobile` / `name` / `value` |
+| `LinkButton.js` | Server | `href`(必須) / `children` / `variant`(`primary`\|`secondary`\|`danger`) / `fullWidthOnMobile`（`http(s)` / `mailto:` / `tel:` と同一オリジンの相対パスだけを描画し、それ以外の `href` は何も描画しない） |
 | `ComingSoon.js` | Server | `title` / `description`（クリックできる要素を描画しない） |
 | `MockDataNotice.js` | Server | `children` |
+
+すべて `app/components/` にあります。別名エクスポートの2つを除き、次の形でインポートします。
+
+```jsx
+import AlertMessage, { errorAlertItems } from "@/app/components/AlertMessage";
+import ComingSoon from "@/app/components/ComingSoon";
+import EmptyState from "@/app/components/EmptyState";
+import FormField from "@/app/components/FormField";
+import LinkButton from "@/app/components/LinkButton";
+import PageShell from "@/app/components/PageShell";
+import StatusBadge, { StatusRow } from "@/app/components/StatusBadge";
+import SubmitButton from "@/app/components/SubmitButton";
+```
 
 純粋モジュール：
 
@@ -135,6 +148,49 @@ export default function Page() {
   {/* useFormStatus は同じ <form> の子孫でのみ pending を返す */}
   <SubmitButton pendingLabel="保存中…">下書きを保存</SubmitButton>
 </form>
+```
+
+空表示、画面遷移、準備中表示：
+
+```jsx
+<EmptyState
+  title="申請はありません"
+  description="条件を変えるか、新しい申請を作成してください。"
+  action={<LinkButton href="/staff/applications">一覧へ戻る</LinkButton>}
+/>
+
+{/* 実装済みの画面遷移だけをリンクとして表示する */}
+<LinkButton href="/staff/applications/123" variant="primary" fullWidthOnMobile>
+  申請を確認する
+</LinkButton>
+
+{/* 未実装機能には、動くように見えるボタンを置かない */}
+<ComingSoon title="帳票の一括出力" description="現在は個別に確認してください。" />
+```
+
+## 職員画面で流用するときの注意
+
+1. 各 `page.js` の本文を `PageShell` で包みます。これにより最大幅、余白、文字サイズ、フォーカス表示、ダークモード用の全トークン、375px対策が適用されます。`app/staff/layout.js` の認証保護やナビゲーションは置き換えません。
+2. 申請・団体・納付・滞在は別の状態です。`StatusBadge` の `kind` を明示し、複数表示するときは `StatusRow` で囲みます。職員画面では `showKind` を付けると、何の状態かを目でも区別できます。色は補助であり、日本語ラベルを消してはいけません。
+3. Actionの失敗は `AlertMessage` と `errorMessage()` で日本語表示します。入力エラーは `errorAlertItems(state.fieldErrors)` も渡し、`FormField` の `id` と `name` を同じ値にしてエラー箇所へ移動できるようにします。DBエラーや内部コードをそのまま表示しません。
+4. 保存・審査・取消などの送信には `SubmitButton` を使い、`<form>` の内側に置きます。画面遷移には `LinkButton` を使います。削除や取消には `variant="danger"` を使いますが、色だけに頼らずボタン本文にも操作名を書き、既存の確認手順を省略しません。
+5. 0件は空白にせず `EmptyState`、未実装機能は無効ボタンにせず `ComingSoon` を使います。職員画面へ `MockDataNotice` や `mock-data.js` を持ち込みません。
+6. 共通部品は親画面の表や独自グリッドまでは整形しません。職員画面側でも長いメールアドレス、受付番号、表を375pxで確認し、必要ならカード表示や折り返しを画面固有CSSへ追加します。利用者画面のCSS Moduleを職員画面から直接インポートしません。
+
+最小例：
+
+```jsx
+import PageShell from "@/app/components/PageShell";
+import StatusBadge from "@/app/components/StatusBadge";
+
+export default function StaffApplicationSummary({ application }) {
+  return (
+    <PageShell title="申請の確認" description="内容を確認して審査してください。">
+      <StatusBadge kind="application" value={application.status} showKind />
+      {/* 職員画面固有の内容 */}
+    </PageShell>
+  );
+}
 ```
 
 ## 仮データの差し替え手順
