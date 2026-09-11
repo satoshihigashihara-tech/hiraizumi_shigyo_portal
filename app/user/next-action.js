@@ -39,21 +39,23 @@ export const DUE_KINDS = {
 /**
  * 申請詳細のURL（docs/routes.md 6.2）。
  *
- * @param {string} applicationId
- * @returns {string}
+ * @param {object} application
+ * @returns {string|null}
  */
-function detailHref(applicationId) {
-  return `/user/applications/${applicationId}`;
+function detailHref(application) {
+  if (application.detail_path === null) return null;
+  return application.detail_path ?? `/user/applications/${application.id}`;
 }
 
 /**
  * 申請の入力・修正画面のURL（docs/routes.md 6.2）。
  *
- * @param {string} applicationId
- * @returns {string}
+ * @param {object} application
+ * @returns {string|null}
  */
-function editHref(applicationId) {
-  return `/user/applications/${applicationId}/edit`;
+function editHref(application) {
+  const detail = detailHref(application);
+  return detail ? `${detail}/edit` : null;
 }
 
 /**
@@ -76,7 +78,7 @@ function approvedAction(application, today) {
       summary: overdue
         ? "利用料が未納のまま納付期限を過ぎています。町の担当へご連絡ください。"
         : "利用料を納付してください。",
-      href: detailHref(application.id),
+      href: detailHref(application),
       linkLabel: "料金と納付の内容を見る",
       due: charge.payment_due_date
         ? {
@@ -102,7 +104,7 @@ function approvedAction(application, today) {
       stayStatus && Object.hasOwn(staySummary, stayStatus)
         ? staySummary[stayStatus]
         : "許可されています。内容は申請の詳細で確認できます。",
-    href: detailHref(application.id),
+    href: detailHref(application),
     linkLabel: "申請の詳細を見る",
     due: null,
     overdue: false,
@@ -117,19 +119,17 @@ function approvedAction(application, today) {
  * switch で分岐するため、"toString" のような Object.prototype のキーが
  * 渡されても既定の分岐へ落ちる。
  *
- * @param {object} application MOCK_APPLICATIONS の1件（= getCommunityApplication の返却）
+ * @param {object} application 本人向け取得処理が返す申請1件
  * @param {string} today 日本時間の今日（YYYY-MM-DD）。format.js の jstToday() を使う
  * @returns {{summary: string, href: string, linkLabel: string, due: object|null, overdue: boolean}}
  *          summary は必ず文字列。due は {label, value, kind} または null
  */
 export function nextAction(application, today) {
-  const id = application.id;
-
   switch (application.status) {
     case "draft":
       return {
         summary: "入力の途中です。内容を入力して提出してください。",
-        href: editHref(id),
+        href: editHref(application),
         linkLabel: "入力を続ける",
         due: null,
         overdue: false,
@@ -138,7 +138,7 @@ export function nextAction(application, today) {
     case "submitted":
       return {
         summary: "提出を受け付けました。町が確認するまでお待ちください。",
-        href: detailHref(id),
+        href: detailHref(application),
         linkLabel: "申請の詳細を見る",
         due: null,
         overdue: false,
@@ -147,7 +147,7 @@ export function nextAction(application, today) {
     case "under_review":
       return {
         summary: "町が審査しています。今のところ必要な操作はありません。",
-        href: detailHref(id),
+        href: detailHref(application),
         linkLabel: "申請の詳細を見る",
         due: null,
         overdue: false,
@@ -156,7 +156,7 @@ export function nextAction(application, today) {
     case "revision_requested":
       return {
         summary: "修正の依頼があります。内容を直して、もう一度提出してください。",
-        href: editHref(id),
+        href: editHref(application),
         linkLabel: "修正する",
         due: application.revision_due_at
           ? {
@@ -174,7 +174,7 @@ export function nextAction(application, today) {
     case "rejected":
       return {
         summary: "この申請は不許可になりました。理由を確認してください。",
-        href: detailHref(id),
+        href: detailHref(application),
         linkLabel: "理由を確認する",
         due: null,
         overdue: false,
@@ -183,7 +183,7 @@ export function nextAction(application, today) {
     case "cancellation_requested":
       return {
         summary: "キャンセルの申請を町が確認しています。結果をお待ちください。",
-        href: detailHref(id),
+        href: detailHref(application),
         linkLabel: "申請の詳細を見る",
         due: null,
         overdue: false,
@@ -192,7 +192,7 @@ export function nextAction(application, today) {
     case "cancelled":
       return {
         summary: "この申請はキャンセル済みです。",
-        href: detailHref(id),
+        href: detailHref(application),
         linkLabel: "申請の詳細を見る",
         due: null,
         overdue: false,
@@ -201,7 +201,7 @@ export function nextAction(application, today) {
     default:
       return {
         summary: "内容を申請の詳細で確認してください。",
-        href: detailHref(id),
+        href: detailHref(application),
         linkLabel: "申請の詳細を見る",
         due: null,
         overdue: false,
