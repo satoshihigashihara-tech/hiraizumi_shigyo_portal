@@ -432,6 +432,40 @@ applicationは `id / status / updated_at / fields / reserved_start_date / reserv
 
 カレンダーの関数名・返却列は9.4節を維持する。個人が15人の日は公開でunavailable。職員月は `entry_type=individual`、職員日は `entry_type=application, camp_id=NULL`。個人の日程競合は職員エラーの `type=application` として最小概要を返す。職員画面はこのNULLを使い地域活動の詳細URLへつなぐ。
 
+### 9.6 T12地域活動個人の部屋割当・許可（SQL 014）
+
+SQL 014と更新後のActionをそろえて接続する。2026年9月11日現在はローカル検証済み。SQL 014のSupabase適用と既存回帰を含む単一接続916項目・別接続60ケース・全後片付けの成功はユーザー確認済み。画面未作成。接続先は既存の `/staff/community/applications/[applicationId]` と本人詳細で、新しい画面URLを作らない。通常の地域活動個人だけを扱い、キャンプ・延長元付き申請・団体は新RPCで拒否する。
+
+| Action | フォーム入力 | 成功時 |
+|---|---|---|
+| `assignCommunityApplicationRoom` | `applicationId / updatedAt / roomId / reason` | 詳細へ `?updated=room-assigned`。初回は審査中、変更は審査中または許可後の入居前・滞在中 |
+| `approveCommunityApplication` | `applicationId / updatedAt / approvalComment` | 詳細へ `?updated=approved`。審査中・有効な部屋割当・必要条件をDBで再確認し入居前滞在を作成 |
+
+両方とも `app/actions/staff-community-applications.js` から公開する。既存3操作の契約は9.5節を維持する。人数・日程・所有者・金額・状態はフォームから更新しない。初回割当のreasonと許可コメントは任意、既存部屋の変更・解放後の再割当のreasonは必須。最大2,000文字。許可コメントと内部の部屋変更理由は別フィールド。割当・許可では `revisionDeadline` を使わない。
+
+更新日時は申請の `updated_at` の文字列をマイクロ秒まで保持し、送信直前に最新版へ差し替えない。割当後は新しい詳細を取得し、その版で許可する。最新版の同じ割当は履歴を追加しない。古い版・40001・40P01は自動再送しない。
+
+エラー形式は `{ error, fields, fieldErrors }` を維持する。reason／approvalComment／roomIdを含む入力を保持し、DBのdetail・hintを返さない。認証ガードの失敗は既存のログイン／権限エラー遷移。DBや入力の失敗では成功遷移や表示更新を行わない。
+
+| エラー | 日本語表示と対応 |
+|---|---|
+| `room-required` | 許可前に部屋を割り当ててください |
+| `invalid-room / room-capacity-full` | 部屋を選び直すか、期間中の割当状況を確認してください |
+| `capacity-full / facility-capacity-full` | 施設定員15人を超えるため保存できません |
+| `calendar-unavailable / duplicate-stay` | 日程の競合を確認してください |
+| `invalid-version / stale-update` | 入力を保持し、最新情報を読み直して職員が再判断してください |
+| `reason-required / reason-too-long` | 変更理由を入力、または2,000文字以内へ修正。許可コメントの長さエラーはapprovalCommentへ表示 |
+| `invalid-status / stay-completed` | 現在の申請・滞在状態では操作できません |
+| `invalid-allocation / invalid-stay / calendar-inconsistent / application-inconsistent` | 保存済み情報が整合していません。管理担当へ確認してください。画面から自動修復しない |
+| `guardian-consent / required-fields / invalid-email` | 提出済み情報・必要な同意書を確認してください |
+| `forbidden / not-found / update-failed` | 権限・対象申請を確認。内部SQL情報を表示しない |
+
+`utils/community-applications/queries.js` の `getStaffCommunityApplicationRoomContext(applicationId)` はactive職員だけの読取。返却は `{ error, application }`。applicationは `id / status / updated_at / start_date / end_date / approval_comment / room_allocation / stay / rooms`。roomsは8部屋の `id / name / capacity` で、保存時の空きを保証しない。取得は1回の読取専用RPCで行い、表示中の部屋と親の版を同じスナップショットから取得する。職員の審査情報全体・一覧検索はこの取得の対象外。
+
+本人の既存 `getCommunityApplication` には `approval_comment / room_allocation / stay` を追加する。本人／職員ともroom_allocationは `room_id / room_name / people_count / start_date / end_date / released_from / is_current`、stayは `status / checked_in_at / checked_out_at`。存在しなければnull。**`is_current=false` の旧割当を現在の部屋として表示しない。** 日程変更再提出後は旧割当が残るため、再審査で理由付きの再割当を促す。同日程の修正なら割当は維持される。
+
+本人には内部の部屋変更理由・職員ID・監査スナップショットを渡さない。職員監査の取得は既存RLSの `audit_logs` を `entity_type='application' / entity_id=applicationId` で絞る。更新成功後は職員詳細・一覧・ホーム、カレンダー、本人詳細・一覧・編集・確認・完了を再検証してから遷移する。画面接続後の実ログイン・実Storage・ブラウザ受入は別途実施する。
+
 ## 10. URLクエリ
 
 | 対象 | クエリ例 | 用途・検証 |

@@ -1,4 +1,4 @@
--- T10 single-connection tests; postgres, isolated Supabase TEST project, 001-013.
+-- T10 single-connection regression; postgres, isolated Supabase TEST project, 001-014.
 -- Run the WHOLE file. Fictional data, role/claim simulation, no Auth/Storage API.
 -- Final ROLLBACK removes all fixtures, temporary helpers and injected failures.
 begin;
@@ -6,7 +6,7 @@ set local lock_timeout='3s';
 set local statement_timeout='60s';
 set local timezone='UTC';
 do $$ begin
-  if current_user<>'postgres' or to_regprocedure('public.get_community_application(uuid)') is null then raise exception 'Run as postgres after 001-013.'; end if;
+  if current_user<>'postgres' or to_regprocedure('public.assign_community_application_room(uuid,uuid,timestamptz,text)') is null then raise exception 'Run as postgres after 001-014.'; end if;
   if exists(select 1 from public.calendar_claims where start_date<=(clock_timestamp() at time zone 'Asia/Tokyo')::date+60
     and end_date>=(clock_timestamp() at time zone 'Asia/Tokyo')::date+14 and (released_from is null or released_from>start_date)) then
     raise exception 'Use an isolated test project with no existing claims in the 14-60 day window.'; end if;
@@ -103,7 +103,7 @@ begin
   perform pg_temp.t10_check(pg_temp.t10_snapshot(x)=before_value,'retry does not change fee number history or version');
   perform pg_temp.t10_error(pg_temp.t10_submit(x,v,gen_random_uuid()),'stale-update','different stale submit');
   perform pg_temp.t10_error(pg_temp.t10_save(x,f),'not-editable','submitted cannot edit');
-  perform pg_temp.t10_error(pg_temp.t10_review(x,'approve'),'invalid-action','T12 approval unavailable');
+  perform pg_temp.t10_error(pg_temp.t10_review(x,'approve'),'invalid-status','submitted cannot bypass explicit review');
   perform pg_temp.t10_error(pg_temp.t10_review(x,'cancel'),'invalid-action','T17 cancellation unavailable');
   perform pg_temp.t10_ok(pg_temp.t10_review(x,'start_review'),'explicit review');
   perform pg_temp.t10_error(pg_temp.t10_review(x,'request_revision',''),'reason-required','revision needs reason');
@@ -257,7 +257,7 @@ begin
   end loop;
   update public.applications set status='revision_requested' where id=ids[1];
   update public.applications set status='cancellation_requested' where id=ids[2]; -- fixture only, no cancellation RPC
-  update public.applications set status='approved' where id=ids[3]; -- fixture only, T12 is out of scope
+  update public.applications set status='approved' where id=ids[3]; -- capacity fixture only; real approval is covered by T12
   x:=pg_temp.t10_draft(pg_temp.t10_user(),c.today+41,c.today+42);
   perform pg_temp.t10_error(pg_temp.t10_submit(x),'capacity-full','16th rejected on shared inclusive end day');
   select user_id into actor from public.applications where id=ids[4];
