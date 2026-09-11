@@ -162,6 +162,8 @@ SQL017のmainマージ・Supabase適用・実DB323項目成功をユーザー確
 
 ### T19 団体参加者フォーム後半（2026年9月11日）
 
+SQL023はmain・Supabaseへ反映済み。実環境で公開4関数の存在とROLLBACK回帰16項目が成功した。次の`codex/group-review-approval`ではT20前半だけをSQL024としてローカル実装中。目的確認、参加者審査、団体人数単位の部屋割り、全員許可後の団体許可、一括不許可が対象。削除・交代・許可後減員・取消・期限切れ・UIは次の単位へ残す。SQL024は本番用のため適用時に保存、`group_review_and_approval.sql`は検証用で保存しない。
+
 SQL022適用済みのmainから`codex/group-participant-submissions`でSQL023を実装中。参加者本人の保存・取得・同意書・提出、個別受付番号と料金、全員提出時の団体`under_review`遷移と招待失効が対象。団体共通項目は変更不可。職員審査、参加者削除・交代、部屋・許可・取消、期限処理、UI・メールは含めない。本番SQL023は保存、検証SQLは保存しない。
 
 ローカル結果は新規DB16項目、全回帰Node265件・DB単一接続1,531項目・別接続88ケース、lint・production build成功。Supabase適用、commit、push、画面接続は未実施。別作業の`docs/apple_event.txt`と`docs/presentation/`には触れない。
