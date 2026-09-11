@@ -70,13 +70,14 @@ async function getAuthenticatedClient(returnTo) {
 }
 
 export async function createCampApplicationDraft(formData) {
+  const entryPath = "/user/applications/new/camp";
   const campId = getRequiredUuid(formData, "campId");
 
   if (!campId) {
-    redirect(withQuery("/user", { error: "invalid-camp" }));
+    redirect(withQuery(entryPath, { error: "invalid-camp" }));
   }
 
-  const supabase = await getAuthenticatedClient("/user");
+  const supabase = await getAuthenticatedClient(entryPath);
   const { data: applicationId, error } = await supabase.rpc(
     "create_camp_application_draft",
     { target_camp_id: campId },
@@ -84,7 +85,7 @@ export async function createCampApplicationDraft(formData) {
 
   if (error || !UUID_PATTERN.test(applicationId ?? "")) {
     redirect(
-      withQuery("/user", {
+      withQuery(entryPath, {
         error: databaseErrorCode(error),
       }),
     );
