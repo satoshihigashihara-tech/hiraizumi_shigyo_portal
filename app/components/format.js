@@ -67,10 +67,20 @@ export function formatJstDate(value) {
 /**
  * 日時を「2026年9月8日 23:59」の形式で返す（docs/requirements.md 6.2）。
  *
+ * "YYYY-MM-DD"（fields.start_date など、時刻を持たない値）を渡された場合は
+ * 時刻を出さず formatJstDate に委譲する。toDate が日本時間の正午へ寄せる都合で
+ * そのまま整形すると「2026年10月11日 12:00」という、データに存在しない時刻を
+ * 画面へ出してしまい、渡し間違いに気づけなくなるため。
+ * 空文字ではなく日付を返すのは、日付そのものは正しい情報で、
+ * 消すと利用者から必要な情報が見えなくなるから。
+ *
  * @param {string|null|undefined} value タイムスタンプ文字列
  * @returns {string} 整形結果。不正値は空文字
  */
 export function formatJstDateTime(value) {
+  if (typeof value === "string" && DATE_ONLY.test(value)) {
+    return formatJstDate(value);
+  }
   const date = toDate(value);
   return date ? dateTimeFormatter.format(date) : "";
 }
@@ -128,22 +138,45 @@ export function formatMonth(value) {
 }
 
 /**
+ * "YYYY-MM-DD" を、実在する日付のときだけUTCの時刻値へ変換する。
+ *
+ * Date.UTC は範囲外の値を繰り上げる（2月31日→3月3日、13月→翌年1月）ため、
+ * 形式が合っているだけの "2026-02-31" をそのまま通すと日数が黙って計算できてしまう。
+ * 作った Date から年月日を取り出して入力と一致するか確かめれば、繰り上がりを検出できる。
+ * 2桁年がDate.UTCで1900年代へ写される件（"0026" → 1926年）も同じ確認で弾ける。
+ *
+ * @param {string} value DATE_ONLY を満たす文字列
+ * @returns {number|null} UTCのミリ秒。実在しない日付なら null
+ */
+function utcDayTime(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  const time = Date.UTC(year, month - 1, day);
+  const date = new Date(time);
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return time;
+}
+
+/**
  * 利用日数（両端を含む）を返す。表示補助のみで、料金の確定はサーバー側が行う
  * （docs/requirements.md 16.1：開始日と終了日の両方を使用日数へ含める）。
  *
  * @param {string|null|undefined} startDate "YYYY-MM-DD"
  * @param {string|null|undefined} endDate "YYYY-MM-DD"
- * @returns {number|null} 日数。不正値・開始日が終了日より後なら null
+ * @returns {number|null} 日数。実在しない日付・開始日が終了日より後なら null
  */
 export function countStayDays(startDate, endDate) {
   if (!DATE_ONLY.test(startDate ?? "") || !DATE_ONLY.test(endDate ?? "")) {
     return null;
   }
-  const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
-  const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
-  const start = Date.UTC(startYear, startMonth - 1, startDay);
-  const end = Date.UTC(endYear, endMonth - 1, endDay);
-  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return null;
+  const start = utcDayTime(startDate);
+  const end = utcDayTime(endDate);
+  if (start === null || end === null || end < start) return null;
   return Math.round((end - start) / 86_400_000) + 1;
 }
 

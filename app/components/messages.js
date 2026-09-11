@@ -10,7 +10,9 @@
  *
  * 収録元：docs/tasks.md 4.2・4.4、docs/routes.md 9.4・9.5・9.6、
  * utils/community-applications/validation.js の CODES、
- * app/actions/*.js の分岐。
+ * utils/calendar/validation.js の ERROR_CODES と calendarErrorCode() の分岐、
+ * app/actions/*.js の分岐（profile.js・guardian-consent.js・staff-camps.js を含む）。
+ * 職員側だけで返るコードも、共通部品の誤配線を検出できるよう収録する。
  *
  * 依存なしの純粋モジュール。
  */
@@ -26,6 +28,8 @@ export const ERROR_MESSAGES = {
   "required-fields": "必須項目が入力されていません。未入力の項目をご確認ください。",
   "invalid-fields": "入力内容に誤りがあります。該当項目をご確認ください。",
   "field-too-long": "入力できる文字数を超えています。該当項目を短くしてください。",
+  // プロフィール更新は項目別ではなく画面全体で1コードを返す（app/actions/profile.js の FIELD_LIMITS 判定）
+  "too-long": "入力できる文字数を超えています。該当項目を短くしてください。",
   "invalid-phone": "電話番号の形式が正しくありません。数字とハイフンで入力してください。",
   "invalid-email": "メールアドレスの形式が正しくありません。",
   "invalid-place": "使用箇所の指定が正しくありません。選び直してください。",
@@ -66,6 +70,8 @@ export const ERROR_MESSAGES = {
     "対応していないファイル形式です。PDF・JPEG・PNGのいずれかを選んでください。",
   "invalid-content": "ファイルの内容を確認できませんでした。別のファイルを選び直してください。",
   "upload-failed": "ファイルを保存できませんでした。時間をおいて、もう一度お試しください。",
+  // 署名付きURLの発行失敗（app/actions/guardian-consent.js）。ファイル自体は残っている
+  "download-failed": "ファイルを取得できませんでした。時間をおいて、もう一度お試しください。",
   "invalid-path": "ファイルの参照先が正しくありません。もう一度お試しください。",
 
   // 更新競合（docs/routes.md 9.4）
@@ -89,6 +95,9 @@ export const ERROR_MESSAGES = {
   "invalid-room": "部屋を選び直してください。",
   "reason-required": "理由を入力してください。",
   "reason-too-long": "理由は2,000文字以内で入力してください。",
+  // 対象者メールの一括登録（app/actions/staff-camps.js・utils/calendar/validation.js）
+  "invalid-emails": "メールアドレスの形式が正しくありません。該当の行をご確認ください。",
+  "too-many-emails": "一度に登録できるのは1,000件までです。件数を分けて登録してください。",
 
   // データ不整合（画面から自動修復しない）
   "invalid-allocation": "保存済みの情報が整合していません。管理担当へ確認してください。",
@@ -101,6 +110,8 @@ export const ERROR_MESSAGES = {
   forbidden: "この操作を行う権限がありません。",
   "load-failed": "情報を読み込めませんでした。時間をおいて、もう一度お試しください。",
   "update-failed": "保存できませんでした。時間をおいて、もう一度お試しください。",
+  // プロフィール更新の保存失敗（app/actions/profile.js）。update-failed と同義
+  "save-failed": "保存できませんでした。時間をおいて、もう一度お試しください。",
   "invalid-page": "ページの指定が正しくありません。",
   unexpected: "処理できませんでした。時間をおいて、もう一度お試しください。",
 };

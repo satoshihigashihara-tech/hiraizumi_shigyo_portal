@@ -32,7 +32,7 @@
 | `PageShell.js` | Server | `title` / `description` / `children` |
 | `StatusBadge.js` | Server | `kind`(`application`\|`group`\|`payment`\|`stay`、既定 `application`) / `value` / `showKind` |
 | `StatusBadge.js` の `StatusRow` | Server | `children`（バッジ併記用。375pxで折り返す） |
-| `FormField.js` | Server | `id` / `name` / `label` / `as`(`input`\|`textarea`\|`select`) / `type` / `defaultValue` / `placeholder` / `hint` / `error` / `required` / `disabled` / `options` / `rows` / `autoComplete` / `inputMode` / `maxLength` |
+| `FormField.js` | Server | `id` / `name` / `label` / `as`(`input`\|`textarea`\|`select`\|`checkbox`\|`radio`) / `type` / `defaultValue` / `placeholder` / `hint` / `error` / `required` / `disabled` / `options` / `rows` / `autoComplete` / `inputMode` / `maxLength` / `value`(`checkbox`) / `defaultChecked`(`checkbox`) |
 | `AlertMessage.js` | Server | `tone`(`error`\|`warning`\|`success`\|`info`) / `title` / `children` / `items` |
 | `AlertMessage.js` の `errorAlertItems` | 関数 | `fieldErrors` → `[{ href, label }]` |
 | `EmptyState.js` | Server | `title` / `description` / `action` |
@@ -104,6 +104,32 @@ export default function Page() {
     maxLength={100}
     defaultValue={state?.fields?.applicantName ?? application.fields.user_name}
     error={state?.fieldErrors?.applicantName}
+  />
+
+  {/* 未回答と「不要」を区別する必要があるので、チェックボックスではなくラジオ */}
+  <FormField
+    as="radio"
+    id="guardianConsentRequired"
+    name="guardianConsentRequired"
+    label="保護者同意書の要否"
+    required
+    hint="申請日に18歳未満の方は「必要」を選んでください。"
+    options={[
+      { value: "true", label: "必要" },
+      { value: "false", label: "不要" },
+    ]}
+    defaultValue={state?.fields?.guardianConsentRequired ?? ""}
+    error={state?.fieldErrors?.guardianConsentRequired}
+  />
+
+  {/* 提出前の最終確認。押されたときだけ confirmed=true が送信される */}
+  <FormField
+    as="checkbox"
+    id="confirmed"
+    name="confirmed"
+    label="記載内容に誤りがないことを確認しました"
+    required
+    error={state?.fieldErrors?.confirmed}
   />
 
   {/* useFormStatus は同じ <form> の子孫でのみ pending を返す */}

@@ -141,6 +141,12 @@ export const MOCK_APPLICATIONS = [
 
   // 2件目：修正依頼（地域活動・個人）。
   // fields の日程が修正候補、reserved_* が元の提出期間（docs/routes.md 9.5）。
+  // 詳細RPC get_community_application は
+  //   fields.start_date := coalesce(revision_start_date, start_date)
+  // なので、修正依頼中だけ fields（10/11〜13＝修正候補）と
+  // reserved_*（10/10〜12＝applications.start_date/end_date の予約済み期間）が
+  // 食い違う。一覧は applications の列をそのまま返すため reserved_* 側と一致する。
+  // この2件目は、その差を画面側が取り違えていないか確かめるための唯一の例。
   // 納付期限を過ぎた未納の例。「期限超過」は表示だけで、納付状態は「未納」のまま。
   {
     id: "11111111-1111-4111-8111-111111111112",
@@ -325,12 +331,20 @@ export const MOCK_APPLICATIONS = [
  * updated_at / submitted_at / last_submitted_at / revision_due_at /
  * decision_reason）に合わせる。詳細と違い、日程は入れ子ではなく直下にある。
  * usage_type は一覧の区分表示のための補助項目。
+ *
+ * 日程は詳細の fields ではなく reserved_* から作る。一覧は applications テーブルの
+ * start_date / end_date 列をそのまま select するのに対し、詳細RPCの fields は
+ * coalesce(revision_start_date, start_date) だからで、修正依頼中は両者が異なる
+ * （docs/routes.md 9.5「修正中はfieldsの日程が候補、reservedの日程が元の提出期間」）。
+ * reserved_* は提出前（submitted_at が null）だと null になるが、そのとき
+ * revision_start_date も null なので fields の日程が applications の列と一致する。
+ * ここで fields を使うと、修正依頼中の2件目だけ一覧が実データと食い違う。
  */
 export const MOCK_APPLICATION_LIST = MOCK_APPLICATIONS.map((application) => ({
   id: application.id,
   status: application.status,
-  start_date: application.fields.start_date,
-  end_date: application.fields.end_date,
+  start_date: application.reserved_start_date ?? application.fields.start_date,
+  end_date: application.reserved_end_date ?? application.fields.end_date,
   updated_at: application.updated_at,
   submitted_at: application.submitted_at,
   last_submitted_at: application.last_submitted_at,
