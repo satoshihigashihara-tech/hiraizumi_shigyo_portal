@@ -181,6 +181,7 @@ export default function FormField({
           placeholder={placeholder}
           rows={rows}
           maxLength={maxLength}
+          autoComplete={autoComplete}
         />
       )}
 
