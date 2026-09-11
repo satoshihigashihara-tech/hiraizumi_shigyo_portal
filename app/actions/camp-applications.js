@@ -175,6 +175,7 @@ export async function saveCampApplicationDraft(previousState, formData) {
 }
 
 export async function submitCampApplication(formData) {
+  const { supabase } = await requireActiveUser("/user/applications");
   const applicationId = getRequiredUuid(formData, "applicationId");
 
   if (!applicationId) {
@@ -185,7 +186,11 @@ export async function submitCampApplication(formData) {
   const editPath = `${applicationPath}/edit`;
   const confirmPath = `${applicationPath}/confirm`;
   const completePath = `${applicationPath}/complete`;
-  const supabase = await getAuthenticatedClient(confirmPath);
+
+  if (getText(formData, "confirmed") !== "true") {
+    redirect(withQuery(confirmPath, { error: "confirmation-required" }));
+  }
+
   const { data, error } = await supabase.rpc("submit_camp_application", {
     target_application_id: applicationId,
   });
@@ -199,7 +204,15 @@ export async function submitCampApplication(formData) {
   }
 
   const result = Array.isArray(data) ? data[0] : null;
-  const receptionNumber = result?.reception_number ?? "";
+  if (
+    !Array.isArray(data) ||
+    data.length !== 1 ||
+    result?.submitted_application_id !== applicationId ||
+    !/^SG-\d{4}-\d+$/.test(result?.reception_number ?? "") ||
+    !Number.isFinite(Date.parse(result?.submission_time ?? ""))
+  ) {
+    redirect(withQuery(editPath, { error: "unexpected" }));
+  }
 
   revalidatePath("/staff/calendar");
   revalidatePath("/staff");
@@ -208,9 +221,5 @@ export async function submitCampApplication(formData) {
 
   revalidatePath(applicationPath);
   revalidatePath("/user");
-  redirect(
-    withQuery(completePath, {
-      receptionNumber,
-    }),
-  );
+  redirect(completePath);
 }
