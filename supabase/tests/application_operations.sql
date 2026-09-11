@@ -1,5 +1,5 @@
--- SQL 015/016 operations tests. Phase 2 runner selects stays only. ISOLATED TEST PROJECT WITHOUT TRAFFIC.
--- Run this WHOLE file as postgres after 001-015. All fictional records and
+-- SQL 015-018 operations tests. Targeted runners select one phase. ISOLATED TEST PROJECT WITHOUT TRAFFIC.
+-- Run this WHOLE file as postgres after the corresponding migration. All fictional records and
 -- temporary helpers roll back. No real Auth login, Storage API or secrets.
 -- On failure ROLLBACK in the same connection. Never replace ROLLBACK with COMMIT.
 begin;
@@ -90,7 +90,7 @@ $$;
 do $$ declare c pg_temp.t13_context%rowtype; x uuid; camp uuid; camp_app uuid; protected_value jsonb; snapshot_value jsonb;
   v timestamptz; paid_time timestamptz; n integer; r jsonb; kind text; a public.applications%rowtype;
 begin
-  if current_setting('test.operations_phase',true) in ('stays','audit-notes') then return; end if;
+  if current_setting('test.operations_phase',true) in ('stays','audit-notes','staff-search') then return; end if;
   select * into c from pg_temp.t13_context;
   x:=pg_temp.t13_draft(c.owner_id,c.today+20,c.today+22);
   perform pg_temp.t13_error(pg_temp.t13_payment(x,'paid'),'invalid-status','draft refused');
@@ -236,7 +236,7 @@ $$;
 do $$ declare c pg_temp.t13_context%rowtype; x uuid; kind text; r jsonb; v timestamptz; snap jsonb; protected_value jsonb;
   room_before jsonb; camp_before jsonb; owner_id uuid; candidate uuid; extra uuid; test_camp_id uuid; new_camp_app uuid; new_owner uuid; extras uuid[]:='{}'::uuid[];
 begin
-  if current_setting('test.operations_phase',true)='audit-notes' then return; end if;
+  if current_setting('test.operations_phase',true) in ('audit-notes','staff-search') then return; end if;
   if to_regprocedure('public.update_application_stay(uuid,timestamptz,text)') is null then
     if current_setting('test.operations_phase',true)='stays' then raise exception 'Phase 2 requires SQL016'; end if;
     return;
@@ -380,6 +380,7 @@ do $$ declare c pg_temp.t13_context%rowtype; x uuid; other_app uuid; note_id uui
   v timestamptz; protected_value jsonb; snap jsonb; note_before jsonb; camp uuid; path1 text; path2 text; audit_count integer;
   future_start date;
 begin
+  if current_setting('test.operations_phase',true)='staff-search' then return; end if;
   if to_regprocedure('public.save_application_staff_note(uuid,timestamptz,uuid,text)') is null then
     if current_setting('test.operations_phase',true)='audit-notes' then raise exception 'Phase 3 requires SQL017'; end if; return;
   end if;
@@ -460,6 +461,122 @@ begin
   perform pg_temp.t13_check(exists(select 1 from public.audit_logs where entity_id=x and action='submit_camp_application'
     and before_data->'application'->>'status'='draft' and after_data->'application'->>'status'='submitted'
     and after_data->'application'->>'requires_guardian_consent'='true'),'audit final consent flag and status transition');
+end; $$;
+
+create function pg_temp.t16_search(actor uuid, q text default null, usage_value text default null,
+  application_value text default null, payment_value text default null, stay_value text default null,
+  from_value date default null, to_value date default null, page_value integer default 1,
+  role_value text default 'authenticated')
+returns jsonb language sql as $$
+  select pg_temp.t13_call(actor,format(
+    'select public.search_staff_applications(%L,%L,%L,%L,%L,%L,%L,%L) as data',
+    q,usage_value,application_value,payment_value,stay_value,from_value,to_value,page_value),role_value);
+$$;
+
+do $$ declare c pg_temp.t13_context%rowtype; individual_overdue uuid; individual_literal uuid;
+  camp_id uuid; camp_application uuid; extension_id uuid; future_start date; r jsonb; data_value jsonb;
+  before_value jsonb; item_value jsonb;
+begin
+  if to_regprocedure('public.search_staff_applications(text,text,text,text,text,date,date,integer)') is null then
+    if current_setting('test.operations_phase',true)='staff-search' then raise exception 'T16 requires SQL018'; end if;
+    return;
+  end if;
+  select * into c from pg_temp.t13_context;
+  individual_overdue:=pg_temp.t13_draft(c.owner_id,c.today+20,c.today+22);
+  update public.applications set user_name='架空検索対象',user_address='検索に出してはいけない住所',
+    user_phone='000-1111-2222',emergency_name='検索に出してはいけない連絡先' where id=individual_overdue;
+  perform pg_temp.t13_ok(pg_temp.t13_submit(individual_overdue),'search overdue fixture submit');
+  update public.application_charges set payment_due_date=c.today-1 where application_id=individual_overdue;
+  update public.applications set status='approved' where id=individual_overdue;
+  insert into public.stays(application_id,status) values(individual_overdue,'before_move_in');
+
+  individual_literal:=pg_temp.t13_draft(c.other_id,c.today+30,c.today+32);
+  update public.applications set user_name='架空%_記号' where id=individual_literal;
+  perform pg_temp.t13_ok(pg_temp.t13_submit(individual_literal),'search literal fixture submit');
+
+  select greatest(c.today+365,
+    coalesce((select max(end_date)+30 from public.calendar_claims),c.today+365),
+    coalesce((select max(end_date)+30 from public.applications),c.today+365),
+    coalesce((select max(end_date)+30 from public.camps where deleted_at is null),c.today+365))
+  into future_start;
+  r:=pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format('select public.create_staff_camp(%L,%L,%L,%L) as id',
+    '特別検索キャンプ',future_start,future_start+2,clock_timestamp()+interval '1 day')),'search camp fixture');
+  camp_id:=(r->0->>'id')::uuid;
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.staff_id,format('select public.add_camp_eligible_users(%L,%L::text[])',camp_id,
+    array[(select email from auth.users where id=c.owner_id)])),'search camp eligible');
+  r:=pg_temp.t13_ok(pg_temp.t13_call(c.owner_id,format('select public.create_camp_application_draft(%L) as id',camp_id)),'search camp draft');
+  camp_application:=(r->0->>'id')::uuid;
+  perform pg_temp.t13_ok(pg_temp.t13_call(c.owner_id,format('select public.save_camp_application_draft(%L,%L,%L,%L,%L,%L,%L,%L,null,false,%L)',
+    camp_application,'架空キャンプ参加者','非公開住所','000-SECRET','非公開連絡先','非公開住所','000-SECRET','検索試験','shared_ok')),'search camp save');
+
+  insert into public.applications(user_id,usage_type,start_date,end_date,status,original_application_id,user_name)
+  values(c.owner_id,'community_individual',c.today+40,c.today+41,'draft',individual_literal,'除外する延長') returning id into extension_id;
+
+  before_value:=jsonb_build_object('applications',(select count(*) from public.applications),
+    'charges',(select count(*) from public.application_charges),'stays',(select count(*) from public.stays),
+    'audit',(select count(*) from public.audit_logs));
+  perform pg_temp.t13_error(pg_temp.t16_search(c.owner_id),'staff-required','owner search denied','42501');
+  perform pg_temp.t13_error(pg_temp.t16_search(c.disabled_id),'staff-required','disabled search denied','42501');
+  perform pg_temp.t13_error(pg_temp.t16_search(null,null,null,null,null,null,null,null,1,'anon'),null,'anonymous search denied','42501');
+  perform pg_temp.t13_error(pg_temp.t16_search(c.staff_id,repeat('あ',101)),'invalid-query','long query');
+  perform pg_temp.t13_error(pg_temp.t16_search(c.staff_id,null,'group'),'invalid-usage-type','unsupported group filter');
+  perform pg_temp.t13_error(pg_temp.t16_search(c.staff_id,null,null,'unknown'),'invalid-application-status','invalid application status');
+  perform pg_temp.t13_error(pg_temp.t16_search(c.staff_id,null,null,null,'unknown'),'invalid-payment-status','invalid payment status');
+  perform pg_temp.t13_error(pg_temp.t16_search(c.staff_id,null,null,null,null,'unknown'),'invalid-stay-status','invalid stay status');
+  perform pg_temp.t13_error(pg_temp.t16_search(c.staff_id,null,null,null,null,null,c.today+2,c.today,1),'invalid-period','reversed period');
+  perform pg_temp.t13_error(pg_temp.t16_search(c.staff_id,null,null,null,null,null,null,null,0),'invalid-page','zero page');
+
+  r:=pg_temp.t13_ok(pg_temp.t16_search(c.staff_id),'staff search all'); data_value:=r->0->'data';
+  perform pg_temp.t13_check((data_value->>'page')::integer=1 and (data_value->>'page_size')::integer=50
+    and jsonb_typeof(data_value->'items')='array','search envelope');
+  perform pg_temp.t13_check(jsonb_array_length(data_value->'items')<=50
+    and (data_value->>'total_count')::integer>=3,'search bounded page and count');
+  perform pg_temp.t13_check(not exists(select 1 from jsonb_array_elements(data_value->'items') item
+    where item ?| array['user_address','user_phone','emergency_name','emergency_address','emergency_phone',
+      'special_notes','consent_documents','staff_notes','audit_logs']),'search excludes private detail fields');
+  select item into item_value from jsonb_array_elements(data_value->'items') item where item->>'id'=individual_overdue::text;
+  perform pg_temp.t13_check(item_value->>'applicant_name'='架空検索対象'
+    and item_value->>'payment_status'='overdue' and item_value->>'stay_status'='before_move_in'
+    and item_value->>'people_count'='1'
+    and item_value->>'detail_path'='/staff/community/applications/'||individual_overdue::text,'individual summary and path');
+  select item into item_value from jsonb_array_elements(data_value->'items') item where item->>'id'=camp_application::text;
+  perform pg_temp.t13_check(item_value->>'camp_name'='特別検索キャンプ'
+    and item_value->>'detail_path'='/staff/camps/'||camp_id::text||'/applications/'||camp_application::text,'camp summary and path');
+  perform pg_temp.t13_check(not exists(select 1 from jsonb_array_elements(data_value->'items') item
+    where item->>'id'=extension_id::text),'extension rows excluded');
+
+  r:=pg_temp.t13_ok(pg_temp.t16_search(c.staff_id,'架空%_記号'),'literal wildcard query');
+  perform pg_temp.t13_check(jsonb_array_length(r->0->'data'->'items')=1
+    and r->0->'data'->'items'->0->>'id'=individual_literal::text,'percent and underscore are literal');
+  r:=pg_temp.t13_ok(pg_temp.t16_search(c.staff_id,'特別検索キャンプ'),'camp name query');
+  perform pg_temp.t13_check(exists(select 1 from jsonb_array_elements(r->0->'data'->'items') item
+    where item->>'id'=camp_application::text),'camp name searchable');
+  r:=pg_temp.t13_ok(pg_temp.t16_search(c.staff_id,null,'camp','draft'),'camp and draft filters');
+  perform pg_temp.t13_check(exists(select 1 from jsonb_array_elements(r->0->'data'->'items') item
+    where item->>'id'=camp_application::text) and not exists(select 1 from jsonb_array_elements(r->0->'data'->'items') item
+    where item->>'usage_type'<>'camp' or item->>'status'<>'draft'),'usage and application filters');
+  r:=pg_temp.t13_ok(pg_temp.t16_search(c.staff_id,null,null,null,'overdue'),'overdue filter');
+  perform pg_temp.t13_check(exists(select 1 from jsonb_array_elements(r->0->'data'->'items') item
+    where item->>'id'=individual_overdue::text) and not exists(select 1 from jsonb_array_elements(r->0->'data'->'items') item
+    where item->>'payment_status'<>'overdue'),'overdue is derived at read time');
+  r:=pg_temp.t13_ok(pg_temp.t16_search(c.staff_id,null,null,null,'unpaid'),'unpaid filter');
+  perform pg_temp.t13_check(exists(select 1 from jsonb_array_elements(r->0->'data'->'items') item
+    where item->>'id'=individual_literal::text) and not exists(select 1 from jsonb_array_elements(r->0->'data'->'items') item
+    where item->>'payment_status'<>'unpaid'),'unpaid excludes overdue');
+  r:=pg_temp.t13_ok(pg_temp.t16_search(c.staff_id,null,null,null,null,'before_move_in'),'stay filter');
+  perform pg_temp.t13_check(exists(select 1 from jsonb_array_elements(r->0->'data'->'items') item
+    where item->>'id'=individual_overdue::text) and not exists(select 1 from jsonb_array_elements(r->0->'data'->'items') item
+    where item->>'stay_status'<>'before_move_in'),'stay filter exact');
+  r:=pg_temp.t13_ok(pg_temp.t16_search(c.staff_id,null,'community_individual',null,null,null,c.today+21,c.today+21),'overlap period');
+  perform pg_temp.t13_check(exists(select 1 from jsonb_array_elements(r->0->'data'->'items') item
+    where item->>'id'=individual_overdue::text) and not exists(select 1 from jsonb_array_elements(r->0->'data'->'items') item
+    where (item->>'end_date')::date<c.today+21 or (item->>'start_date')::date>c.today+21),'period means overlap');
+  r:=pg_temp.t13_ok(pg_temp.t16_search(c.staff_id,null,null,null,null,null,null,null,10000),'empty high page');
+  perform pg_temp.t13_check(jsonb_array_length(r->0->'data'->'items')=0
+    and (r->0->'data'->>'total_count')::integer>=3 and (r->0->'data'->>'has_next')::boolean=false,'empty page keeps total');
+  perform pg_temp.t13_check(before_value=jsonb_build_object('applications',(select count(*) from public.applications),
+    'charges',(select count(*) from public.application_charges),'stays',(select count(*) from public.stays),
+    'audit',(select count(*) from public.audit_logs)),'all searches are read only');
 end; $$;
 select count(*) as passed_checks, bool_and(passed) as all_passed from pg_temp.t13_results;
 rollback;

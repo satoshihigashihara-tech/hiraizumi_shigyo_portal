@@ -664,7 +664,7 @@ MVPでは `app/user` と `app/staff` 配下に個別の `loading.js`、`error.js
 
 申請詳細の期間は元の許可期間を維持。職員カレンダーの個人／申請行のend_dateは解放日前日までの占有期間を返し、翌日以降の日別行を除外する。キャンプ日別人数も解放日を反映し、月別人数はその月に占有日がある対象数。キャンプ期間の行自体は人数0でも維持する。公開カレンダーの受付窓D+14〜D+60は維持するため、早期解放と直近日の新規受付は同義ではない。
 
-### T15 Phase 3：キャンプ監査・職員メモ（SQL 017・ローカル検証済み、Supabase未適用）
+### T15 Phase 3：キャンプ監査・職員メモ（SQL 017・Supabase適用済み、実DB323項目成功）
 
 既存キャンプActionとRPCの引数・返却形式は維持。新しいhidden入力や既存画面の移行は不要。下書き作成・保存・提出／再提出・同意書登録／差替の監査をDB内へ追加した。キャンプ保存と同意書登録も施設ロックと待機後のactive／期限検査を使用し、同意書登録は親申請のupdated_atを進める。したがって職員操作は添付登録後に詳細を再取得して新しい版を使う。キャンプの従来の保存／提出／添付に楽観的版引数は追加しておらず、同時操作はロックで直列化する。本人保存が職員メモを上書きすることはない。
 
@@ -673,3 +673,11 @@ MVPでは `app/user` と `app/staff` 配下に個別の `loading.js`、`error.js
 `utils/application-operations/queries.js` の `getStaffApplicationNotes(applicationId)` はactive職員だけが呼べる。返却は `{ error, application }`、applicationは `id / usage_type / camp_id / updated_at / notes`。notesは作成日時・ID昇順で `id / body / author_user_id / created_at / updated_at`。編集後もauthor_user_idは作成者を保持し、編集者は監査へ記録。本文やメモは本人用RPC・取得応答には追加しない。更新後に本人詳細等を再検証するのは親版を更新するためであり、メモ本文を渡すためではない。
 
 同意書のStorage操作の順序・DB登録失敗時の新規オブジェクト削除を維持。キャンプも提出済み申請の旧添付を削除せず、監査の参照を保持する（下書きの旧添付だけ削除可能）。DB更新とStorageは別トランザクションのため、実Storage受入は未実施として残す。
+
+### T16 職員ホーム検索（SQL 018・ローカル検証済み、Supabase未適用）
+
+`utils/application-operations/queries.js` の `searchStaffApplications(searchParams)` を `/staff` と区分別一覧から使用する。入力キーは `q / usageType / applicationStatus / paymentStatus / stayStatus / from / to / page`。空文字は未指定へ正規化し、日付はYYYY-MM-DD、pageは1〜10000。GETクエリをSQL文字列へ連結せず、RPC引数として渡す。不正時はRPCを呼ばず `invalid-query / invalid-usage-type / invalid-application-status / invalid-payment-status / invalid-stay-status / invalid-period / invalid-page` を返す。権限喪失は `forbidden`、未知のDBエラー・不正な返却は `load-failed`。
+
+成功は `{ error: null, filters, applications, pagination }`。`pagination` は `page / pageSize=50 / totalCount / hasNext`。各applicationは `id / usage_type / camp_id / applicant_name / camp_name / status / start_date / end_date / reception_number / people_count / total_amount / payment_status / payment_due_date / stay_status / updated_at / detail_path` の固定許可リストだけを返す。`detail_path` はキャンプなら `/staff/camps/[campId]/applications/[applicationId]`、地域活動の個人利用なら `/staff/community/applications/[applicationId]`。画面はこの値をリンクに使用できるが、本人向け画面へ同じ結果を渡さない。
+
+MVPのSQL018は現在存在する2区分だけを対象とする。団体テーブル実装後に同じ検索契約へ団体名・人数・団体詳細パスを拡張する。CSV、高度な全文検索、検索履歴保存、検索による状態更新は行わない。

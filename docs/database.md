@@ -592,9 +592,9 @@ check_inは許可期間内に限定。check_outは入居日時との順序を確
 
 SQL001〜015とrequirements.mdは変更しない。SQL015はmain 434cc63へマージ・Supabase適用・実DB91項目成功済み（ユーザー確認）。SQL016はローカル検証のみで、実Supabase未適用。
 
-### T15 Phase 3 実装補足（SQL 017・未適用）
+### T15 Phase 3 実装補足（SQL 017・Supabase適用済み）
 
-新規は `202609110017_application_audit_and_staff_notes.sql` のみ。既存行の移行・過去監査のバックフィルは行わない。SQL001〜016は変更しない。SQL015・016はmain f2e4dbbへマージ・Supabase適用・実DB application_operations.sql 242項目成功済み（ユーザー確認）。以下はローカル検証だけ。
+新規は `202609110017_application_audit_and_staff_notes.sql` のみ。既存行の移行・過去監査のバックフィルは行わない。SQL001〜016は変更しない。SQL015・016はmain f2e4dbbへマージ・Supabase適用・実DB application_operations.sql 242項目成功済み。SQL017もmain 09125afへマージ・Supabase適用・同テスト323項目成功済み（いずれもユーザー確認）。
 
 キャンプ利用者操作の監査actionは `create_camp_draft / save_camp_draft / submit_camp_application / resubmit_camp_application / register_camp_consent / replace_camp_consent`。操作主体は本人、service_roleの同意書登録も認可済みexpected_user_idを記録する。前後は状態・期間・提出日時・親版・相部屋希望・同意要否、同意書ID／非公開オブジェクトパス／MIME／サイズ。変更項目名を残すが、氏名・住所・電話・メール・自由記述の実値はこの監査へコピーしない。署名URL・ファイル本体・認証情報は保存しない。職員メモ本文はメモ編集履歴として必要な前後内容だけを職員監査へ保存する。
 
@@ -603,3 +603,9 @@ SQL001〜015とrequirements.mdは変更しない。SQL015はmain 434cc63へマ�
 staff_notesは `id / application_id / body / author_user_id / created_at / updated_at`。通常キャンプ・地域活動個人の申請だけをRPC対象とし、団体・延長元付きは拒否。本文1〜2000文字、作成者FKはアカウント削除時NULL。active職員SELECTのRLSと、専用RPC以外の書込み禁止を設定する。削除RPC・団体列・検索機能は追加しない。
 
 `save_application_staff_note(uuid,timestamptz,uuid,text)` は施設実更新ロック→職員active再確認→申請行→メモ行の順。親申請版を照合し、メモ・親updated_at・add_staff_note／edit_staff_note監査を一括保存する。業務状態・料金・滞在・部屋・枠・番号は変更しない。`get_staff_application_notes(uuid)` は職員限定・読取専用で同一スナップショットの親版とメモを返す。本人向け取得関数・監査スナップショットへstaff_notesを混ぜない。
+
+### T16 職員申請検索（SQL 018・ローカル検証済み、Supabase未適用）
+
+`search_staff_applications(text,text,text,text,text,date,date,integer)` はactive職員だけが呼べる読取専用RPC。現在実装済みのキャンプと「地域活動の個人利用」の通常申請だけを対象にし、延長元付き申請と未実装の団体は除外する。氏名・受付番号・キャンプ名は100文字以内の部分一致で、`%`・`_`・バックスラッシュを文字としてエスケープする。期間指定は申請期間との重なりで判定し、許可した利用区分・申請状態・納付状態・滞在状態だけを受理する。
+
+納付状態は日本時間の実行日から `unpaid / overdue / paid` を排他的に算出し、DB行を書き換えない。1ページ50件、最大10000ページ、作成日時・ID降順。総件数と次ページ有無を同じ読取スナップショットで返す。一覧項目はID、区分、キャンプID・名、氏名、申請状態、期間、受付番号、人数1、合計・納付状態・期限、滞在状態、更新日時、正規詳細パスだけ。住所・電話・メール・緊急連絡先・自由記述・同意書・部屋・職員メモ・監査は返さない。SQL018は関数追加だけで既存行や索引を変更しない。

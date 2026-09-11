@@ -68,3 +68,42 @@ export function noteFailure(error, fields) {
     "note-required": "body", "note-too-long": "body" }[code];
   return { error: code, fields, fieldErrors: field ? { [field]: code } : {} };
 }
+
+export const APPLICATION_STATUSES = ["draft", "submitted", "under_review", "revision_requested",
+  "approved", "rejected", "cancellation_requested", "cancelled"];
+export const STAFF_SEARCH_USAGE_TYPES = ["camp", "community_individual"];
+export const STAFF_SEARCH_PAYMENT_STATUSES = ["unpaid", "overdue", "paid"];
+export const STAFF_SEARCH_STAY_STATUSES = ["before_move_in", "staying", "moved_out"];
+
+const scalar = (value) => Array.isArray(value) ? value[0] : value;
+const normalizedText = (value) => typeof scalar(value) === "string" ? scalar(value).trim() : "";
+
+export function normalizeStaffApplicationSearch(input = {}) {
+  const filters = {
+    q: normalizedText(input.q),
+    usageType: normalizedText(input.usageType),
+    applicationStatus: normalizedText(input.applicationStatus),
+    paymentStatus: normalizedText(input.paymentStatus),
+    stayStatus: normalizedText(input.stayStatus),
+    from: normalizedText(input.from),
+    to: normalizedText(input.to),
+    page: normalizedText(input.page) || "1",
+  };
+  if (Array.from(filters.q).length > 100) return { error: "invalid-query", filters };
+  if (filters.usageType && !STAFF_SEARCH_USAGE_TYPES.includes(filters.usageType)) return { error: "invalid-usage-type", filters };
+  if (filters.applicationStatus && !APPLICATION_STATUSES.includes(filters.applicationStatus)) return { error: "invalid-application-status", filters };
+  if (filters.paymentStatus && !STAFF_SEARCH_PAYMENT_STATUSES.includes(filters.paymentStatus)) return { error: "invalid-payment-status", filters };
+  if (filters.stayStatus && !STAFF_SEARCH_STAY_STATUSES.includes(filters.stayStatus)) return { error: "invalid-stay-status", filters };
+  if ((filters.from && !isDate(filters.from)) || (filters.to && !isDate(filters.to))
+    || (filters.from && filters.to && filters.from > filters.to)) return { error: "invalid-period", filters };
+  if (!/^[1-9]\d{0,4}$/.test(filters.page) || Number(filters.page) > 10000) return { error: "invalid-page", filters };
+  return { error: null, filters: { ...filters, page: Number(filters.page) } };
+}
+
+const STAFF_SEARCH_CODES = new Set(["invalid-query", "invalid-usage-type", "invalid-application-status",
+  "invalid-payment-status", "invalid-stay-status", "invalid-period", "invalid-page"]);
+export function staffSearchErrorCode(error) {
+  if (error?.code === "42501") return "forbidden";
+  const code = typeof error === "string" ? error : error?.message;
+  return STAFF_SEARCH_CODES.has(code) ? code : "load-failed";
+}
