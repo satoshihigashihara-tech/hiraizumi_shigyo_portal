@@ -128,7 +128,16 @@ for (const [file, action, rpc, data] of ACTIONS) {
 test("only approved community application actions are exported", async () => {
  for (const file of ["app/actions/community-applications.js", "app/actions/staff-community-applications.js"]) {
   const { api } = await harness(file);
-  const extra = file.includes("staff-community") ? ["assignCommunityApplicationRoom", "approveCommunityApplication"]
+  const extra = file.includes("staff-community") ? [
+    "assignCommunityApplicationRoom",
+    "approveCommunityApplication",
+    "startCommunityApplicationReviewState",
+    "requestCommunityApplicationRevisionState",
+    "rejectCommunityApplicationState",
+    "assignCommunityApplicationRoomState",
+    "approveCommunityApplicationState",
+    "confirmCommunityApplicationCancellationState",
+  ]
     : ["createCommunityApplicationExtension"];
   assert.deepEqual(Object.keys(api).sort(), [...ACTIONS.filter(a => a[0] === file).map(a => a[1]), ...extra].sort());
  }

@@ -52,6 +52,22 @@ export async function rejectCommunityApplication(formData) { return review(formD
 export async function assignCommunityApplicationRoom(formData) { return review(formData, "assign_room"); }
 export async function approveCommunityApplication(formData) { return review(formData, "approve"); }
 
+export async function startCommunityApplicationReviewState(_previousState, formData) {
+  return startCommunityApplicationReview(formData);
+}
+export async function requestCommunityApplicationRevisionState(_previousState, formData) {
+  return requestCommunityApplicationRevision(formData);
+}
+export async function rejectCommunityApplicationState(_previousState, formData) {
+  return rejectCommunityApplication(formData);
+}
+export async function assignCommunityApplicationRoomState(_previousState, formData) {
+  return assignCommunityApplicationRoom(formData);
+}
+export async function approveCommunityApplicationState(_previousState, formData) {
+  return approveCommunityApplication(formData);
+}
+
 export async function confirmCommunityApplicationCancellation(formData) {
   const { supabase } = await requireStaff("/staff/community/applications");
   const fields = Object.fromEntries(["applicationId", "updatedAt", "reason"].map((key) => [key, getText(formData, key)]));
@@ -72,4 +88,8 @@ export async function confirmCommunityApplicationCancellation(formData) {
   for (const route of [path, "/staff", "/staff/community", "/staff/community/applications", "/staff/calendar", "/calendar",
     "/user", "/user/applications", `/user/applications/${fields.applicationId}`]) revalidatePath(route);
   redirect(`${path}?updated=cancelled`);
+}
+
+export async function confirmCommunityApplicationCancellationState(_previousState, formData) {
+  return confirmCommunityApplicationCancellation(formData);
 }

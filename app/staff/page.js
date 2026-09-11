@@ -7,7 +7,7 @@ import StatusBadge, { StatusRow } from "@/app/components/StatusBadge";
 import { formatJstDate, formatPeriod, formatYen } from "@/app/components/format";
 import { errorMessage } from "@/app/components/messages";
 import { APPLICATION_STATUS_LABELS, PAYMENT_STATUS_LABELS,
-  STAY_STATUS_LABELS } from "@/app/components/status-labels";
+  STAY_STATUS_LABELS, USAGE_TYPE_LABELS } from "@/app/components/status-labels";
 import { searchStaffApplications } from "@/utils/application-operations/queries";
 import styles from "./page.module.css";
 
@@ -18,10 +18,14 @@ const options = (labels, first) => [
 const APPLICATION_OPTIONS = options(APPLICATION_STATUS_LABELS, "すべての申請状態");
 const PAYMENT_OPTIONS = options({ ...PAYMENT_STATUS_LABELS, overdue: "期限超過" }, "すべての納付状態");
 const STAY_OPTIONS = options(STAY_STATUS_LABELS, "すべての滞在状態");
+const USAGE_OPTIONS = options({
+  camp: USAGE_TYPE_LABELS.camp,
+  community_individual: USAGE_TYPE_LABELS.community_individual,
+}, "すべての利用区分");
 
 function pageHref(filters, page) {
-  const query = new URLSearchParams({ usageType: "camp", page: String(page) });
-  for (const key of ["q", "applicationStatus", "paymentStatus", "stayStatus", "from", "to"]) {
+  const query = new URLSearchParams({ page: String(page) });
+  for (const key of ["q", "usageType", "applicationStatus", "paymentStatus", "stayStatus", "from", "to"]) {
     if (filters[key]) query.set(key, filters[key]);
   }
   return `/staff?${query}`;
@@ -29,17 +33,17 @@ function pageHref(filters, page) {
 
 export default async function StaffPage({ searchParams }) {
   const input = await searchParams;
-  const result = await searchStaffApplications({ ...input, usageType: "camp" });
+  const result = await searchStaffApplications(input);
   const { filters, applications, pagination } = result;
 
   return (
-    <PageShell title="職員ホーム" description="キャンプ申請を検索し、審査や利用状況を確認します。">
+    <PageShell title="職員ホーム" description="個人申請を検索し、審査や利用状況を確認します。">
       {result.error && <AlertMessage tone="error" title="申請を検索できませんでした"><p>{errorMessage(result.error)}</p></AlertMessage>}
       <section className={styles.panel} aria-labelledby="search-title">
-        <h2 id="search-title">キャンプ申請を検索</h2>
+        <h2 id="search-title">個人申請を検索</h2>
         <form className={styles.filters} method="get">
-          <input type="hidden" name="usageType" value="camp" />
           <FormField id="q" name="q" label="氏名・受付番号・キャンプ名" defaultValue={filters.q} maxLength={100} />
+          <FormField as="select" id="usageType" name="usageType" label="利用区分" defaultValue={filters.usageType} options={USAGE_OPTIONS} />
           <FormField as="select" id="applicationStatus" name="applicationStatus" label="申請状態" defaultValue={filters.applicationStatus} options={APPLICATION_OPTIONS} />
           <FormField as="select" id="paymentStatus" name="paymentStatus" label="納付状態" defaultValue={filters.paymentStatus} options={PAYMENT_OPTIONS} />
           <FormField as="select" id="stayStatus" name="stayStatus" label="滞在状態" defaultValue={filters.stayStatus} options={STAY_OPTIONS} />
@@ -53,10 +57,10 @@ export default async function StaffPage({ searchParams }) {
       </section>
       {!result.error && <section className={styles.results} aria-labelledby="results-title">
         <div className={styles.resultsHeading}><h2 id="results-title">検索結果</h2><p>{pagination.totalCount}件</p></div>
-        {applications.length === 0 ? <EmptyState title="条件に一致するキャンプ申請はありません" description="検索条件を変えてお試しください。" /> :
+        {applications.length === 0 ? <EmptyState title="条件に一致する個人申請はありません" description="検索条件を変えてお試しください。" /> :
           <ul className={styles.applicationList}>{applications.map((application) =>
             <li className={styles.applicationCard} key={application.id}>
-              <div className={styles.cardHeading}><div><p className={styles.campName}>{application.camp_name || "キャンプ名未設定"}</p><h3>{application.applicant_name || "氏名未設定"}</h3></div>
+              <div className={styles.cardHeading}><div><p className={styles.campName}>{application.usage_type === "camp" ? (application.camp_name || "キャンプ名未設定") : USAGE_TYPE_LABELS.community_individual}</p><h3>{application.applicant_name || "氏名未設定"}</h3></div>
                 <StatusRow><StatusBadge kind="application" value={application.status} />
                   {application.payment_status && <StatusBadge kind="payment" value={application.payment_status === "overdue" ? "unpaid" : application.payment_status} />}
                   {application.payment_status === "overdue" && <strong className={styles.overdue}>期限超過</strong>}
