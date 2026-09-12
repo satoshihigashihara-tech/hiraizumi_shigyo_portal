@@ -3,17 +3,44 @@
 // T10_DB_RUNTIME can point to their existing package directory.
 import { createRequire } from 'node:module';
 import { readFile, readdir, mkdtemp, rm } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:net';
 import assert from 'node:assert/strict';
 
-const runtime = createRequire(join(resolve(process.env.T10_DB_RUNTIME || '/private/tmp/hiraizumi-t09-postgres'), 'package.json'));
+const root = fileURLToPath(new URL('../', import.meta.url));
+const migration032 = '202609130032_camp_room_plan_bulk_save.sql';
+const migration032Bytes = await readFile(join(root, 'supabase/migrations', migration032));
+const migration032Hash = createHash('sha256').update(migration032Bytes).digest('hex');
+const expectedPostgresVersion = process.env.T10_DB_EXPECTED_VERSION || '17.6';
+const requested = process.argv.slice(2);
+const copiedSqlFlag = requested.indexOf('--verify-migration-032');
+// Verify copied SQL before opening any DB. No normalization: extra prefixes,
+// Markdown fences, missing lines, or partial editor selections must fail closed.
+if (copiedSqlFlag !== -1) {
+  const inputPath = requested[copiedSqlFlag + 1];
+  if (!inputPath || inputPath.startsWith('--')) {
+    console.error('FAIL --verify-migration-032 requires a local SQL file');
+    process.exit(1);
+  }
+  const copiedBytes = await readFile(resolve(inputPath));
+  if (!copiedBytes.equals(migration032Bytes)) {
+    console.error('FAIL migration 032 input differs from repository file', {
+      expected_sha256: migration032Hash,
+      actual_sha256: createHash('sha256').update(copiedBytes).digest('hex'),
+    });
+    process.exit(1);
+  }
+  console.log('PASS migration 032 input byte-for-byte match', { sha256: migration032Hash });
+  requested.splice(copiedSqlFlag, 2);
+}
+
+const runtime = createRequire(join(resolve(process.env.T10_DB_RUNTIME || '/private/tmp/hiraizumi-a3-postgres176'), 'package.json'));
 const EmbeddedPostgres = runtime('embedded-postgres').default;
 const { Client } = runtime('pg');
-const root = fileURLToPath(new URL('../', import.meta.url));
+
 const port = await new Promise((resolvePort, reject) => {
   const server = createServer(); server.on('error', reject);
   server.listen(0, '127.0.0.1', () => { const p = server.address().port; server.close(() => resolvePort(p)); });
@@ -701,7 +728,13 @@ let stage = 'start';
 let failed = false;
 try {
   await pg.initialise(); await pg.start(); const c = await connect();
-  console.log('Local PostgreSQL', (await c.query('show server_version')).rows[0].server_version);
+  const actualPostgresVersion = (await c.query('show server_version')).rows[0].server_version;
+  console.log('Local PostgreSQL', actualPostgresVersion);
+  assert.equal(actualPostgresVersion.split(' ')[0], expectedPostgresVersion,
+    'PostgreSQL version mismatch: use the pinned production-equivalent runtime or explicitly select the comparison version');
+  await c.query('set check_function_bodies=on');
+  assert.equal((await c.query('show check_function_bodies')).rows[0].check_function_bodies, 'on');
+
   await c.query(`
     create role anon nologin;
     create role authenticated nologin;
@@ -743,8 +776,29 @@ try {
   let beforeSearchUpgrade;
   let beforePdfUpgrade;
   for (const file of (await readdir(join(root, 'supabase/migrations'))).filter(x => x.endsWith('.sql')).sort()) {
-    if(file==='202609130033_camp_pdf_versions.sql') beforePdfUpgrade=await storedRows(c);
-    stage = file; await c.query(await readFile(join(root, 'supabase/migrations', file), 'utf8'));
+    stage = file;
+    const sqlBytes = await readFile(join(root, 'supabase/migrations', file));
+    if (file === migration032) {
+      assert.ok(sqlBytes.equals(migration032Bytes), 'Migration 032 changed while tests were running');
+      console.log('CHECK migration 032 exact file', { postgres: actualPostgresVersion,
+        sha256: migration032Hash, bytes: sqlBytes.length, check_function_bodies: 'on' });
+      const sql = sqlBytes.toString('utf8');
+      const header = "create function private.guard_camp_plan_history() returns trigger language plpgsql set search_path='' as $$\n";
+      assert.ok(sql.includes(header), 'Update the migration corruption fixture if the function header changes');
+      // Reproduce a lost CREATE FUNCTION / dollar-quote boundary as a real SQL
+      // syntax error. This is representative corruption, not the captured hosted query.
+      await assert.rejects(c.query(sql.replace(header, '')), error => error.code === '42601' && /raise/.test(error.message));
+      await c.query('rollback');
+      const missing = (await c.query(`select
+        to_regclass('public.camp_room_mapping') is null and
+        to_regclass('public.camp_room_plan_versions') is null and
+        to_regclass('public.camp_room_assignments') is null as missing`)).rows[0].missing;
+      assert.equal(missing, true, 'A rejected SQL032 must leave no A3 tables');
+      console.log('PASS migration 032 malformed function rejected: 42601 at raise; no A3 tables');
+    }
+    // Send the complete original bytes, decoded as UTF-8, without splitting or rewriting SQL.
+    if (file === '202609130033_camp_pdf_versions.sql') beforePdfUpgrade = await storedRows(c);
+    await c.query(sqlBytes.toString('utf8'));
     console.log('PASS migration', file);
     if(file==='202609130033_camp_pdf_versions.sql'){
       assert.deepEqual(await storedRows(c),beforePdfUpgrade);
@@ -788,7 +842,6 @@ try {
       console.log('PASS 017 to 018 upgrade: existing rows unchanged');
     }
   }
-  const requested = process.argv.slice(2);
   if (requested.includes('--audit-notes-only')) await c.query("select set_config('test.operations_phase','audit-notes',false)");
   if (requested.includes('--staff-search-only')) await c.query("select set_config('test.operations_phase','staff-search',false)");
   if (requested.includes('--stays-only')) await c.query("select set_config('test.operations_phase','stays',false)");

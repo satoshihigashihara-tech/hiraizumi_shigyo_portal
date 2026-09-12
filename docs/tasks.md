@@ -22,6 +22,39 @@ A3の実配置・印字許可・施設枠を接続済み。A8変換設定が未�
 
 認証、キャンプ申請、地域活動個人申請、団体代表者申請、代表者の招待発行、参加者の招待確認・入力・提出、公開カレンダー、キャンプ・地域活動個人の職員審査画面はmainへ反映済みです。DBのマイグレーションはSQL001〜029がmainにあります。未完了作業はGitHub Issueで管理し、完了したIssueは対応PRのマージと同時に閉じます。
 
+### A3 SQL032本番実行エラー後の検証補強（2026年9月13日）
+
+PR #103マージ済みのmain `90695de`から対応。本番実行は`42601 / syntax error at or near raise`で全体ロールバック、変更なしとのユーザー報告を受領した。本タスクでは本番設定画面を読み取り、Postgres表示`17.6.1.166`を確認した。本番SQLの再適用・変更は行っていない。
+
+**SQL032の構文不良は再現しなかった。** リポジトリの原文26,809 bytesは、修正前のままPostgreSQL17.6・17.10・18.4でSQL001〜032の全文適用に成功した。そのためSQL032の番号・内容・業務動作は変更していない。SHA-256は`cecc8744a22108a2d15abcb2f17c6b9d54dc8cae9dbb0b0869f2b404a71165cd`。
+
+報告された文は実ファイルでは56行目だが、実行時エラーでは316行目だった。最終ENDのセミコロン省略は[PostgreSQL17の仕様](https://www.postgresql.org/docs/17/plpgsql-structure.html)で許容される。関数ヘッダーと開始ドル引用を欠落させた代表例では、実DBで同じ42601・raise位置のエラーを再現した。ただし本番に送信された全文は取得できておらず、貼付・選択・入力欠落を原因と断定しない。
+
+修正内容：
+
+- DBランナーの標準を17.6系へ固定し、`SHOW server_version`で期待バージョンを検査。18.4比較時は明示指定する。`check_function_bodies=on`を明示する。
+- SQL032を分割・置換せず全文適用し、ファイルSHA-256・bytes・DBバージョンをログに記録。
+- `--verify-migration-032 <ローカルSQLファイル>`で、DB起動前にリポジトリ原文とバイト単位で一致を確認。余分な先頭／末尾、欠落、部分選択、改行変更も拒否する。
+- 関数ヘッダー欠落を実DBへ渡して42601を検証し、ROLLBACK後にA3の3表が存在しないことを検査してから、原文SQL032を適用。
+- `.github/workflows/ci.yml`でPostgreSQL17.6・18.4の全DB回帰、入力不一致・バージョン不一致の拒否、Node・lint・buildをPR／mainのCIに追加。DBログをartifactに保存する。
+
+ローカル結果：作業中にマージされたPR #104・#105（main `f325986`）を統合し、A7・SQL033の検査も保持した。17.6・18.4それぞれDB単体1,754項目・並行116ケース成功（A3の51項目・16ケースを含む）。Node437件、lint、webpack本番build成功。コピー不一致はDB runtimeの読込前に終了コード1、期待バージョン不一致も移行前に終了コード1。これは同じPostgreSQLのmajor/minorとAuth代替による検証で、Supabase独自patch・SQL Editorの送信・実JWT認証まで再現した証明ではない。
+
+再現：
+
+```bash
+npm install --prefix /private/tmp/hiraizumi-a3-postgres176 --no-audit --no-fund embedded-postgres@17.6.0-beta.15 pg@8.20.0
+T10_DB_RUNTIME=/private/tmp/hiraizumi-a3-postgres176 node scripts/test-community-applications-db.mjs
+# SQL Editorからコピーした「実際の全文」を一時ファイルへ保存し、実行前に照合する
+T10_DB_RUNTIME=/private/tmp/hiraizumi-a3-postgres176 node scripts/test-community-applications-db.mjs --verify-migration-032 /private/tmp/032-from-editor.sql --migrate-only
+# 従来環境との比較は意図を明示する
+T10_DB_RUNTIME=/private/tmp/hiraizumi-a1-postgres T10_DB_EXPECTED_VERSION=18.4 node scripts/test-community-applications-db.mjs
+```
+
+再適用時は新規の空SQL Editorを使い、コード本文全体を貼る。Monacoの仮想textareaへの`fill()`結果だけではエディター全体の置換・一致を保証しないため、編集領域で全選択・コピーして取得した全文を上記で照合する。実行対象は部分選択ではなくSQL032全文。取得元だけのhash確認で、送信内容の確認を代替しない。本番での再実行はこのタスクでは行っていない。
+
+ユーザーは修正・保存・コミット・push・PR・CI確認・マージまで承認済み。GitHubの実績はこの変更を含むPRを参照。本番SQL032は未適用のままであり、R2の本番有効化条件も未解除。
+
 ### A3 事前部屋割りの一括保存・定員・競合制御（SQL032・ローカル検証済み）
 
 2026年9月13日、リモートmain `3b66e4b`（PR #101）と同じ起点から `codex/camp-room-plan-bulk-save` で実装。A1・A2の実装、SQL適用、テスト、PRマージ、本番画面確認は今回のユーザー引継ぎに基づき完了として扱う。下記A1/A2節の未実施表記は過去の記録であり、本タスクで本番確認をやり直した意味ではない。
