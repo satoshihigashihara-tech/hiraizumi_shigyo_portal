@@ -124,6 +124,13 @@ test("representative cancellation requires a reason and calls the group cancella
   assert.equal((await invalid.api.requestCommunityGroupCancellation(form({ reason: "" }))).error, "reason-required");
 });
 
+test("representative cancellation requires explicit confirmation before RPC", async () => {
+  const { api, calls } = await harness("app/actions/community-groups.js");
+  const result = copy(await api.requestCommunityGroupCancellation(form({ confirmed: "false" })));
+  assert.equal(result.error, "confirmation-required");
+  assert.equal(calls.filter((call) => call[0] === "rpc").length, 0);
+});
+
 for (const [fields, expected] of [
   [{ groupId: "bad" }, "invalid-group"], [{ updatedAt: "" }, "invalid-version"],
   [{ submissionKey: "bad" }, "invalid-submission-key"], [{ confirmed: "false" }, "confirmation-required"],

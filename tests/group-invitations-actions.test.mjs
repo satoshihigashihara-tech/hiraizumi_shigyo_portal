@@ -82,6 +82,13 @@ test("representative removes a participant with fixed identifiers and reason", a
   }]);
 });
 
+test("representative removal requires explicit confirmation before RPC", async () => {
+  const { api, calls } = await harness("app/actions/group-invitations.js");
+  const result = copy(await api.removeCommunityGroupParticipant(form({ confirmed: "false" })));
+  assert.equal(result.error, "confirmation-required");
+  assert.equal(calls.filter((call) => call[0] === "rpc").length, 0);
+});
+
 for (const action of ["issueCommunityGroupInvite", "joinCommunityGroup", "removeCommunityGroupParticipant"]) {
   test(`${action} authorization failure precedes input and DB access`, async () => {
     const { api, calls, authError } = await harness("app/actions/group-invitations.js", { denied: true });

@@ -60,6 +60,7 @@ export async function removeCommunityGroupParticipant(formData) {
   if (!isUuid(fields.groupId)) return inviteFailure("invalid-group", fields);
   if (!isUuid(fields.applicationId)) return inviteFailure("invalid-application", fields);
   if (!isUpdatedAt(fields.updatedAt)) return inviteFailure("invalid-version", fields);
+  if (fields.confirmed !== "true") return inviteFailure("confirmation-required", fields);
   const reasonError = validateReason(fields.reason, true);
   if (reasonError) return inviteFailure(reasonError, fields);
   const { data, error } = await supabase.rpc("remove_community_group_participant", {
