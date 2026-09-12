@@ -10,6 +10,29 @@ concurrency:
   group: portal-checks-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  pdf-renderer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Build pinned A8 renderer inputs
+        run: docker build --tag camp-pdf-renderer:a8-v1 pdf-renderer
+      - name: Unit and maximum-input Linux render
+        run: |
+          docker run --rm --network none --entrypoint python3 camp-pdf-renderer:a8-v1 /app/test_renderer.py
+          container_id="$(docker create --network none --entrypoint /bin/sh camp-pdf-renderer:a8-v1 /app/test-renderer.sh)"
+          renderer_status=0
+          docker start --attach "$container_id" || renderer_status=$?
+          docker cp "$container_id:/tmp/a8-output" "$RUNNER_TEMP/a8-output"
+          docker rm "$container_id"
+          exit "$renderer_status"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: a8-max-input-linux
+          path: ${{ runner.temp }}/a8-output
+          if-no-files-found: error
+          retention-days: 7
   application:
     runs-on: ubuntu-latest
     timeout-minutes: 15
