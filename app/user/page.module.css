@@ -182,19 +182,3 @@
     align-items: flex-start;
   }
 }
-
-/* その他の操作。375pxでは縦積み、広い画面では横へ並べて折り返す */
-.links {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--sg-space-2, 8px);
-}
-
-@media (min-width: 600px) {
-  .links {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-}

@@ -50,27 +50,6 @@
   margin-top: var(--sg-space-2, 8px);
 }
 
-.accountHelp {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--sg-space-3, 12px);
-  padding: var(--sg-space-4, 16px);
-  border: 1px solid var(--sg-color-border, #c9ced4);
-  border-radius: var(--sg-radius, 8px);
-  color: var(--sg-color-text, #1b1d1f);
-  background: var(--sg-neutral-bg, #f1f3f5);
-}
-
-.accountHelp h2 {
-  font-size: var(--sg-font-lg, 18px);
-}
-
-.accountHelp p {
-  color: var(--sg-color-text-muted, #4d5358);
-  font-size: var(--sg-font-sm, 14px);
-}
-
 /* トップへの導線。ログインとは役割が違うことが分かるよう区切る */
 .footer {
   display: flex;
