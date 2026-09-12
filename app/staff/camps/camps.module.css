@@ -11,6 +11,7 @@
 .formStack,.compactForm,.eligibleList,.eligibleCard,.dangerZone,.conflicts,.conflicts li{display:flex;flex-direction:column;gap:var(--sg-space-4,16px)}
 .eligibleList,.conflicts ul{padding:0;list-style:none}.eligibleCard,.dangerZone{padding:var(--sg-space-5,24px);border:1px solid var(--sg-color-border,#c9ced4);border-radius:var(--sg-radius,8px)}
 .eligibleCard>div{display:flex;align-items:center;justify-content:space-between;gap:12px;overflow-wrap:anywhere}.stateText{font-weight:700}.compactForm{padding-top:16px;border-top:1px solid var(--sg-color-border,#c9ced4)}
+.rosterEmail{overflow-wrap:anywhere;font-weight:600}
 .dangerZone{border-color:#b42318;background:#fff8f7}.errorFocus:focus{outline:3px solid var(--sg-color-focus,#ffbf47);outline-offset:3px}
 .conflicts li{padding:16px;border:1px solid var(--sg-color-border,#c9ced4);border-radius:var(--sg-radius,8px)}
 @media(max-width:599px){.cardList,.facts,.twoColumns{grid-template-columns:1fr}.card,.form,.eligibleCard,.dangerZone{padding:var(--sg-space-4,16px)}.actions>*{width:100%}.eligibleCard>div{align-items:flex-start;flex-direction:column}}
