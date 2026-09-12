@@ -38,20 +38,23 @@ test("common chrome is shared and every screen gets the exact project copyright"
 });
 
 test("camp and fieldwork use the simplified home navigation", async () => {
-  const [camp, home, applications, groups, chooser] = await Promise.all([
+  const [camp, login, home, applications, groups, chooser] = await Promise.all([
     read("app/camp/page.js"),
+    read("app/login/page.js"),
     read("app/user/page.js"),
     read("app/user/applications/page.js"),
     read("app/user/groups/page.js"),
     read("app/user/applications/new/page.js"),
   ]);
   assert.doesNotMatch(camp, /はじめての方はこちら|\/signup/);
+  assert.doesNotMatch(login, /初めて利用する方|>\s*新規登録\s*</);
+  assert.doesNotMatch(login, /href=\{?[^\n]*\/signup/);
   assert.match(applications, /mode === "camp"\) redirect\("\/user\?mode=camp"\)/);
   assert.match(groups, /redirect\(withMode\("\/user", mode\)\)/);
   assert.match(chooser, /mode === "fieldwork"\) redirect\("\/user\/groups\/new\?mode=fieldwork"\)/);
   assert.match(home, /pageTitle = isFieldwork \? "団体利用者ホーム"/);
   assert.match(home, /href="\/user\/groups\/new\?mode=fieldwork"/);
-  assert.match(home, /!isCamp && <section[^>]+aria-labelledby="links-heading"/);
+  assert.doesNotMatch(home, /その他の操作|aria-labelledby="links-heading"/);
 });
 
 test("mode helpers accept only camp and fieldwork and preserve query strings", async () => {

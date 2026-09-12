@@ -223,17 +223,6 @@ export default async function LoginPage({ searchParams }) {
           </div>
         </form>
 
-        <section className={styles.accountHelp} aria-labelledby="account-help-title">
-          <h2 id="account-help-title">初めて利用する方</h2>
-          <p>利用者アカウントを作成してから申請へ進んでください。</p>
-          <LinkButton
-            href={returnTo ? `/signup?returnTo=${encodeURIComponent(returnTo)}` : "/signup"}
-            fullWidthOnMobile
-          >
-            新規登録
-          </LinkButton>
-        </section>
-
         <div className={styles.footer}>
           <LinkButton href="/" fullWidthOnMobile>
             トップへ戻る

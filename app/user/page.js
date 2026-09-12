@@ -230,15 +230,6 @@ export default async function UserHomePage({ searchParams }) {
           </section>
         </>
       )}
-
-      {!isCamp && <section className={styles.section} aria-labelledby="links-heading">
-        <h2 className={styles.sectionTitle} id="links-heading">その他の操作</h2>
-        <div className={styles.links}>
-          {!isFieldwork && <LinkButton href={newApplicationHref} variant="primary" fullWidthOnMobile>新しく申請する</LinkButton>}
-          <LinkButton href={applicationListHref} fullWidthOnMobile>申請の一覧</LinkButton>
-          <LinkButton href="/user/profile" fullWidthOnMobile>プロフィールの確認・変更</LinkButton>
-        </div>
-      </section>}
     </PageShell>
   );
 }
