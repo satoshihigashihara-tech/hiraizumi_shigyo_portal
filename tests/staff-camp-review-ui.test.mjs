@@ -11,7 +11,8 @@ test("staff search is staff-only, GET-based and links only returned canonical pa
     read("utils/application-operations/queries.js"),
   ]);
   assert.match(page, /await searchParams/);
-  assert.match(page, /searchStaffApplications\(\{ \.\.\.input, usageType: "camp" \}\)/);
+  assert.match(page, /searchStaffApplications\(input\)/);
+  assert.match(page, /name="usageType"/);
   assert.match(page, /method="get"/);
   assert.match(page, /href=\{application\.detail_path\}/);
   assert.match(queries, /export async function searchStaffApplications/);

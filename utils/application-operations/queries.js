@@ -187,3 +187,143 @@ export async function getStaffCampApplicationDetail(campId, applicationId) {
     },
   };
 }
+
+const COMMUNITY_DETAIL_FIELDS = [
+  "id", "camp_id", "usage_type", "original_application_id", "status",
+  "start_date", "end_date", "user_name", "user_address", "user_phone",
+  "email_snapshot", "emergency_name", "emergency_address", "emergency_phone",
+  "usage_place", "purpose", "local_activity", "special_notes",
+  "requires_guardian_consent", "room_preference", "extension_reason",
+  "submitted_at", "last_submitted_at", "revision_due_at", "decision_reason",
+  "approval_comment", "cancel_reason", "updated_at",
+];
+
+const COMMUNITY_DETAIL_TEXT_FIELDS = [
+  "start_date", "end_date", "user_name", "user_address", "user_phone",
+  "email_snapshot", "emergency_name", "emergency_address", "emergency_phone",
+  "usage_place", "purpose", "local_activity", "special_notes", "room_preference",
+  "extension_reason", "submitted_at", "last_submitted_at", "revision_due_at",
+  "decision_reason", "approval_comment", "cancel_reason",
+];
+
+/** Staff-only, allowlisted snapshot for a community individual review screen. */
+export async function getStaffCommunityApplicationDetail(applicationId) {
+  const returnTo = isUuid(applicationId)
+    ? `/staff/community/applications/${applicationId}`
+    : "/staff";
+  const { supabase } = await requireStaff(returnTo);
+  if (!isUuid(applicationId)) {
+    return { error: "not-found", application: null, rooms: [], redirectPath: null };
+  }
+
+  const applicationResult = await supabase.from("applications")
+    .select(COMMUNITY_DETAIL_FIELDS.join(","))
+    .eq("id", applicationId)
+    .maybeSingle();
+  const row = applicationResult.data;
+  if (applicationResult.error || !row) {
+    return {
+      error: applicationResult.error ? "load-failed" : "not-found",
+      application: null,
+      rooms: [],
+      redirectPath: null,
+    };
+  }
+  if (row.usage_type === "camp" && isUuid(row.camp_id)) {
+    return {
+      error: "wrong-route",
+      application: null,
+      rooms: [],
+      redirectPath: `/staff/camps/${row.camp_id}/applications/${applicationId}`,
+    };
+  }
+  if (row.usage_type !== "community_individual" || row.camp_id !== null) {
+    return { error: "not-found", application: null, rooms: [], redirectPath: null };
+  }
+
+  const [payment, stay, notesResult, historyResult, roomsResult,
+    receptionResult, consentResult] = await Promise.all([
+    readApplicationPayment(supabase, applicationId),
+    readApplicationStay(supabase, applicationId),
+    supabase.rpc("get_staff_application_notes", { target_application_id: applicationId }),
+    supabase.from("application_status_events")
+      .select("from_status,to_status,public_reason,occurred_at")
+      .eq("application_id", applicationId)
+      .order("occurred_at", { ascending: false }),
+    supabase.rpc("get_staff_community_application_room_context", {
+      target_application_id: applicationId,
+    }),
+    supabase.from("reception_numbers")
+      .select("display_number")
+      .eq("application_id", applicationId)
+      .maybeSingle(),
+    supabase.from("consent_documents")
+      .select("id")
+      .eq("application_id", applicationId)
+      .maybeSingle(),
+  ]);
+
+  const notes = notesResult.data;
+  const roomContext = roomsResult.data;
+  const relatedError = payment.error || stay.error || notesResult.error
+    || historyResult.error || roomsResult.error || receptionResult.error
+    || consentResult.error;
+  if (relatedError
+    || row.id !== applicationId
+    || !APPLICATION_STATUSES.includes(row.status)
+    || !isUpdatedAt(row.updated_at)
+    || !COMMUNITY_DETAIL_TEXT_FIELDS.every((field) => nullableString(row[field]))
+    || (row.original_application_id !== null && !isUuid(row.original_application_id))
+    || (row.requires_guardian_consent !== null
+      && typeof row.requires_guardian_consent !== "boolean")
+    || payment.application?.id !== applicationId
+    || payment.application?.usage_type !== "community_individual"
+    || payment.application?.camp_id !== null
+    || payment.application.updated_at !== row.updated_at
+    || stay.application?.id !== applicationId
+    || stay.application?.usage_type !== "community_individual"
+    || stay.application?.camp_id !== null
+    || stay.application.updated_at !== row.updated_at
+    || notes?.id !== applicationId
+    || notes?.usage_type !== "community_individual"
+    || notes?.camp_id !== null
+    || notes?.updated_at !== row.updated_at
+    || !Array.isArray(notes?.notes)
+    || !notes.notes.every(validStaffNote)
+    || !Array.isArray(historyResult.data)
+    || !historyResult.data.every(validStatusEvent)
+    || roomContext?.id !== applicationId
+    || roomContext?.status !== row.status
+    || roomContext?.updated_at !== row.updated_at
+    || roomContext?.original_application_id !== row.original_application_id
+    || !Array.isArray(roomContext?.rooms)
+    || !roomContext.rooms.every((room) => isUuid(room.id)
+      && typeof room.name === "string"
+      && Number.isInteger(room.capacity)
+      && room.capacity > 0)
+    || (receptionResult.data !== null
+      && typeof receptionResult.data?.display_number !== "string")
+    || (consentResult.data !== null && !isUuid(consentResult.data?.id))) {
+    return { error: "load-failed", application: null, rooms: [], redirectPath: null };
+  }
+
+  return {
+    error: null,
+    redirectPath: null,
+    rooms: roomContext.rooms.map((room) => pick(room, ["id", "name", "capacity"])),
+    application: {
+      ...pick(row, COMMUNITY_DETAIL_FIELDS),
+      reception_number: receptionResult.data?.display_number ?? null,
+      has_consent: Boolean(consentResult.data),
+      charge: payment.application.charge,
+      stay: stay.application.stay,
+      room_allocation: stay.application.room_allocation?.is_current === true
+        ? stay.application.room_allocation
+        : null,
+      events: historyResult.data.map((event) => pick(event,
+        ["from_status", "to_status", "public_reason", "occurred_at"])),
+      notes: notes.notes.map((note) => pick(note,
+        ["id", "body", "author_user_id", "created_at", "updated_at"])),
+    },
+  };
+}
