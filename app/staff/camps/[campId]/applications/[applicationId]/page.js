@@ -12,7 +12,7 @@ import { ROOM_PREFERENCE_LABELS, USAGE_PLACE_LABELS, statusLabel } from "@/app/c
 import { approveCampApplication, assignCampApplicationRoom, rejectCampApplication,
   requestCampApplicationRevision, startCampApplicationReview } from "@/app/actions/staff-applications";
 import { getStaffCampApplicationDetail } from "@/utils/application-operations/queries";
-import { NoteForm, PaymentForm, StayOperationForm } from "./OperationForms";
+import { AccountDisableForm, NoteForm, PaymentForm, StayOperationForm } from "./OperationForms";
 import styles from "./page.module.css";
 
 export const metadata = { title: "キャンプ申請審査｜ひらいずみ志業ポータル" };
@@ -23,6 +23,7 @@ const UPDATED_MESSAGES = {
   "room-assigned": "部屋割りを保存しました。", "payment-updated": "納付情報を保存しました。",
   "checked-in": "入居を記録しました。", "checked-out": "退去を記録しました。",
   "note-saved": "職員メモを保存しました。",
+  "account-disabled": "利用者のアカウントを停止しました。",
 };
 
 function HiddenVersion({ application }) {
@@ -89,6 +90,18 @@ export default async function StaffCampApplicationPage({ params, searchParams })
     <section className={styles.panel}><h2>入退去</h2>{a.stay ? <><p>現在：{statusLabel("stay", a.stay.status)}</p>{a.stay.checked_in_at && <p>入居日時：{formatJstDateTime(a.stay.checked_in_at)}</p>}{a.stay.checked_out_at && <p>退去日時：{formatJstDateTime(a.stay.checked_out_at)}</p>}{a.status === "approved" && a.stay.status === "before_move_in" && <StayOperationForm applicationId={a.id} updatedAt={a.updated_at} operation="check_in" />}{a.status === "approved" && a.stay.status === "staying" && <StayOperationForm applicationId={a.id} updatedAt={a.updated_at} operation="check_out" />}</> : <EmptyState title="滞在情報はまだありません" />}</section>
 
     <section className={styles.panel}><h2>職員メモ</h2>{a.notes.length ? <ol className={styles.history}>{a.notes.map((note) => <li key={note.id}><p>{note.body}</p><time dateTime={note.updated_at}>{formatJstDateTime(note.updated_at)}</time></li>)}</ol> : <EmptyState title="職員メモはありません" />}<NoteForm applicationId={a.id} updatedAt={a.updated_at} /></section>
+
+    <section className={styles.panel}><h2>アカウント停止</h2>
+      {a.user_id === null || a.account_state === null
+        ? <AlertMessage tone="info" title="ログイン用アカウントとの紐付けはありません"><p>申請記録は管理記録として残り、新しく登録されたアカウントへ自動では結び付きません。</p></AlertMessage>
+        : a.account_state === "disabled"
+          ? <AlertMessage tone="info" title="このアカウントは停止済みです" />
+          : a.account_state === "cleanup_pending"
+            ? <AlertMessage tone="info" title="このアカウントは初期化処理中です" />
+            : ["rejected", "cancelled"].includes(a.status)
+              ? <AccountDisableForm applicationId={a.id} applicantName={a.user_name} />
+              : <p>不許可またはキャンセル済みの申請で、本人から町へ停止依頼があった場合に操作できます。</p>}
+    </section>
 
     <section className={styles.panel}><h2>申請状態の履歴</h2>{a.events.length ? <ol className={styles.history}>{a.events.map((event, index) => <li key={`${event.occurred_at}-${index}`}><p>{event.from_status ? `${statusLabel("application", event.from_status)} → ` : ""}<strong>{statusLabel("application", event.to_status)}</strong></p>{event.public_reason && <p>{event.public_reason}</p>}<time dateTime={event.occurred_at}>{formatJstDateTime(event.occurred_at)}</time></li>)}</ol> : <EmptyState title="履歴はありません" />}</section>
     <LinkButton href="/staff" fullWidthOnMobile>職員ホームへ戻る</LinkButton>

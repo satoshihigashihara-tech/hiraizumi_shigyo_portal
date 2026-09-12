@@ -19,6 +19,7 @@ import {
   NoteForm,
   PaymentForm,
   StayOperationForm,
+  AccountDisableForm,
 } from "@/app/staff/camps/[campId]/applications/[applicationId]/OperationForms";
 import { ReviewOperations } from "./ReviewForms";
 import styles from "./page.module.css";
@@ -38,6 +39,7 @@ const UPDATED_MESSAGES = {
   "checked-out": "退去を記録しました。",
   "note-saved": "職員メモを保存しました。",
   cancelled: "キャンセルを確定しました。",
+  "account-disabled": "利用者のアカウントを停止しました。",
 };
 
 function Fact({ label, children }) {
@@ -243,6 +245,23 @@ export default async function StaffCommunityApplicationPage({ params, searchPara
           <EmptyState title="職員メモはありません" />
         )}
         <NoteForm applicationId={application.id} updatedAt={application.updated_at} />
+      </section>
+
+      <section className={styles.panel} aria-labelledby="account-heading">
+        <h2 id="account-heading">アカウント停止</h2>
+        {application.user_id === null || application.account_state === null ? (
+          <AlertMessage tone="info" title="ログイン用アカウントとの紐付けはありません">
+            <p>申請記録は管理記録として残り、新しく登録されたアカウントへ自動では結び付きません。</p>
+          </AlertMessage>
+        ) : application.account_state === "disabled" ? (
+          <AlertMessage tone="info" title="このアカウントは停止済みです" />
+        ) : application.account_state === "cleanup_pending" ? (
+          <AlertMessage tone="info" title="このアカウントは初期化処理中です" />
+        ) : ["rejected", "cancelled"].includes(application.status) ? (
+          <AccountDisableForm applicationId={application.id} applicantName={application.user_name} />
+        ) : (
+          <p>不許可またはキャンセル済みの申請で、本人から町へ停止依頼があった場合に操作できます。</p>
+        )}
       </section>
 
       <section className={styles.panel} aria-labelledby="history-heading">

@@ -11,7 +11,7 @@ const REASONS = {
   "account-unavailable": {
     title: "現在このアカウントは利用できません",
     message:
-      "利用終了後の情報整理中、または町の担当による利用停止中です。確認が必要な場合は、町の担当窓口へお問い合わせください。",
+      "利用終了後の情報整理中、または町の担当による利用停止中です。停止理由などの内部情報は、この画面には表示しません。",
   },
   "staff-only": {
     title: "職員用の画面です",
@@ -80,6 +80,12 @@ export default async function ForbiddenPage({ searchParams }) {
       <PageShell title="アクセスできません">
         <AlertMessage tone="warning" title={content.title}>
           <p>{content.message}</p>
+          {accountUnavailable && (
+            <>
+              <p>再び利用する場合は、まず町の担当窓口へお問い合わせください。</p>
+              <p>アカウントの初期化が完了したとの案内を受けた後、新規登録から新しいアカウントを作成してください。以前の申請は自動では新しいアカウントへ結び付きません。</p>
+            </>
+          )}
         </AlertMessage>
 
         <div className={styles.actions}>

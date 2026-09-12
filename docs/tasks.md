@@ -16,7 +16,7 @@
 | P05 | [#78](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/78) | 職員カレンダー・利用停止期間 | 実職員のChrome受入確認済み。PRをmainへ反映してIssueを完了する |
 | P06 | [#86](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/86) | キャンプ編集・削除・対象者変更 | 実装・SQL029適用・DBテスト・実職員の画面確認済み。PR作成待ち |
 | P07 | [#81](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/81) | 個人申請の取消・継続申請 | 状態・期間制約を守って実データで完了できる |
-| P08 | [#84](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/84) | アカウント停止・初期化案内 | 停止後の拒否と再利用手順が一致する |
+| P08 | [#84](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/84) | アカウント停止・初期化案内 | 画面接続済み。実アカウントを使う停止後の拒否と再利用手順を受入確認する |
 | P09 | [#82](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/82) | 保護者同意書の実Storage受入 | 本人・職員だけが実ファイルを扱える |
 | P10 | [#89](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/89) | 権限・期限・二重操作などの異常系 | 部分更新や秘密情報の露出なく拒否できる |
 | P11 | [#83](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/83) | 団体申請E2E受入 | 代表者・参加者・職員の一連操作が完了する |
@@ -117,7 +117,7 @@ SQL 009は初回提出と修正再提出の期限を分け、ロック取得後�
 | T19 | 受入準備中 | SQL022・023、代表者の参加者一覧・招待、参加者の招待確認・個別入力・確認・提出・完了・詳細をmainへ反映。SQL028もSupabase適用済み | 共同 | 実アカウントで初回提出・差し戻し再提出・全員提出時の団体審査中遷移を確認する | 認証前は団体情報を見せず、他参加者の個人情報を取得しない |
 | T20 | 画面接続済み・受入待ち | SQL024・025はmain／Supabase反映済み。代表者の変更・取消画面はmain反映・実データ確認済み。職員の団体一覧・審査・部屋割り・許可・取消画面はローカル接続済み | 共同 | 実職員で目的確認、参加者審査、人数一致の部屋割り、団体許可・不許可・取消を受入確認する。期限切れ自動処理はT21 | `/staff/community/groups`と`/staff/community/groups/[groupId]`を既存SQL024・025へ接続済み。新しいSQLはない |
 | T21 | バックエンド適用済み・受入継続 | SQL026をmain・Supabaseへ反映し、期限切れ処理、Cron登録、提出との競合、保存しない回帰SQLの成功を確認済み | 共同 | Issue #89・#83で画面表示と実時間境界を含む異常系・団体E2Eを確認する | 締切・期限切れ表示と問い合わせ案内を渡す。通常のページ閲覧で更新を実行しない。個人申請に同じ自動取消を適用しない |
-| T22 | バックエンド適用済み・有効化待ち | 利用終了後のアカウント初期化・職員による停止 | バックエンド→フロント | SQL027とEdge Functionを適用し、実DB20項目成功。Vault未設定のため自動削除は無効。案内画面と職員停止操作の接続後に有効化する | `/forbidden?reason=account-unavailable`の案内と`disableUserAccount`を接続する。ジョブ・秘密値は画面へ出さない |
+| T22 | 画面接続済み・受入待ち | 利用終了後のアカウント初期化・職員による停止 | 共同 | SQL027とEdge Functionを適用し、実DB20項目成功。申請詳細の停止操作と停止中の案内を接続。Vault未設定のため自動削除は無効 | 架空の停止対象で実行し、保護画面拒否、内部理由非表示、初期化後の再登録案内を確認する。ジョブ・秘密値は画面へ出さない |
 | T23 | 完了 | 利用者画面の375px／PC幅、ラベル、Tab操作とフォーカス、文字付き状態、入力保持、エラーリンク、送信中、空表示を確認。共通`loading.js`・`error.js`・`not-found.js`を追加。Chromeで公開4画面を375px実測し、52〜233ms・横はみ出しなし。認証後画面は共通CSSと自動テストで確認。Safariでトップと404、Edgeでトップを表示確認 | フロント（確認は共同） | スマホ／PCで主要操作ができ、ラベル・キーボード操作・文字による状態説明・入力保持・エラー位置への移動・送信中表示を備える。主要画面おおむね3秒を目標に確認する | Chrome・Safari・Edgeの確認結果をIssue #25のPRへ記録。実データを使う認証後の操作時間はT24の受入確認でも再確認する |
 | T24 | 受入準備中 | 総合受入確認・デモデータ・README・公開確認 | 共同 | README、総合確認表、5役割デモ手順、緊急対応を作成。画面完成後に実ログイン・Storage・Vercelの確認結果を記録する | `docs/mvp-acceptance.md`を共同で更新し、未確認項目を完成扱いにしない |
 | T25 | 未着手 | 本運用前の町への確認 | 共同（町への確認窓口は未定） | 要件28章の制度・料金・電子申請の効力・保存期間・同意書様式等の決定と影響を記録する | 決定後に文言・入力項目・保存条件へ反映。試作版の開発は現行要件で進められる。定員15人は確認済み |
