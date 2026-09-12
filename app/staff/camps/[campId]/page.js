@@ -23,6 +23,7 @@ export default async function StaffCampPage({ params, searchParams }) {
         <div><dt>申請期限</dt><dd>{formatDeadline(camp.application_deadline)}</dd></div>
         <div><dt>対象者</dt><dd>{camp.eligible_count}件</dd></div><div><dt>申請</dt><dd>{camp.application_count}件</dd></div></dl>
       <div className={styles.actions}><LinkButton href={`/staff/camps/${camp.id}/eligible-users`} variant="primary" fullWidthOnMobile>対象者を登録する</LinkButton>
+        {camp.room_assignment_mode === "eligible_roster" && <LinkButton href={`/staff/camps/${camp.id}/room-plan`} fullWidthOnMobile>事前部屋割りを編集する</LinkButton>}
         <LinkButton href={`/staff/camps/${camp.id}/edit`} fullWidthOnMobile>設定を編集・削除する</LinkButton>
         <LinkButton href={`/staff?usageType=camp&q=${encodeURIComponent(camp.name)}`} fullWidthOnMobile>このキャンプの申請を見る</LinkButton></div>
     </section>
