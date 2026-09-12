@@ -13,6 +13,8 @@ import { approveCampApplication, assignCampApplicationRoom, rejectCampApplicatio
   requestCampApplicationRevision, startCampApplicationReview } from "@/app/actions/staff-applications";
 import { getStaffCampApplicationDetail } from "@/utils/application-operations/queries";
 import { AccountDisableForm, NoteForm, PaymentForm, StayOperationForm } from "./OperationForms";
+import { getStaffCampRosterReview } from "@/utils/staff-camps/review-queries";
+import { RosterReviewForm, RosterRejectForm } from "./RosterReviewForms";
 import styles from "./page.module.css";
 
 export const metadata = { title: "キャンプ申請審査｜ひらいずみ志業ポータル" };
@@ -37,12 +39,16 @@ export default async function StaffCampApplicationPage({ params, searchParams })
   const result = await getStaffCampApplicationDetail(campId, applicationId);
   if (result.error === "not-found") notFound();
   if (result.error || !result.application) return <PageShell title="キャンプ申請審査"><AlertMessage tone="error" title="申請を開けませんでした"><p>{errorMessage(result.error)}</p></AlertMessage><LinkButton href="/staff">職員ホームへ戻る</LinkButton></PageShell>;
-  const a = result.application;
+  const roster = result.application.room_assignment_mode === "eligible_roster";
+  const reviewResult = roster ? await getStaffCampRosterReview(campId, applicationId) : null;
+  if (reviewResult?.error || (reviewResult?.review && reviewResult.review.updated_at !== result.application.updated_at)) return <PageShell title="キャンプ申請審査"><AlertMessage tone="error" title="審査情報を読み込めませんでした"><p>画面を再読み込みしてください。</p></AlertMessage></PageShell>;
+  const review = reviewResult?.review;
+  const a = { ...result.application, ...(review?.snapshot || {}) };
   const success = typeof query.updated === "string" ? UPDATED_MESSAGES[query.updated] : null;
   const queryError = typeof query.error === "string" ? query.error : null;
-  const canReview = a.status === "submitted";
-  const canDecide = a.status === "under_review";
-  const canAssignRoom = ["under_review", "approved"].includes(a.status);
+  const canReview = !roster && a.status === "submitted";
+  const canDecide = !roster && a.status === "under_review";
+  const canAssignRoom = !roster && ["under_review", "approved"].includes(a.status);
 
   return <PageShell title="キャンプ申請審査" description={a.camp_name}>
     {success && <AlertMessage tone="success" title={success} />}
@@ -57,28 +63,34 @@ export default async function StaffCampApplicationPage({ params, searchParams })
       <Fact label="修正期限">{a.revision_due_at ? formatDeadline(a.revision_due_at) : "なし"}</Fact>
     </dl>{a.decision_reason && <AlertMessage tone="warning" title="本人へ伝えた理由"><p>{a.decision_reason}</p></AlertMessage>}</section>
 
-    <section className={styles.panel}><h2>申請者情報</h2><dl className={styles.facts}>
-      <Fact label="氏名">{a.user_name}</Fact><Fact label="メールアドレス">{a.email_snapshot}</Fact><Fact label="電話番号">{a.user_phone}</Fact><Fact label="住所">{a.user_address}</Fact>
+    <section className={styles.panel}><h2>{roster ? (review.snapshot ? "最新の提出内容" : "未提出の入力内容") : "申請者情報"}</h2><dl className={styles.facts}>
+      <Fact label="氏名">{a.user_name}</Fact>{!roster && <Fact label="メールアドレス">{a.email_snapshot}</Fact>}<Fact label="電話番号">{a.user_phone}</Fact><Fact label="住所">{a.user_address}</Fact>
       <Fact label="緊急連絡先氏名">{a.emergency_name}</Fact><Fact label="緊急連絡先電話">{a.emergency_phone}</Fact><Fact label="緊急連絡先住所">{a.emergency_address}</Fact>
     </dl></section>
 
     <section className={styles.panel}><h2>利用内容</h2><dl className={styles.facts}>
-      <Fact label="使用箇所">{USAGE_PLACE_LABELS[a.usage_place] || "不明"}</Fact><Fact label="部屋の希望">{ROOM_PREFERENCE_LABELS[a.room_preference] || "不明"}</Fact>
+      <Fact label="使用箇所">{USAGE_PLACE_LABELS[a.usage_place] || "不明"}</Fact>{!roster && <Fact label="部屋の希望">{ROOM_PREFERENCE_LABELS[a.room_preference] || "不明"}</Fact>}
       <Fact label="使用目的">{a.purpose}</Fact><Fact label="町内で行う活動">{a.local_activity}</Fact><Fact label="特記事項">{a.special_notes || "なし"}</Fact>
       <Fact label="保護者同意書">{a.requires_guardian_consent ? (a.has_consent ? "添付済み" : "未添付") : "添付不要"}</Fact>
     </dl></section>
 
+    {roster && <section className={styles.panel}><h2>提出PDFの履歴</h2><p>審査には最新の提出PDFを使用します。修正中の入力は提出内容に含みません。</p>{review.versions.length ? <ul>{review.versions.map((v) => <li key={v.id}><a href={`/api/camp/application-pdfs/${v.id}`} target="_blank" rel="noreferrer">提出版 {v.version_no}（{formatJstDateTime(v.submitted_at)}）</a></li>)}</ul> : <p>提出PDFはありません。</p>}</section>}
     <section className={styles.panel}><h2>審査</h2>
+      {roster && <>{review.can_review && <RosterReviewForm key={review.updated_at} review={review} operation={a.status === "submitted" ? "start_review" : "request_revision"} />}
+        {review.lifecycle.can_reject && <RosterRejectForm key={review.updated_at + "reject"} lifecycle={review.lifecycle} />}
+        {!review.can_review && <p>現在の状態では審査操作を行えません。提出内容と部屋・滞在の状態を確認してください。</p>}</>}
       {canReview && <form className={styles.operationForm} action={startCampApplicationReview}><HiddenVersion application={a} /><p>画面を開いただけでは審査状態を変更しません。</p><SubmitButton>審査を開始</SubmitButton></form>}
       {canDecide && <div className={styles.operationGrid}>
         <form className={styles.operationForm} action={requestCampApplicationRevision}><HiddenVersion application={a} /><FormField id="revisionReason" name="reason" label="修正してほしい内容" as="textarea" required maxLength={2000} /><SubmitButton>修正を依頼</SubmitButton></form>
         <form className={styles.operationForm} action={rejectCampApplication}><HiddenVersion application={a} /><FormField id="rejectReason" name="reason" label="不許可の理由" as="textarea" required maxLength={2000} /><SubmitButton variant="danger">不許可にする</SubmitButton></form>
       </div>}
-      {!canReview && !canDecide && <p>現在の状態（{statusLabel("application", a.status)}）では審査状態を変更できません。</p>}
+      {!roster && !canReview && !canDecide && <p>現在の状態（{statusLabel("application", a.status)}）では審査状態を変更できません。</p>}
     </section>
 
     <section className={styles.panel}><h2>部屋割り・許可</h2>
-      {a.room_allocation ? <p>現在の部屋：<strong>{a.room_allocation.room_name}</strong>（{formatPeriod(a.room_allocation.start_date, a.room_allocation.end_date)}）</p> : <EmptyState title="部屋は未割当です" />}
+      {roster && <><p>現在の部屋：{review.room_name || "未配置"}</p><LinkButton href={`/staff/camps/${campId}/room-plan`}>全員の部屋割り・変更へ</LinkButton>
+        {review.can_review && a.status === "under_review" && <RosterReviewForm key={review.updated_at + "approve"} review={review} operation="approve" />}</>}
+      {!roster && (a.room_allocation ? <p>現在の部屋：<strong>{a.room_allocation.room_name}</strong>（{formatPeriod(a.room_allocation.start_date, a.room_allocation.end_date)}）</p> : <EmptyState title="部屋は未割当です" />)}
       {canAssignRoom && <form className={styles.operationForm} action={assignCampApplicationRoom}><HiddenVersion application={a} />
         <FormField as="select" id="roomId" name="roomId" label="部屋" required defaultValue={a.room_allocation?.room_id || ""} options={[{ value: "", label: "部屋を選択" }, ...result.rooms.map((room) => ({ value: room.id, label: `${room.name}（定員${room.capacity}人）` }))]} />
         <FormField id="roomReason" name="reason" label="変更理由（変更時）" as="textarea" maxLength={2000} /><SubmitButton>部屋割りを保存</SubmitButton></form>}

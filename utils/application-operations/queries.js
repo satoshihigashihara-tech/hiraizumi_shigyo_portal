@@ -136,7 +136,7 @@ export async function getStaffCampApplicationDetail(campId, applicationId) {
       .eq("application_id", applicationId).order("occurred_at", { ascending: false }),
     supabase.from("rooms").select("id,name,capacity").order("name", { ascending: true }),
     supabase.from("reception_numbers").select("display_number").eq("application_id", applicationId).maybeSingle(),
-    supabase.from("camps").select("id,name,start_date,end_date").eq("id", campId).maybeSingle(),
+    supabase.from("camps").select("id,name,start_date,end_date,room_assignment_mode").eq("id", campId).maybeSingle(),
     supabase.from("consent_documents").select("id").eq("application_id", applicationId).maybeSingle(),
   ]);
 
@@ -181,6 +181,7 @@ export async function getStaffCampApplicationDetail(campId, applicationId) {
       ...pick(row, CAMP_DETAIL_FIELDS),
       account_state: accountResult.data?.account_state ?? null,
       camp_name: campResult.data.name,
+      room_assignment_mode: campResult.data.room_assignment_mode ?? "legacy_application",
       reception_number: receptionResult.data?.display_number ?? null,
       has_consent: Boolean(consentResult.data),
       charge: payment.application.charge,
