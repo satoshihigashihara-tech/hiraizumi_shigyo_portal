@@ -332,6 +332,8 @@ DBとStorageは同じトランザクションにならない。新しいラン�
 | `create_staff_camp` | 既存の引数とUUID返却を維持。日程競合・期限境界を検査し、キャンプ・枠・監査を作る |
 | `update_staff_camp` | 対象ID、名称、期間、期限、`expected_updated_at`、変更理由を受け取る。期間変更は有効提出済み申請がない場合だけ。下書きの日程・更新日時と最小限の変更監査を同時更新 |
 | `delete_staff_camp` | 対象ID、更新日時、理由が必須。有効提出済み申請がなければ論理削除・枠解放。下書きと履歴は残す |
+| `update_camp_eligible_user` | 対象資格ID、キャンプID、新メール、更新日時、理由が必須。既存申請と重なる対象資格や重複メールを拒否し、監査を記録 |
+| `disable_camp_eligible_user` | 対象資格ID、キャンプID、更新日時、理由が必須。既存申請がある対象資格を保護し、論理無効化と監査を同時実行 |
 | `save_staff_blocked_period` | IDがNULLなら登録、IDありなら編集。期間と内部理由を検査し、編集では更新日時・変更理由も検査 |
 | `delete_staff_blocked_period` | 対象ID、更新日時、理由を検査し、論理削除・枠解放 |
 

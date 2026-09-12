@@ -6,6 +6,7 @@ const ERROR_CODES = new Set([
   "invalid-version", "stale-update", "invalid-status", "reason-required", "reason-too-long",
   "not-found", "date-conflict", "camp-has-applications", "calendar-inconsistent", "calendar-unavailable",
   "confirmation-required",
+  "invalid-email", "eligible-email-exists", "eligible-has-application",
 ]);
 
 export function getText(formData, name) {
