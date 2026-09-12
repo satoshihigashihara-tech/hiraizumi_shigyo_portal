@@ -1,6 +1,6 @@
-# A4 新方式キャンプの参加終了（SQL034）
+# A4 新方式キャンプの参加終了（SQL035）
 
-基準：main `f325986`（A3 SQL032・A7 SQL033）。R0「キャンプ追加仕様の影響調査」とR2「R2 対象者・配置・提出版・認可レビュー」の契約を照合した追加実装。対象は `eligible_roster` の職員操作と共通入退去の新方式分岐。キャンプ作成・移行・期間変更・削除・再参加・滞在中の部屋移動は追加しない。本番有効化のR2条件は解除しない。
+基準：main `c02b16a`（A3/A5、A7 SQL033、A6 SQL034、PostgreSQL17.6検証強化）。R0「キャンプ追加仕様の影響調査」とR2「R2 対象者・配置・提出版・認可レビュー」の契約を照合した追加実装。対象は `eligible_roster` の職員操作と共通入退去の新方式分岐。キャンプ作成・移行・期間変更・削除・再参加・滞在中の部屋移動は追加しない。本番有効化のR2条件は解除しない。
 
 ## 状態と解放日
 
@@ -67,15 +67,15 @@ RPCは同じ順序の期待値を `expected_*` として受け、確認はboolea
 
 ## 適用と検証
 
-本番用ファイルは **`supabase/migrations/202609130034_camp_roster_lifecycle.sql`**。メインチャットがSQL033適用済みを確認し、SQL034としてSQL Editorへ保存・番号順に適用する。本タスクは本番Supabase、Storage、Function、Vercel設定を変更しない。
+本番用ファイルは **`supabase/migrations/202609130035_camp_roster_lifecycle.sql`**。メインチャットがSQL034適用済みを確認し、SQL035としてSQL Editorへ保存・番号順に適用する。本タスクは本番Supabase、Storage、Function、Vercel設定を変更しない。
 
-SQL034は追加テーブルなし・既存業務データ更新なし。RPC定義の追加／置換とEXECUTE制限だけ。新方式campを自動作成・切替したり、部屋対応表を有効化したりしない。適用時はトランザクション末尾の成功を確認し、2つの新公開RPCと既存共通stay RPCの存在を確認する。新RPCはauthenticatedのみEXECUTE可、private helperは直接実行不可。公開前の実職員・実JWT・Storageの受入は別途必要。
+SQL035は追加テーブルなし・既存業務データ更新なし。RPC定義の追加／置換とEXECUTE制限だけ。新方式campを自動作成・切替したり、部屋対応表を有効化したりしない。適用時はトランザクション末尾の成功を確認し、2つの新公開RPCと既存共通stay RPCの存在を確認する。新RPCはauthenticatedのみEXECUTE可、private helperは直接実行不可。公開前の実職員・実JWT・Storageの受入は別途必要。
 
 検証SQL・fixtureはリポジトリ専用でSQL Editorへ保存しない。単体は末尾ROLLBACK。runnerが共有fixtureを先に読み、競合では2 worker＋observerで実Lock待機を確認し、最後に専用schema・架空データ・一時DBを削除する。
 
 ```bash
-T10_DB_RUNTIME=/private/tmp/hiraizumi-a1-postgres node scripts/test-community-applications-db.mjs camp_roster_lifecycle.sql camp_roster_lifecycle_concurrency.sql
-T10_DB_RUNTIME=/private/tmp/hiraizumi-a1-postgres node scripts/test-community-applications-db.mjs
+T10_DB_RUNTIME=/private/tmp/hiraizumi-a3-postgres176 T10_DB_EXPECTED_VERSION=17.6 node scripts/test-community-applications-db.mjs camp_roster_lifecycle.sql camp_roster_lifecycle_concurrency.sql
+T10_DB_RUNTIME=/private/tmp/hiraizumi-a3-postgres176 T10_DB_EXPECTED_VERSION=17.6 node scripts/test-community-applications-db.mjs
 npm test
 npm run lint
 npm run build

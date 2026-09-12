@@ -74,14 +74,17 @@ create function private.end_camp_roster_participation(
 declare c public.camps%rowtype; e public.camp_eligible_users%rowtype; a public.applications%rowtype;
  s public.stays%rowtype; r public.camp_room_assignments%rowtype; q public.calendar_claims%rowtype;
  moment timestamptz; today_jst date; release_date date; next_plan bigint; snapshot jsonb;
- before_value jsonb; old_status text; new_status text; roster bigint;
+ before_value jsonb; old_status text; new_status text; roster bigint; affected_profiles uuid[]; candidate uuid;
 begin
   if end_action is null or end_action not in ('withdraw','reject','complete') then raise exception 'invalid-action'; end if;
   perform private.check_calendar_reason(change_reason);
   -- Cleanup triggers also lock the owner profile. Acquire it before the camp.
-  perform p.id from public.profiles p where p.id in (
-    select x.user_id from public.applications x where x.camp_id=target_camp_id
-      and x.camp_eligible_user_id=target_eligible_user_id) order by p.id for update;
+  select array_agg(p.id order by p.id) into affected_profiles from public.profiles p where p.id in (
+    select x.user_id from public.applications x where x.camp_id=target_camp_id and x.camp_eligible_user_id=target_eligible_user_id
+    union select member.linked_user_id from public.camp_eligible_users member where member.camp_id=target_camp_id and member.id=target_eligible_user_id)
+    or exists(select 1 from public.camp_eligible_users member where member.camp_id=target_camp_id and member.id=target_eligible_user_id
+      and member.linked_user_id is null and member.email_normalized=private.current_verified_email(p.id));
+  perform p.id from public.profiles p where p.id=any(affected_profiles) order by p.id for update;
   select * into c from public.camps where id=target_camp_id and deleted_at is null for update;
   if not found then raise exception 'not-found'; end if;
   if c.room_assignment_mode<>'eligible_roster' then raise exception 'eligible-roster-required'; end if;
@@ -160,8 +163,10 @@ begin
       insert into public.application_status_events(application_id,from_status,to_status,public_reason,actor_user_id,occurred_at)
         values(a.id,old_status,new_status,case when end_action='reject' then btrim(change_reason) else 'キャンプ参加取りやめ' end,auth.uid(),moment);
     end if;
-    if a.user_id is not null then perform private.reconcile_account_cleanup(a.user_id,moment); end if;
   end if;
+  foreach candidate in array coalesce(affected_profiles,'{}'::uuid[]) loop
+    perform private.reconcile_account_cleanup(candidate,moment);
+  end loop;
   insert into public.audit_logs(entity_type,entity_id,action,before_data,after_data,actor_kind,actor_user_id,reason)
     values('camp_eligible_user',e.id,'end_camp_roster_participation',before_value,
       jsonb_build_object('end_action',end_action,'disabled_at',e.disabled_at,'participation_status',e.participation_status,

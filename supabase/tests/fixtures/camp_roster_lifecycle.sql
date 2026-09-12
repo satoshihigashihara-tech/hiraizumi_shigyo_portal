@@ -88,6 +88,7 @@ begin
  delete from public.camp_eligible_users where camp_id=x.camp;
  delete from public.calendar_claims where camp_id=x.camp;
  delete from public.camps where id=x.camp;
+ delete from public.account_cleanup_jobs where user_id in(x.staff,x.owner);
  delete from auth.users where id in(x.staff,x.owner);
  delete from public.camp_room_mapping;
  delete from a4_lifecycle_test.context;

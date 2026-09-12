@@ -871,7 +871,7 @@ try {
     }
     // Send the complete original bytes, decoded as UTF-8, without splitting or rewriting SQL.
     if (file === '202609130033_camp_pdf_versions.sql') beforePdfUpgrade = await storedRows(c);
-    if(file==='202609130034_camp_roster_lifecycle.sql') {
+    if(file==='202609130035_camp_roster_lifecycle.sql') {
       await c.query(await readFile(join(root,'supabase/tests/fixtures/camp_roster_lifecycle.sql'),'utf8'));
       await c.query("select a4_lifecycle_test.setup('approved','before_move_in'); select a4_lifecycle_test.seed_retained_records()");
       beforeLifecycleUpgrade={common:await storedRows(c),roster:(await c.query('select a4_lifecycle_test.snapshot() data')).rows[0].data,
@@ -879,12 +879,12 @@ try {
     }
     await c.query(sqlBytes.toString('utf8'));
     console.log('PASS migration', file);
-    if(file==='202609130034_camp_roster_lifecycle.sql') {
+    if(file==='202609130035_camp_roster_lifecycle.sql') {
       assert.deepEqual(await storedRows(c),beforeLifecycleUpgrade.common);
       assert.deepEqual((await c.query('select a4_lifecycle_test.snapshot() data')).rows[0].data,beforeLifecycleUpgrade.roster);
       assert.deepEqual((await c.query('select a4_lifecycle_test.retained_snapshot() data')).rows[0].data,beforeLifecycleUpgrade.retained);
       await c.query('select a4_lifecycle_test.cleanup(); drop schema a4_lifecycle_test cascade');
-      console.log('PASS 033 to 034 upgrade: all populated roster, application, payment, stay, claim, audit and PDF rows unchanged');
+      console.log('PASS 034 to 035 upgrade: all populated roster, application, payment, stay, claim, audit and PDF rows unchanged');
     }
     if(file==='202609130033_camp_pdf_versions.sql'){
       assert.deepEqual(await storedRows(c),beforePdfUpgrade);

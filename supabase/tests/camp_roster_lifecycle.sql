@@ -10,7 +10,7 @@ create function pg_temp.a4_fail_audit() returns trigger language plpgsql as $$ b
  if new.action='end_camp_roster_participation' then raise exception 'test-audit-failure'; end if; return new;
 end $$;
 do $$
-declare x a4_lifecycle_test.context%rowtype; r jsonb; before_value jsonb; st text; action_value text; claim jsonb; other_row jsonb; history jsonb; future_camp uuid;
+declare x a4_lifecycle_test.context%rowtype; r jsonb; before_value jsonb; st text; action_value text; claim jsonb; other_row jsonb; history jsonb; future_camp uuid; past_app uuid;
 begin
  foreach st in array array[null,'draft','submitted','under_review','revision_requested','approved','rejected','cancelled'] loop
   foreach action_value in array array['withdraw','reject'] loop
@@ -44,6 +44,20 @@ begin
  r:=a4_lifecycle_test.act(); perform pg_temp.a4_check(r->>'ok'='true','unassigned withdrawal');
  perform pg_temp.a4_check((select room_plan_committed_at is null and saved_roster_version is null from public.camps where id=(select camp from a4_lifecycle_test.context))
    and not exists(select 1 from public.calendar_claims where camp_id=(select camp from a4_lifecycle_test.context)),'uncommitted remains unclaimed');
+ perform a4_lifecycle_test.cleanup();
+ -- Ending an unlinked, unapplied future participant rechecks an already completed account.
+ perform a4_lifecycle_test.setup(null); select * into x from a4_lifecycle_test.context;
+ past_app:=gen_random_uuid();
+ insert into public.applications(id,usage_type,user_id,start_date,end_date,status,submitted_at)
+   values(past_app,'community_individual',x.owner,current_date-10,current_date-8,'approved',clock_timestamp());
+ insert into public.stays(application_id,status,checked_in_at,checked_out_at)
+   values(past_app,'moved_out',clock_timestamp()-interval '10 days',clock_timestamp()-interval '8 days');
+ perform pg_temp.a4_check(private.account_cleanup_blocker(x.owner)='camp-participation-open','unapplied camp blocks prior completed account cleanup');
+ r:=a4_lifecycle_test.act();
+ perform pg_temp.a4_check(r->>'ok'='true' and (select account_state='cleanup_pending' from public.profiles where id=x.owner),
+   'unapplied withdrawal rechecks and queues eligible completed account');
+ delete from public.calendar_claims where application_id=past_app;
+ delete from public.applications where id=past_app;
  perform a4_lifecycle_test.cleanup();
  -- Existing incomplete plan stays incomplete.
  perform a4_lifecycle_test.setup(); select * into x from a4_lifecycle_test.context;
