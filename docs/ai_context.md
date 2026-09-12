@@ -192,3 +192,7 @@ SQL027と`process-account-cleanup` Edge Functionはmain・Supabaseへ適用済�
 ### T18 団体代表者画面（2026年9月12日）
 
 `codex/community-group-representative-ui`で、既存SQL021と団体Actionへ`/user/groups`、新規・編集・確認・受付完了・詳細を接続した。初回表示では下書きを作らず、招待・参加者・職員審査は後続に残す。架空団体`SG-2026-0133`を実Supabaseで申請中にし、完了・詳細・一覧と公開カレンダーの専有枠反映をChromeで確認した。Node 339件、lint、production buildが成功。SQL・環境変数・依存関係は変更していない。
+
+### T19 団体代表者の招待管理画面（2026年9月12日）
+
+`codex/community-group-invitation-ui`で、代表者向け参加者一覧と招待発行・再発行を`/user/groups/[groupId]/participants`へ接続中。招待の平文はAction stateにだけ保持し、一度だけ表示する。実団体`SG-2026-0133`で発行、有効期限、PC幅・390px幅を確認済み。参加者への共有、`/invite`、`/invite/[token]`、参加者本人フォーム、職員画面は対象外。SQL・環境変数・依存関係は変更しない。

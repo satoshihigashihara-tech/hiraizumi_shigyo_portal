@@ -56,8 +56,25 @@ test("group pages show textual state, completion facts and next navigation", asy
   assert.match(complete, /受付番号/);
   assert.match(complete, /参加者提出期限/);
   assert.match(detail, /団体状態の履歴/);
-  assert.match(detail, /参加者を招待する画面は次の実装で接続します/);
+  assert.match(detail, /href=\{`\/user\/groups\/\$\{group\.id\}\/participants`\}/);
   assert.match(labels, /GROUP_STATUS_LABELS/);
+});
+
+test("representative invitation screen uses one-time secrets and a minimal participant list", async () => {
+  const [page, panel, queries] = await Promise.all([
+    read("app/user/groups/[groupId]/participants/page.js"),
+    read("app/user/groups/[groupId]/participants/InvitePanel.js"),
+    read("utils/group-invitations/queries.js"),
+  ]);
+  assert.match(page, /getCommunityGroupParticipants\(groupId\)/);
+  assert.match(page, /participant\.name/);
+  assert.doesNotMatch(page, /participant\.(address|phone|emergency|guardian)/);
+  assert.match(panel, /issueCommunityGroupInvite/);
+  assert.match(panel, /useActionState/);
+  assert.match(panel, /invite\?\.groupUpdatedAt/);
+  assert.match(panel, /navigator\.clipboard\.writeText/);
+  assert.match(panel, /一度だけ表示/);
+  assert.match(queries, /\["application_id", "name", "application_status", "is_representative", "joined_at"\]/);
 });
 
 test("group UI follows existing 8px system and collapses at narrow widths", async () => {
