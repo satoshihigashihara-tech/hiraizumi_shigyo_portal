@@ -7,6 +7,7 @@ const ERROR_CODES = new Set([
   "not-found", "date-conflict", "camp-has-applications", "calendar-inconsistent", "calendar-unavailable",
   "confirmation-required",
   "invalid-email", "eligible-email-exists", "eligible-has-application",
+  "eligible-roster-required", "invalid-management-name",
 ]);
 
 export function getText(formData, name) {
@@ -45,6 +46,11 @@ export function periodError(startDate, endDate) {
 export function reasonError(reason, required = true) {
   if (required && !reason) return "reason-required";
   return Array.from(reason).length > 2000 ? "reason-too-long" : null;
+}
+
+export function managementNameError(value) {
+  const length = Array.from(value ?? "").length;
+  return length < 1 || length > 200 ? "invalid-management-name" : null;
 }
 
 export function calendarErrorCode(error) {

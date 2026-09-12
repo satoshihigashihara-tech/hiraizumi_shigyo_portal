@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requireStaff } from "@/utils/auth/guards";
 import {
   getText, isUuid, isUpdatedAt, toTokyoDeadline, periodError, reasonError,
-  calendarErrorCode, calendarFailure,
+  calendarErrorCode, calendarFailure, managementNameError,
 } from "@/utils/calendar/validation";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -142,6 +142,54 @@ export async function updateCampEligibleUserState(_previousState, formData) {
 
 export async function disableCampEligibleUserState(_previousState, formData) {
   return runEligibleUserAction(formData, "disable");
+}
+
+async function runRosterEligibleUserAction(formData, operation) {
+  const { supabase } = await requireStaff("/staff/camps");
+  const fields = Object.fromEntries(["campId", "eligibleUserId", "managementName", "email", "updatedAt", "reason"]
+    .map((key) => [key, getText(formData, key)]));
+  if (!isUuid(fields.campId) || (operation === "update" && !isUuid(fields.eligibleUserId))) {
+    return calendarFailure("not-found", fields);
+  }
+  const fieldErrors = {};
+  const nameError = managementNameError(fields.managementName);
+  if (nameError) fieldErrors.managementName = nameError;
+  if (!EMAIL_PATTERN.test(fields.email)) fieldErrors.email = "invalid-email";
+  if (operation === "update" && !isUpdatedAt(fields.updatedAt)) fieldErrors.updatedAt = "invalid-version";
+  if (Object.keys(fieldErrors).length) return calendarFailure("invalid-fields", fields, fieldErrors);
+
+  const input = operation === "create"
+    ? { target_camp_id: fields.campId, management_name_value: fields.managementName, email_value: fields.email.toLowerCase() }
+    : {
+      target_camp_id: fields.campId, target_eligible_user_id: fields.eligibleUserId,
+      new_management_name: fields.managementName, new_email: fields.email.toLowerCase(),
+      expected_updated_at: fields.updatedAt, change_reason: fields.reason || null,
+    };
+  const rpcName = operation === "create" ? "create_camp_roster_eligible_user" : "update_camp_roster_eligible_user";
+  const { data, error } = await supabase.rpc(rpcName, input);
+  if (error) {
+    const code = calendarErrorCode(error);
+    if (code === "reason-required") fieldErrors.reason = code;
+    return calendarFailure(code, fields, fieldErrors);
+  }
+  const result = Array.isArray(data) ? data[0] : null;
+  const expectedId = operation === "create" ? result?.result_id : fields.eligibleUserId;
+  if (!result || result.result_id !== expectedId || result.result_management_name !== fields.managementName
+    || result.result_email !== fields.email.toLowerCase() || !isUpdatedAt(result.result_updated_at)) {
+    return calendarFailure("update-failed", fields);
+  }
+  const path = `/staff/camps/${fields.campId}/eligible-users`;
+  revalidatePath(path);
+  revalidatePath(`/staff/camps/${fields.campId}`);
+  return { error: null, fields: {}, fieldErrors: {}, success: operation };
+}
+
+export async function createCampRosterEligibleUserState(_previousState, formData) {
+  return runRosterEligibleUserAction(formData, "create");
+}
+
+export async function updateCampRosterEligibleUserState(_previousState, formData) {
+  return runRosterEligibleUserAction(formData, "update");
 }
 
 export async function addCampEligibleUsers(formData) {

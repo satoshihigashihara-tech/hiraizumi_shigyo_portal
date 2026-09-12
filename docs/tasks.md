@@ -20,6 +20,10 @@ A1では対象者登録RPC/UI、事前部屋割り、PDF、フォーム、許可
 
 ローカルPostgreSQL 18.4でSQL 001〜030の適用、単体1,602チェック、既存機能を含む並行91ケースと全テスト後の隔離スキーマ削除を確認した。`npm test` 364件、ESLint、本番ビルドも成功している。本番ビルドは `next/font` のGoogle Fonts取得を含むため、ネットワーク許可付きで確認した。Supabase適用、push、PR、マージは未実施。
 
+### A2 新方式対象者の単件登録・編集（SQL 031・ローカル検証済み）
+
+A2は`eligible_roster`だけに、管理用氏名とメールアドレスの単件登録・期待版付き編集を追加する。同campのメール重複は有効・無効を問わず拒否し、既存対象者を更新・復活しない。結合済み対象者のメール変更は理由を必須にし、Auth結合、申請、profiles、地域活動、legacy campを変更しない。ローカルPostgreSQL 18.4でSQL001〜031を適用し、A2単体15項目、A2別接続競合1件、既存単体・競合回帰を確認した。Node 373件、ESLint、webpack本番build、差分検査も成功した。SQL031のSupabase本番適用、commit、push、PR、マージ、実職員の画面受入は未実施である。
+
 | 優先 | Issue | 残作業 | 完了の目安 |
 |---|---:|---|---|
 | 完了 | [#87](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/87) | 団体参加者の個人情報入力・確認・提出 | PR #91でmainへ反映。SQL028はSupabaseへ適用済み |

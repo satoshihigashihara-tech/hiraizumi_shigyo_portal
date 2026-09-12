@@ -155,6 +155,10 @@ camp限定の遅延整合性トリガーは、新方式の有効申請に対象�
 
 `get_staff_camp_roster(uuid)` はactive職員だけに、campのモード・版と安定ID基準の対象者／関連申請を返す読取専用RPCである。`diagnose_camp_roster_migration(uuid)` は既存申請を `auto_link_candidate / conditional_link_candidate / staff_review / legacy_only` に分類し、根拠コードとcamp単位の切替阻害理由を返す。診断は対象者リンク、既存申請、部屋、滞在、モードを更新せず、自動補正もしない。
 
+**A2の対象者単件管理（SQL 031）**
+
+`create_camp_roster_eligible_user` と `update_camp_roster_eligible_user` はactive職員・`eligible_roster` のcampだけを対象にする。ロック順は施設／職員→camp→安定対象者IDであり、作成時はcampロックで同campの同メール登録を直列化する。重複は有効・無効・参加終了・Auth結合の状態を返さず `eligible-email-exists` に統一する。新規は管理用氏名1〜200文字と正規化メールを必須とし、更新は対象者の`updated_at`を期待版として必須にする。結合済み対象者のメール変更だけは理由も必須であり、`linked_user_id`等は変更しない。監査には作成／変更だけを残し、profiles、申請の氏名写し、地域活動のデータは変更しない。旧一括登録・変更・無効化RPCは`legacy_application`専用へ限定する。
+
 ローカルPostgreSQL 18.4でSQL 001〜030の連続適用、A1の単体16チェックと並行2ケース、既存DB単体・並行回帰を確認済み。外部Supabaseには適用していない。
 
 **blocked_periods** — `start_date date`、`end_date date`、`internal_reason text` は必須。開始≦終了。`created_by uuid FK → auth.users.id`、`deleted_at timestamptz` は任意。60日制限なし。内部理由を公開カレンダーに渡さない。

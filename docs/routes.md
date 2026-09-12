@@ -243,6 +243,8 @@ app/
 
 SQL029は対象者メールの変更に`update_camp_eligible_user`、無効化に`disable_camp_eligible_user`を使う。両方とも職員権限、キャンプとの所属、`expected_updated_at`、変更理由をDBで再検査する。無効化は画面とServer Actionの双方で明示確認を必須にする。対象メールと一致する既存申請がある場合は変更・無効化を拒否し、申請内容を壊さない。
 
+SQL031以後、この画面はcampモードで分岐する。`legacy_application`は上記の一括登録・変更・無効化を維持する。`eligible_roster`は管理用氏名とメールアドレスの単件登録、対象者IDと`updated_at`を用いる編集だけを表示する。重複時は個人情報を追加表示せず固定案内を表示する。結合済み対象者のメール変更は理由必須で、無効化・復活・再参加・Auth結合の変更は表示しない。
+
 ### 7.3 地域活動利用
 
 | URL | App Router | 画面の目的 | Component / 更新方法 | 主な遷移 |
