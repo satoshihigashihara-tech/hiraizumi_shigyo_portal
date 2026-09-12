@@ -1,0 +1,80 @@
+name: Database regression
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  database:
+    name: PostgreSQL ${{ matrix.postgres }} full regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Hosted project reports 17.6.1.166. Verify upstream 17.6 syntax and behavior.
+          - postgres: '17.6'
+            runtime: '17.6.0-beta.15'
+          - postgres: '18.4'
+            runtime: '18.4.0-beta.17'
+    env:
+      T10_DB_RUNTIME: /tmp/hiraizumi-postgres
+      T10_DB_EXPECTED_VERSION: ${{ matrix.postgres }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install isolated PostgreSQL runtime
+        run: npm install --prefix "$T10_DB_RUNTIME" --no-audit --no-fund embedded-postgres@${{ matrix.runtime }} pg@8.20.0
+      - name: Reject a changed SQL Editor copy before opening a database
+        run: |
+          python3 - <<'PYCODE'
+          import os
+          from pathlib import Path
+          source = Path('supabase/migrations/202609130032_camp_room_plan_bulk_save.sql').read_bytes()
+          Path(os.environ['RUNNER_TEMP'], '032-copy.sql').write_bytes(source)
+          Path(os.environ['RUNNER_TEMP'], '032-wrong.sql').write_bytes(b'-- unexpected prefix\n' + source)
+          PYCODE
+          if node scripts/test-community-applications-db.mjs --verify-migration-032 "$RUNNER_TEMP/032-wrong.sql" --migrate-only > "$RUNNER_TEMP/input-rejection.log" 2>&1; then
+            cat "$RUNNER_TEMP/input-rejection.log"
+            exit 1
+          fi
+          grep -q 'input differs from repository file' "$RUNNER_TEMP/input-rejection.log"
+      - name: Reject the wrong PostgreSQL version
+        run: |
+          if T10_DB_EXPECTED_VERSION=0.0 node scripts/test-community-applications-db.mjs --migrate-only > "$RUNNER_TEMP/version-rejection.log" 2>&1; then
+            cat "$RUNNER_TEMP/version-rejection.log"
+            exit 1
+          fi
+          grep -q 'PostgreSQL version mismatch' "$RUNNER_TEMP/version-rejection.log"
+      - name: Apply exact migrations and run all SQL and concurrency regressions
+        run: |
+          set -o pipefail
+          node scripts/test-community-applications-db.mjs --verify-migration-032 "$RUNNER_TEMP/032-copy.sql" 2>&1 | tee "$RUNNER_TEMP/database-regression.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: postgres-${{ matrix.postgres }}-regression-log
+          path: ${{ runner.temp }}/database-regression.log
+
+  application:
+    name: Node tests, lint and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run build -- --webpack

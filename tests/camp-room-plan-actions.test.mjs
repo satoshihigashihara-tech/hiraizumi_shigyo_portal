@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const ROOT = new URL("../", import.meta.url);
 const CAMP = "10000000-0000-4000-8000-000000000001";
@@ -123,4 +128,25 @@ test("A3 rejects malformed read responses", async () => {
     const h = await harness({ data });
     assert.equal((await h.query(CAMP)).error, "load-failed");
   }
+});
+
+
+test("A3 copied migration rejects altered text before loading a database runtime", async () => {
+  const scratch = await mkdtemp(join(tmpdir(), "a3-copy-test-"));
+  const source = await readFile(new URL("supabase/migrations/202609130032_camp_room_plan_bulk_save.sql", ROOT), "utf8");
+  try {
+    for (const changed of ["-- stray prefix\n" + source, source + "\n", source.replace("create function private.guard_camp_plan_history()", ""),
+      "begin raise exception 'room-plan-history-immutable'; end $$;", source.replaceAll("\n", "\r\n")]) {
+      const path = join(scratch, "032.sql");
+      await writeFile(path, changed);
+      await assert.rejects(promisify(execFile)(process.execPath, [
+        fileURLToPath(new URL("scripts/test-community-applications-db.mjs", ROOT)), "--verify-migration-032", path, "--migrate-only",
+      ], { env: { ...process.env, T10_DB_RUNTIME: join(scratch, "no-runtime") } }), error => {
+        assert.equal(error.code, 1);
+        assert.match(error.stderr, /input differs from repository file/);
+        assert.doesNotMatch(error.stderr, /MODULE_NOT_FOUND|Local PostgreSQL/);
+        return true;
+      });
+    }
+  } finally { await rm(scratch, { recursive: true, force: true }); }
 });
