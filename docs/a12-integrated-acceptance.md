@@ -43,6 +43,33 @@ runtimeは各版のembedded-postgresとpgを隔離配置する。存在とバー
 3. 本番の適用SQL・private bucket／Function配備・renderer digest／active設定・部屋mappingの状態を安全に照会する。未配備は未確認として残し、ローカル代替を本番成功と記録しない。既存の本番有効化条件は総合承認だけで解除しない。
 4. 結果にcommit、環境、項目数、失敗／未実施理由、成果物、後片付けを記載。PR作成・push後、application／両DB／PDFと他の必須CIすべての成功を確認してマージする。紐づく専用Issueが存在する場合だけ対応範囲の完了を反映する。
 
-## 現在の状態
+## 2026年9月13日 実行結果
 
-静的監査・計画保存まで。A9〜A11待機。総合テスト、PDF目視QA、実JWT／Storage、本番安全照会、PR・マージは未実施。依存完了後の実行結果をこの節へ追記する。
+A9 PR #113、A10 PR #115、A11 PR #112を含むmain `303f192837fe8f69bcaa53186d1e67eb4eaa21fd` へ計画コミットを保持してrebaseした。配布と最終CIは [A12 PR #116](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/pull/116) を正とする。
+
+### 検出した欠陥と修正
+
+1. 清掃job取得と後続Auth API DELETEの間に対象者が登録されると、未結合の有効参加予定があってもAuth／プロフィールが削除された。別接続で再現し、SQL040のAuth BEFORE DELETEトリガーへ施設ロックと参加予定の再検査を追加した。結合済みID、未結合かつ確認済みの現在メールを保護する。未確認メール・終了済み・無効・従来campへの新たな削除制限は加えない。古いREPEATABLE READは施設guard更新で拒否する。
+2. A11の15名配置表が5ptかつ用紙左側に偏っていた。9ptとHTML tableの明示幅・罫線・折返しへ補正した。最大人数だけでなく、camp名200文字・各氏名200文字・各部屋名100文字の実Linuxレンダーを追加した。
+
+既存A1/A2のAuth削除後のID保持テストは、A4の正規参加終了RPCを先に実行する契約へ整合した。参加中の削除拒否と、終了後のAuth UUID履歴保持／同じメールの別アカウントによる引継ぎ拒否を両立して検査する。制度仕様・料金・返金・本番モード切替は変更していない。
+
+### 自動検証・PDF実物
+
+- PostgreSQL **17.6 / 18.4**：各SQL001〜040全文適用、関数本体検査、既存単体 **2,061項目**、既存別接続 **160ケース**。A12は追加の登録→削除／削除→登録の実待機2ケース、古いREPEATABLE READ拒否1ケース、結合後メール変更・未確認メール・無効化・終了・legacy境界5ケースとprivate helper実行権限を検査する。
+- SQL039→040で申請・配置・claim・料金・納付・stay・監査・過去PDFを持つfixtureの不変を確認。既存の013〜018、032→033、034→035、038→039移行保持も全実行。検証用schema・架空fixture・ローカル一時DBはrunnerのfinallyで後片付けする。
+- Node **472件**、ESLint、production build成功。Python renderer **14件**成功。旧camp、地域個人、団体、カレンダー、納付・入退去、清掃の全スイートを実行。
+- Linux CIのA8/A9初回最大入力PDFとA10許可後最大入力PDFは各1ページ、和暦・部屋名・日本語抽出・Noto Serif JP埋込みを確認。初回の「変更」取り消し線と許可後の線なしをPNGでも確認。
+- A11修正版は通常15名が2ページ、全項目最大長の15名が4ページ。全6ページを目視し欠落・重なり・行分断なし。長文版は各ページに見出しが繰り返される。全差込文字の抽出・フォント埋込み・ページ上限・PNG生成も成功。対象成果物はCI run `34712282451` の `a11-max-room-plan-linux`。A8/A10目視基準はmain run `34711614506`。最終PR CIでも同じレンダーを再実行する。
+
+### 本番の安全確認（変更なし）
+
+Supabase SQL Editorで `BEGIN READ ONLY` / `ROLLBACK` の集計だけを実行した。PostgreSQL17.6、A9/A10の2公開関数とA11生成関数の存在、PDF bucket1件・公開bucket0件、Storage restrictive policy1件、active PDF設定0件、割当enabled mapping0件を確認。SQL040トリガーは0件で**本番未適用**。既存SQL文書を置換せず、新規の確認クエリを保存せず実行した。
+
+VercelはProjectに `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_ANON_KEY` の2件（Production/Preview）、Sharedは「No shared variables linked」。値を開かず、管理キー／worker secretを追加していない。本番トップはHTTP200、本人PDF・職員配置表PDFの匿名GETはHTTP401かつ `private, no-store, max-age=0`。保護画面はNext.jsのストリーミング応答がHTTP200になり得るため、HTTPステータスだけを認証成功や漏えい判定に使わない。
+
+### 既知の制限と公開前条件
+
+外部Linux常設実行先がないため、active設定0を維持する。ローカル／CIの生成成功は本番の生成・画面内確認・提出E2E成功ではない。実JWTでの本人・他人・失効職員の配信、実Storage失敗補償、スマートフォンからの同一版確認提出は本番生成を有効化できる環境で継続する。今回のrole/Storage代替による認可試験をそれらの成功に読み替えない。
+
+SQL040を本番に適用する担当は、SQL039適用後に全文を保存・適用し、トリガー存在を確認する。Auth管理schemaへのトリガー作成権限は配備環境で検査する。外部Auth APIとの境界はローカルSQLで検証済みだが、Supabase独自のAuth実装を再現した証明ではない。SQL040適用前に清掃の自動削除や新方式の公開を有効化しない。A12で本番データを削除したり、PDF設定・部屋mapping・Cronを有効化したりしていない。

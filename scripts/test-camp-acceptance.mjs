@@ -69,6 +69,24 @@ export async function campAcceptance(c, connect) {
     await b.query('rollback');
     console.log('PASS A12 Auth-delete REPEATABLE READ rejects stale snapshot');
     assert.equal((await c.query("select has_function_privilege('authenticated','private.guard_camp_participant_auth_delete()','EXECUTE') allowed")).rows[0].allowed,false);
+    await c.query('delete from public.camp_eligible_users where camp_id=$1',[camp]);
+    await b.query('begin');
+    await b.query('delete from auth.users where id=$1',[owner]);
+    await a.query('begin');
+    await a.query("select set_config('request.jwt.claims',$1,true)",[JSON.stringify({sub:staff,role:'authenticated'})]);
+    await a.query('set local role authenticated');
+    const registration=a.query('select * from public.create_camp_roster_eligible_user($1,$2,$3)',[camp,'架空再登録',email]);
+    let reverseWait=false;
+    for(let i=0;i<100;i++) {
+      reverseWait=(await c.query('select $1::int=any(pg_blocking_pids($2)) waited',[pidB,pidA])).rows[0].waited;
+      if(reverseWait) break;
+      await new Promise(resolve=>setTimeout(resolve,10));
+    }
+    await b.query('commit'); await registration; await a.query('commit');
+    assert.equal(reverseWait,true);
+    assert.equal((await c.query('select count(*)::int n from auth.users where id=$1',[owner])).rows[0].n,0);
+    assert.equal((await c.query('select linked_user_id from public.camp_eligible_users where camp_id=$1',[camp])).rows[0].linked_user_id,null);
+    console.log('PASS A12 Auth-delete-versus-registration: actual lock wait, later roster stays unbound');
   } finally {
     await c.query('rollback'); await a.query('rollback'); await b.query('rollback');
     await c.query('delete from public.camp_eligible_users where camp_id=$1',[camp]);
