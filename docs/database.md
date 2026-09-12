@@ -709,3 +709,13 @@ T19以降の`group_members / group_invites`、参加者数集計、団体審査�
 占有は各割当の保存期間に対して `start_date <= d <= end_date AND (released_from IS NULL OR d < released_from)`。対象集合から外れても、未解放の既存割当は通常保存で消さない。解放済み行の残存占有も各日の部屋・施設定員に含める。空集合保存、15人超過、不完全配置、重複配置、別camp・無効・解放済み対象者を拒否する。
 
 提出済み・審査中・修正依頼・許可等の申請で部屋／期間に差分がある場合は `room-change-review-required`。開始当日以降・滞在開始／完了は `camp-started`。新方式の期間変更・削除と解放済み割当の復活は `roster-lifecycle-required`。旧部屋割当・審査RPCと `room_allocations` への新方式書込みも拒否する。A4/A10の処理ができるまで安全側に閉じ、移行ガードを設定した自動切替は行わない。
+
+## A7 キャンプ申請PDF版・生成ジョブ（SQL 033）
+
+2026年9月13日追加。対象は新方式campのみ。`camp_application_versions` は申請ID/camp ID/対象者ID/所有者IDの整合、申請ごとの版番号・要求キーの一意性、入力snapshotとsource hash、入力版・配置版・JST日付・変換context、結果のパス/hash/サイズ/検証結果を保持する。本文は不変、PDF結果は一度だけ登録。ready → submittedは将来のA9専用処理だけが更新できる。物理削除は拒否。
+
+`camp_pdf_jobs` は文書版と1対1。試行IDと実行期限、失敗状態、清掃予約tokenを持つ。結果登録と清掃は同じ施設ロックで直列化し、結果登録後の清掃、清掃予約後の遅延登録を拒否する。ready/submittedのobjectは自動削除しない。
+
+両表はRLS有効、直接の読取・更新権限はanon/authenticated/service_roleへ与えない。本人の要求RPC・職員の提出済み版一覧以外はservice_role専用RPC。本人RPCはStorageパスを返さない。StorageにA7バケットだけをanon/authenticatedから隔離するrestrictive policyを追加する。既存の共通テーブル・状態・料金・滞在は変更しない。
+
+A3実配置・配置履歴・印字許可・施設枠を `private.camp_pdf_assignment_context(uuid)` で照合する。A8の `private.camp_pdf_render_settings(uuid)` は未実装のため必ず拒否する。過去申請からPDFを合成せず、既存行のbackfillもない。SQL 033は本番未適用。保存・認可・保持・実環境受入の詳細は [A7設定・接続契約](camp-pdf-storage-setup.md) を参照。

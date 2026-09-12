@@ -78,3 +78,11 @@ npm run build
 変更内容に応じて、正常系だけでなく未ログイン、別利用者、職員以外、期限境界、重複送信、定員超過、無効なファイルも確認します。SQLはファイル作成だけで完了にせず、Supabaseへの適用結果を記録します。
 
 Pull Requestには目的、主な変更、確認結果、未確認事項、フロント担当への影響を書きます。マージ後は `main` へ戻って `git pull` し、[tasks.md](tasks.md) の状態も更新します。
+
+## A7の追加契約（2026年9月13日）
+
+キャンプ申請PDFには第5節の署名URL方式を使わず、毎回認証するRoute Handlerからprivate/no-storeで配信する。Supabase管理権限はSupabase側の内部Functionに限定し、Vercelへ `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` を登録しない。通常サーバーからは利用者JWTを渡す。
+
+保護者同意書アップロードは現在のMVP対象外・本番未対応。既存の実装済み記述は本番利用可能という意味ではない。A7で同意書機能やフォーマットを作成・有効化しない。
+
+A7内部Functionは既存のDeno Edge Functionと同じ配置に置き、JavaScriptの `index.js` をentrypointとして明示する。A7の同梱PDF fixtureは配信・hashテスト専用で、日本語フォントや1ページ収容の実証には使わない。

@@ -1,0 +1,39 @@
+name: Portal checks
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: portal-checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run build
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '24'
+      - name: Install isolated PostgreSQL test runtime
+        run: npm install --prefix "$RUNNER_TEMP/a7-postgres" --no-save embedded-postgres@18.4.0-beta.17 pg@8.23.0
+      - name: SQL regression and real two-session concurrency
+        env:
+          T10_DB_RUNTIME: ${{ runner.temp }}/a7-postgres
+        run: node scripts/test-community-applications-db.mjs

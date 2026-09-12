@@ -1,5 +1,17 @@
 # AI・新規参加者向けプロジェクト概要
 
+## A7の最新引き継ぎ（2026年9月13日）
+
+基準mainは `90695de`（PR #102・#103、SQL032までのコード）。作業ブランチ `codex/camp-pdf-version-storage` にA7を保存済み。新方式camp限定の不変申請PDF版・生成ジョブ・認証配信・監査・差替え・過去版保持・孤立object清掃を追加した。料金・納付・stay・地域活動・legacy campは変更していない。過去申請からPDFを合成しない。
+
+A7の本人取得は現在有効な未提出確認版、active職員は提出済み最新版・過去版。全GET/HEAD/単一Rangeを認可しprivate/no-store。Storageの直接読取／書込はA7専用restrictive policyで拒否する。管理権限はSupabase内のFunctionだけに置き、Vercelは利用者JWTを転送する。`SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` をVercelへ登録しない。保護者同意書アップロードはMVP対象外・本番未対応で、A7はそのフォーマット作成でも有効化でもない。
+
+A3の実配置・配置履歴・印字許可・施設枠を接続済み。A8の原本・フォント・版付き設定が未実装なので、`private.camp_pdf_render_settings(uuid)` は常に `pdf-prerequisites-unavailable`。架空の配置や未検証PDFを本番の正本として登録しない。A9の確認・提出を有効化していない。次は [A7設定・接続契約](camp-pdf-storage-setup.md) のA3/A8/A9接続条件と実環境受入を参照する。
+
+検証：Node436件（A7 54件）、DB1,754項目（A7 86項目）、並行116ケース（A7 9ケース）、lint、Turbopack本番build、匿名GET/HEADの実HTTP検証が成功。SQL001〜033は一時ローカルDBへ適用し後片付け済み。実JWT、実Storage、Deno配備、日本語PDF生成、スマートフォンの確認提出は未検証。
+
+**コードの配布状態はGitHubのA7 PRを正とする。本番SQL033適用はメインチャット担当。バケット・Functionは未配備。** 以下の過去のA1/A2記述は当時の履歴として読む。
+
 ## 現在の引継ぎ：A3（2026年9月13日・ローカル検証済み）
 
 main `3b66e4b`（PR #101）をリモートと照合して開始。A1・A2のSQL適用、テスト、PRマージ、本番画面確認は今回のユーザー引継ぎで完了として受領した。以下に残る「未適用」等は当時の実装記録であり、この完了情報を上書きしない。本タスクは本番を再操作していない。
