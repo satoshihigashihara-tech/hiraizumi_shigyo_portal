@@ -21,7 +21,7 @@ const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 const TYPE_LABELS = {
   camp: "キャンプ期間",
   blocked: "利用停止",
-  individual: "地域活動・個人",
+  individual: "利用申請",
   application: "個別申請",
   group: "地域活動・団体",
 };

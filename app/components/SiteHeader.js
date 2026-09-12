@@ -59,20 +59,19 @@ export function SiteAccount({ area }) {
 
 export default function SiteHeader() {
   const { pathname, mode, area } = useSiteAudience();
-  const home = area === "staff" ? "/staff" : mode === "camp" ? "/camp" : mode === "fieldwork" ? "/user/groups?mode=fieldwork" : "/";
   const nav = area === "staff"
     ? [["/staff", "職員ホーム"], ["/staff/camps", "キャンプ管理"], ["/staff/community/groups", "団体審査"], ["/staff/calendar", "職員カレンダー"]]
     : area === "user"
       ? mode === "fieldwork"
-        ? [["/user/groups", "団体申請"], ["/user/applications", "参加者申請"], ["/user/profile", "プロフィール"]]
-        : [["/user", "ホーム"], ["/user/applications", "申請一覧"], ["/user/profile", "プロフィール"]]
-      : [["/", "利用区分"], ["/camp", "キャンプ利用"], ["/calendar", "利用状況カレンダー"]];
+        ? [["/user", "ホーム"], ["/user/applications", "参加者申請"], ["/user/profile", "プロフィール"]]
+        : [["/user", "ホーム"], ["/user/profile", "プロフィール"]]
+      : [["/", "利用区分"], ["/calendar", "利用状況カレンダー"]];
 
   return <>
     <a className={styles.skipLink} href="#main-content">本文へ移動する</a>
     <header className={styles.header}>
       <div className={styles.headerInner}>
-        <Link className={styles.brand} href={home}>ひらいずみ志業ポータル</Link>
+        <Link className={styles.brand} href="/">ひらいずみ志業ポータル</Link>
         <p className={styles.audience}>{audienceLabel(area, mode)}</p>
         <div className={styles.account}><SiteAccount area={area} /></div>
         <nav className={styles.nav} aria-label="共通メニュー"><ul>

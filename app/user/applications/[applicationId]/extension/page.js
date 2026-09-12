@@ -9,7 +9,7 @@ import { getCommunityApplicationExtensionSource } from "@/utils/community-applic
 import ExtensionForm from "./ExtensionForm";
 import styles from "../page.module.css";
 
-export const metadata = { title: "地域活動の継続申請｜ひらいずみ志業ポータル" };
+export const metadata = { title: "継続申請｜ひらいずみ志業ポータル" };
 
 function addDays(date, days) {
   const value = new Date(`${date}T00:00:00Z`);
@@ -27,7 +27,7 @@ export default async function CommunityApplicationExtensionPage({ params }) {
     ? [addDays(application.extension_start_date, 14), addDays(jstToday(), 60)].sort()[0]
     : null;
   return (
-    <PageShell title="地域活動の継続申請" description="元の申請を変更せず、追加期間を別の申請として作成します。">
+    <PageShell title="継続申請" description="元の申請を変更せず、追加期間を別の申請として作成します。">
       {result.error || !application ? (
         <AlertMessage tone="error" title="継続申請の受付状態を確認できませんでした">
           <p>{errorMessage(result.error)}</p>

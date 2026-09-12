@@ -77,7 +77,7 @@ export default async function CampApplicationEditPage({ params, searchParams }) 
     const application = result.application;
     const download = application?.has_consent ? await createGuardianConsentDownloadUrl(applicationId) : { error: null, url: null };
     const errorCode = firstQueryValue(query.error);
-    return <PageShell title="地域活動の個人申請を入力" description="入力内容を保存し、確認画面へ進んでください。">
+    return <PageShell title="利用申請を入力" description="入力内容を保存し、確認画面へ進んでください。">
       {firstQueryValue(query.saved) === "1" && <AlertMessage tone="success" title="下書きを保存しました" />}
       {firstQueryValue(query.uploaded) === "1" && <AlertMessage tone="success" title="保護者同意書を保存しました" />}
       {errorCode && <AlertMessage tone="error" title="保護者同意書を保存できませんでした"><p>{errorMessage(errorCode)}</p></AlertMessage>}

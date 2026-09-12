@@ -166,8 +166,8 @@ export default async function CampApplicationDetailPage({ params, searchParams }
       getCommunityApplicationCancellation(applicationId),
       kind.originalApplicationId ? Promise.resolve({ error: null, application: null }) : getCommunityApplicationExtensionSource(applicationId),
     ]);
-    if (result.error || !result.application) return <PageShell title="地域活動の個人申請詳細"><AlertMessage tone="error" title="申請を開けませんでした"><p>{errorMessage(result.error)}</p></AlertMessage><LinkButton href="/user/applications" fullWidthOnMobile>申請一覧へ戻る</LinkButton></PageShell>;
-    return <PageShell title="地域活動の個人申請詳細" description={kind.originalApplicationId ? "継続申請の内容、審査、料金、部屋、滞在の状態を確認できます。" : "申請内容、審査、料金、部屋、滞在の状態を確認できます。"}>
+    if (result.error || !result.application) return <PageShell title="利用申請詳細"><AlertMessage tone="error" title="申請を開けませんでした"><p>{errorMessage(result.error)}</p></AlertMessage><LinkButton href="/user/applications" fullWidthOnMobile>申請一覧へ戻る</LinkButton></PageShell>;
+    return <PageShell title="利用申請詳細" description={kind.originalApplicationId ? "継続申請の内容、審査、料金、部屋、滞在の状態を確認できます。" : "申請内容、審査、料金、部屋、滞在の状態を確認できます。"}>
       {(Array.isArray(query.updated) ? query.updated[0] : query.updated) === "cancellation-requested" && <AlertMessage tone="success" title="取消を申請しました"><p>町の職員による確認結果をお待ちください。</p></AlertMessage>}
       {kind.originalApplicationId && <AlertMessage tone="info" title="継続申請です"><p>元の申請とは別に審査・料金・部屋が設定されます。</p><LinkButton href={`/user/applications/${kind.originalApplicationId}`}>元の申請を見る</LinkButton></AlertMessage>}
       {cancellationResult.error && <AlertMessage tone="warning" title="取消の受付状態を確認できませんでした"><p>{errorMessage(cancellationResult.error)}</p></AlertMessage>}

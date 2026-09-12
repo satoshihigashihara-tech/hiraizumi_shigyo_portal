@@ -22,8 +22,8 @@ export async function getCommunityGroup(groupId, mode = "detail") {
   return { error: null, group };
 }
 
-export async function getCommunityGroups(page = 1) {
-  const { supabase, user } = await requireActiveUser("/user/groups");
+async function loadCommunityGroups(page, returnTo) {
+  const { supabase, user } = await requireActiveUser(returnTo);
   if (!Number.isInteger(page) || page < 1 || page > 10000) return { error: "invalid-page", groups: [] };
   const columns = ["id", "group_name", "status", "start_date", "end_date", "planned_participants",
     "updated_at", "submitted_at", "participant_due_at"];
@@ -33,6 +33,14 @@ export async function getCommunityGroups(page = 1) {
   return error || !Array.isArray(data)
     ? { error: "load-failed", groups: [] }
     : { error: null, groups: data.map((row) => pick(row, columns)) };
+}
+
+export function getCommunityGroups(page = 1) {
+  return loadCommunityGroups(page, "/user/groups");
+}
+
+export function getCommunityGroupsForHome() {
+  return loadCommunityGroups(1, "/user?mode=fieldwork");
 }
 
 export async function getCommunityGroupCancellation(groupId) {

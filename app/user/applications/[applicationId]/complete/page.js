@@ -42,7 +42,7 @@ export default async function CampApplicationCompletePage({ params }) {
   if (kind.usageType === "community_individual") {
     const result = await getCommunityApplication(applicationId, "complete");
     if (result.error || !result.application) {
-      return <PageShell title="地域活動の個人申請の受付結果"><AlertMessage tone="error" title="受付結果を確認できませんでした"><p>{errorMessage(result.error)}</p></AlertMessage>
+      return <PageShell title="利用申請の受付結果"><AlertMessage tone="error" title="受付結果を確認できませんでした"><p>{errorMessage(result.error)}</p></AlertMessage>
         <LinkButton href="/user/applications" fullWidthOnMobile>申請一覧へ戻る</LinkButton></PageShell>;
     }
     const application = result.application;

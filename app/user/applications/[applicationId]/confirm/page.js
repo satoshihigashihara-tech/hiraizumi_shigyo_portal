@@ -39,10 +39,10 @@ export default async function CampApplicationConfirmPage({ params, searchParams 
   if (kind.usageType === "community_individual") {
     const result = await getCommunityApplication(applicationId, "confirm");
     if (result.error || !result.application) {
-      return <PageShell title="地域活動の個人申請を確認"><AlertMessage tone="error" title="申請内容を確認できませんでした"><p>{errorMessage(result.error)}</p></AlertMessage>
+      return <PageShell title="利用申請を確認"><AlertMessage tone="error" title="申請内容を確認できませんでした"><p>{errorMessage(result.error)}</p></AlertMessage>
         <LinkButton href={result.application ? `/user/applications/${applicationId}/edit` : "/user/applications"} fullWidthOnMobile>{result.application ? "入力へ戻る" : "申請一覧へ戻る"}</LinkButton></PageShell>;
     }
-    return <PageShell title="地域活動の個人申請を確認" description="入力内容に間違いがないか確認してから提出してください。">
+    return <PageShell title="利用申請を確認" description="入力内容に間違いがないか確認してから提出してください。">
       <CommunityApplicationReview application={result.application} />
       <SubmitConfirmation applicationId={applicationId} usageType="community_individual" updatedAt={result.application.updated_at} submissionKey={crypto.randomUUID()} />
     </PageShell>;

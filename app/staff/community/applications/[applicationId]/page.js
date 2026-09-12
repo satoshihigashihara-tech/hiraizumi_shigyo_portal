@@ -25,7 +25,7 @@ import { ReviewOperations } from "./ReviewForms";
 import styles from "./page.module.css";
 
 export const metadata = {
-  title: "地域活動の個人申請審査｜ひらいずみ志業ポータル",
+  title: "利用申請審査｜ひらいずみ志業ポータル",
 };
 
 const UPDATED_MESSAGES = {
@@ -58,7 +58,7 @@ export default async function StaffCommunityApplicationPage({ params, searchPara
   if (result.error === "not-found") notFound();
   if (result.error || !result.application) {
     return (
-      <PageShell title="地域活動の個人申請審査">
+      <PageShell title="利用申請審査">
         <AlertMessage tone="error" title="申請を開けませんでした">
           <p>{errorMessage(result.error)}</p>
         </AlertMessage>
@@ -79,7 +79,7 @@ export default async function StaffCommunityApplicationPage({ params, searchPara
 
   return (
     <PageShell
-      title="地域活動の個人申請審査"
+      title="利用申請審査"
       description={application.original_application_id ? "継続申請" : "通常申請"}
     >
       {success && <AlertMessage tone="success" title={success} />}

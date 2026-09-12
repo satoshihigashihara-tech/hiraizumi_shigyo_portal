@@ -6,8 +6,10 @@ import StatusBadge, { StatusRow } from "@/app/components/StatusBadge";
 import { formatDeadline, formatJstDate, formatPeriod, jstToday } from "@/app/components/format";
 import { errorMessage } from "@/app/components/messages";
 import { USAGE_TYPE_LABELS } from "@/app/components/status-labels";
+import { getCommunityGroupsForHome } from "@/utils/community-groups/queries";
 import { getUserHomeApplications } from "@/utils/user-applications/queries";
 import { DUE_KINDS, needsUserAction, nextAction } from "./next-action";
+import groupStyles from "./groups/groups.module.css";
 import styles from "./page.module.css";
 import { modeFromSearchParams } from "@/utils/navigation/mode";
 
@@ -115,14 +117,63 @@ function ApplicationCard({ application, today }) {
 
 export default async function UserHomePage({ searchParams }) {
   const mode = modeFromSearchParams((await searchParams) ?? {});
-  const result = await getUserHomeApplications(mode);
+  const isCamp = mode === "camp";
+  const isFieldwork = mode === "fieldwork";
+  const [result, groupResult] = await Promise.all([
+    getUserHomeApplications(mode),
+    isFieldwork
+      ? getCommunityGroupsForHome()
+      : Promise.resolve({ error: null, groups: [] }),
+  ]);
   const today = jstToday();
+  const newApplicationHref = isFieldwork
+    ? "/user/groups/new?mode=fieldwork"
+    : isCamp
+      ? "/user/applications/new/camp?mode=camp"
+      : "/user/applications/new";
+  const applicationListHref = isFieldwork
+    ? "/user/applications?mode=fieldwork"
+    : "/user/applications";
+  const pageTitle = isFieldwork ? "団体利用者ホーム" : "利用者ホーム";
   const actionNeeded = result.applications.filter((application) =>
     needsUserAction(application, today),
   );
 
   return (
-    <PageShell audienceMode={mode} title="利用者ホーム" description="申請の状態と、次に必要な操作を確認できます。">
+    <PageShell audienceMode={mode} title={pageTitle} description="申請の状態と、次に必要な操作を確認できます。">
+      {isFieldwork && <section className={styles.section} aria-labelledby="groups-heading">
+        <h2 className={styles.sectionTitle} id="groups-heading">団体での申請</h2>
+        <div className={styles.sectionLink}>
+          <LinkButton href="/user/groups/new?mode=fieldwork" variant="primary" fullWidthOnMobile>
+            新しく申請する
+          </LinkButton>
+        </div>
+        {groupResult.error ? (
+          <AlertMessage tone="error" title="団体申請を読み込めませんでした">
+            <p>{errorMessage(groupResult.error)}</p>
+          </AlertMessage>
+        ) : groupResult.groups.length === 0 ? (
+          <p className={styles.note}>代表者として作成した団体申請はまだありません。</p>
+        ) : (
+          <ul className={groupStyles.list} role="list">
+            {groupResult.groups.map((group) => (
+              <li className={groupStyles.card} key={group.id}>
+                <h3>{group.group_name || "団体名未設定"}</h3>
+                <StatusBadge kind="group" value={group.status} showKind />
+                <dl className={groupStyles.facts}>
+                  <div><dt>利用期間</dt><dd>{formatPeriod(group.start_date, group.end_date)}</dd></div>
+                  <div><dt>予定人数</dt><dd>{group.planned_participants}人</dd></div>
+                  <div><dt>参加者提出期限</dt><dd>{group.participant_due_at ? formatDeadline(group.participant_due_at) : "未設定"}</dd></div>
+                </dl>
+                <LinkButton href={`/user/groups/${group.id}?mode=fieldwork`} fullWidthOnMobile>
+                  団体詳細を見る
+                </LinkButton>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>}
+
       {result.error ? (
         <AlertMessage tone="error" title="申請を読み込めませんでした">
           <p>{errorMessage(result.error)}</p>
@@ -131,8 +182,8 @@ export default async function UserHomePage({ searchParams }) {
         <EmptyState
           title="申請はまだありません"
           description="新しく申請すると、提出前の下書きもこの画面に表示されます。"
-          action={
-            <LinkButton href="/user/applications/new" variant="primary" fullWidthOnMobile>
+          action={!isFieldwork &&
+            <LinkButton href={newApplicationHref} variant="primary" fullWidthOnMobile>
               新しく申請する
             </LinkButton>
           }
@@ -169,33 +220,25 @@ export default async function UserHomePage({ searchParams }) {
           <section className={styles.section} aria-labelledby="applications-heading">
             <h2 className={styles.sectionTitle} id="applications-heading">申請の状況</h2>
             <ul className={styles.cardList} role="list">
-              {result.applications.slice(0, 3).map((application) => (
+              {(isCamp ? result.applications : result.applications.slice(0, 3)).map((application) => (
                 <ApplicationCard application={application} key={application.id} today={today} />
               ))}
             </ul>
-            <div className={styles.sectionLink}>
-              <LinkButton href="/user/applications" fullWidthOnMobile>申請の一覧を見る</LinkButton>
-            </div>
+            {!isCamp && <div className={styles.sectionLink}>
+              <LinkButton href={applicationListHref} fullWidthOnMobile>申請の一覧を見る</LinkButton>
+            </div>}
           </section>
         </>
       )}
 
-      <section className={styles.section} aria-labelledby="links-heading">
+      {!isCamp && <section className={styles.section} aria-labelledby="links-heading">
         <h2 className={styles.sectionTitle} id="links-heading">その他の操作</h2>
         <div className={styles.links}>
-          <LinkButton href="/user/applications/new" variant="primary" fullWidthOnMobile>新しく申請する</LinkButton>
-          <LinkButton href="/user/applications" fullWidthOnMobile>申請の一覧</LinkButton>
+          {!isFieldwork && <LinkButton href={newApplicationHref} variant="primary" fullWidthOnMobile>新しく申請する</LinkButton>}
+          <LinkButton href={applicationListHref} fullWidthOnMobile>申請の一覧</LinkButton>
           <LinkButton href="/user/profile" fullWidthOnMobile>プロフィールの確認・変更</LinkButton>
         </div>
-      </section>
-
-      <section className={styles.section} aria-labelledby="groups-heading">
-        <h2 className={styles.sectionTitle} id="groups-heading">団体での申請</h2>
-        <p className={styles.note}>代表者として団体申請を作成し、現在の状態を確認できます。</p>
-        <div className={styles.sectionLink}>
-          <LinkButton href="/user/groups" fullWidthOnMobile>団体申請の一覧を見る</LinkButton>
-        </div>
-      </section>
+      </section>}
     </PageShell>
   );
 }

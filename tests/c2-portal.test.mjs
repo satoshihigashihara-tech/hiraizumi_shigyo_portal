@@ -13,7 +13,7 @@ test("public top is the two-choice landing page and camp content moved to /camp"
   assert.match(top, /スパルタキャンプに参加する方/);
   assert.match(top, /大学・学生団体でフィールドワークを行う方/);
   assert.match(top, /href="\/camp"/);
-  assert.match(top, /href="\/user\/groups\?mode=fieldwork"/);
+  assert.match(top, /href="\/user\?mode=fieldwork"/);
   assert.match(styles, /grid-template-columns: repeat\(2/);
   assert.match(styles, /@media \(max-width: 767px\).*grid-template-columns: 1fr/s);
   assert.match(camp, /audienceMode="camp"/);
@@ -29,10 +29,29 @@ test("common chrome is shared and every screen gets the exact project copyright"
   assert.match(layout, /<SiteFooter/);
   assert.doesNotMatch(layout, /getSessionUser|getActiveViewer|staff_roles|profiles/);
   assert.match(header, /共通メニュー/);
+  assert.match(header, /className=\{styles\.brand\} href="\/"/);
+  assert.doesNotMatch(header, /\["\/camp", "キャンプ利用"\]/);
   assert.match(footer, /© 2026 ひらいずみ志業ポータル開発チーム/);
   assert.doesNotMatch(footer, /© 2026 平泉町/);
   assert.match(globalStyles, /color-scheme: light/);
   assert.doesNotMatch(globalStyles, /prefers-color-scheme:\s*dark/);
+});
+
+test("camp and fieldwork use the simplified home navigation", async () => {
+  const [camp, home, applications, groups, chooser] = await Promise.all([
+    read("app/camp/page.js"),
+    read("app/user/page.js"),
+    read("app/user/applications/page.js"),
+    read("app/user/groups/page.js"),
+    read("app/user/applications/new/page.js"),
+  ]);
+  assert.doesNotMatch(camp, /はじめての方はこちら|\/signup/);
+  assert.match(applications, /mode === "camp"\) redirect\("\/user\?mode=camp"\)/);
+  assert.match(groups, /redirect\(withMode\("\/user", mode\)\)/);
+  assert.match(chooser, /mode === "fieldwork"\) redirect\("\/user\/groups\/new\?mode=fieldwork"\)/);
+  assert.match(home, /pageTitle = isFieldwork \? "団体利用者ホーム"/);
+  assert.match(home, /href="\/user\/groups\/new\?mode=fieldwork"/);
+  assert.match(home, /!isCamp && <section[^>]+aria-labelledby="links-heading"/);
 });
 
 test("mode helpers accept only camp and fieldwork and preserve query strings", async () => {

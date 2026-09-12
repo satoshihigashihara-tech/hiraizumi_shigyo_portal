@@ -4,12 +4,13 @@ import test from "node:test";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("community individual entry creates no draft during render", () => {
+test("community individual entry is unavailable from the UI and direct access returns to selection", () => {
   const page = read("app/user/applications/new/community-activity/page.js");
-  assert.match(page, /getUserProfile\("\/user\/applications\/new\/community-activity"\)/);
-  assert.match(page, /crypto\.randomUUID\(\)/);
+  const entry = read("app/user/applications/new/page.js");
+  assert.match(page, /import \{ redirect \} from "next\/navigation"/);
+  assert.match(page, /redirect\("\/user\/applications\/new"\)/);
   assert.doesNotMatch(page, /createCommunityApplicationDraft\(/);
-  assert.match(page, /mode="create"/);
+  assert.doesNotMatch(entry, /地域活動で利用する（個人）|個人申請を始める|community-activity/);
 });
 
 test("community form uses the existing guarded actions and complete allowlist", () => {
@@ -50,7 +51,7 @@ test("community detail, receipt and top-level entry are connected", () => {
   assert.match(detail, /料金/);
   assert.match(detail, /許可された部屋と滞在/);
   assert.match(read("app/user/applications/[applicationId]/complete/page.js"), /reception_number/);
-  assert.match(read("app/page.js"), /href="\/user\/groups\?mode=fieldwork"/);
+  assert.match(read("app/page.js"), /href="\/user\?mode=fieldwork"/);
   assert.doesNotMatch(read("app/user/applications/new/page.js"), /地域活動の日程を選ぶ手続きは現在準備中/);
 });
 

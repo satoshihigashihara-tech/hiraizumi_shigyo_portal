@@ -19,7 +19,6 @@ function HeaderFallback() {
       <div className={chromeStyles.account}><Link href="/login">ログイン</Link></div>
       <nav className={chromeStyles.nav} aria-label="共通メニュー"><ul>
         <li><Link href="/">利用区分</Link></li>
-        <li><Link href="/camp">キャンプ利用</Link></li>
         <li><Link href="/calendar">利用状況カレンダー</Link></li>
       </ul></nav>
     </div></header>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import AlertMessage from "@/app/components/AlertMessage";
 import EmptyState from "@/app/components/EmptyState";
 import LinkButton from "@/app/components/LinkButton";
@@ -50,6 +51,7 @@ function ApplicationListItem({ row }) {
 
 export default async function UserApplicationsPage({ searchParams }) {
   const mode = modeFromSearchParams((await searchParams) ?? {});
+  if (mode === "camp") redirect("/user?mode=camp");
   const result = await getUserApplications(mode);
   return <PageShell audienceMode={mode} title="申請一覧" description="提出した申請と、提出前の下書きを表示します。">
     <div className={styles.actions}><LinkButton href="/user/applications/new" variant="primary" fullWidthOnMobile>新しく申請する</LinkButton><LinkButton href="/user" fullWidthOnMobile>利用者ホームへ戻る</LinkButton></div>

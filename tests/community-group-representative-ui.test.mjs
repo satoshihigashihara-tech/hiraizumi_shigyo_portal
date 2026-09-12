@@ -6,7 +6,8 @@ const ROOT = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, ROOT), "utf8");
 
 test("group routes use protected owner queries without creating data on GET", async () => {
-  const [list, create, edit, confirm, complete, detail] = await Promise.all([
+  const [home, list, create, edit, confirm, complete, detail] = await Promise.all([
+    read("app/user/page.js"),
     read("app/user/groups/page.js"),
     read("app/user/groups/new/page.js"),
     read("app/user/groups/[groupId]/edit/page.js"),
@@ -14,7 +15,9 @@ test("group routes use protected owner queries without creating data on GET", as
     read("app/user/groups/[groupId]/complete/page.js"),
     read("app/user/groups/[groupId]/page.js"),
   ]);
-  assert.match(list, /getCommunityGroups\(page\)/);
+  assert.match(home, /getCommunityGroupsForHome\(\)/);
+  assert.match(await read("utils/community-groups/queries.js"), /loadCommunityGroups\(1, "\/user\?mode=fieldwork"\)/);
+  assert.match(list, /redirect\(withMode\("\/user", mode\)\)/);
   assert.doesNotMatch(create, /createCommunityGroupDraft\(/);
   for (const [source, mode] of [[edit, "edit"], [confirm, "confirm"], [complete, "complete"], [detail, "detail"]]) {
     assert.match(source, new RegExp(`getCommunityGroup\\(groupId, "${mode}"\\)`));
@@ -46,13 +49,13 @@ test("group confirmation uses a stable idempotency key and explicit consent", as
 });
 
 test("group pages show textual state, completion facts and next navigation", async () => {
-  const [list, complete, detail, labels] = await Promise.all([
-    read("app/user/groups/page.js"),
+  const [home, complete, detail, labels] = await Promise.all([
+    read("app/user/page.js"),
     read("app/user/groups/[groupId]/complete/page.js"),
     read("app/user/groups/[groupId]/page.js"),
     read("app/components/status-labels.js"),
   ]);
-  assert.match(list, /kind="group"/);
+  assert.match(home, /kind="group"/);
   assert.match(complete, /受付番号/);
   assert.match(complete, /参加者提出期限/);
   assert.match(detail, /団体状態の履歴/);
@@ -107,7 +110,7 @@ test("group UI follows existing 8px system and collapses at narrow widths", asyn
   assert.match(css, /@media \(max-width: 599px\)/);
   assert.match(css, /grid-template-columns: 1fr/);
   assert.match(layout, /currentReturnTo/);
-  assert.match(home, /href="\/user\/groups"/);
+  assert.match(home, /href="\/user\/groups\/new\?mode=fieldwork"/);
   assert.match(chooser, /href="\/user\/groups\/new"/);
   assert.doesNotMatch(`${home}\n${chooser}`, /団体.*準備中/);
 });
