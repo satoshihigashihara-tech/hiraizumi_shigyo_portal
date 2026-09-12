@@ -1,0 +1,224 @@
+.filters,
+.list,
+.panel,
+.operations,
+.participantList,
+.operationForm,
+.roomFields,
+.actions {
+  display: flex;
+  flex-direction: column;
+}
+
+.filters,
+.list,
+.operations,
+.participantList {
+  gap: var(--sg-space-4, 16px);
+}
+
+.panel,
+.card,
+.participantCard {
+  padding: var(--sg-space-5, 24px);
+  border: 1px solid var(--sg-color-border, #c9ced4);
+  border-radius: var(--sg-radius, 8px);
+  background: var(--sg-color-surface, #fff);
+}
+
+.panel,
+.card,
+.participantCard,
+.operationForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-3, 12px);
+}
+
+.list,
+.participantList {
+  list-style: none;
+}
+
+.card h2,
+.panel h2,
+.participantCard h3 {
+  font-size: var(--sg-font-lg, 18px);
+  font-weight: 700;
+}
+
+.filterGrid,
+.facts,
+.roomGrid,
+.operationGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sg-space-4, 16px);
+}
+
+.filterGrid {
+  align-items: end;
+}
+
+.filterActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sg-space-3, 12px);
+  grid-column: 1 / -1;
+}
+
+.searchButton {
+  min-height: 44px;
+  padding: var(--sg-space-2, 8px) var(--sg-space-4, 16px);
+  border: 1px solid #1f3c88;
+  border-radius: var(--sg-radius, 8px);
+  color: #fff;
+  background: #1f3c88;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.facts dt,
+.hint,
+.countNote,
+.participantCard > p {
+  color: var(--sg-color-text-muted, #4d5358);
+  font-size: var(--sg-font-sm, 14px);
+}
+
+.facts dd {
+  margin-top: var(--sg-space-1, 4px);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  gap: var(--sg-space-3, 12px);
+}
+
+.stepList {
+  padding-left: var(--sg-space-5, 24px);
+}
+
+.stepList li + li {
+  margin-top: var(--sg-space-2, 8px);
+}
+
+.operationForm {
+  padding: var(--sg-space-4, 16px);
+  border-radius: var(--sg-radius, 8px);
+  background: var(--sg-neutral-bg, #f1f3f5);
+}
+
+.dangerForm {
+  border: 1px solid var(--sg-danger-border, #b3261e);
+  background: var(--sg-danger-bg, #fdecec);
+}
+
+.formError,
+.roomError {
+  padding: var(--sg-space-3, 12px);
+  border-left: 4px solid var(--sg-danger-border, #b3261e);
+  color: var(--sg-danger-text, #8c1d18);
+  background: var(--sg-danger-bg, #fdecec);
+}
+
+.formError:focus {
+  outline: 3px solid var(--sg-color-focus, #1f3c88);
+  outline-offset: 2px;
+}
+
+.roomFields {
+  gap: var(--sg-space-3, 12px);
+  padding: 0;
+  border: 0;
+}
+
+.roomFields legend {
+  margin-bottom: var(--sg-space-2, 8px);
+  font-weight: 700;
+}
+
+.roomField {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: var(--sg-space-3, 12px);
+}
+
+.roomField input {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--sg-space-2, 8px);
+  border: 1px solid var(--sg-color-border, #c9ced4);
+  border-radius: var(--sg-radius, 8px);
+  color: var(--sg-color-text, #1b1d1f);
+  background: var(--sg-color-surface, #fff);
+  font: inherit;
+}
+
+.roomField input:focus,
+.searchButton:focus-visible {
+  outline: 3px solid var(--sg-color-focus, #1f3c88);
+  outline-offset: 2px;
+}
+
+.roomSummary {
+  font-weight: 700;
+}
+
+.roomMismatch {
+  color: var(--sg-danger-text, #8c1d18);
+}
+
+.participantHeader,
+.resultsHeader,
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sg-space-3, 12px);
+}
+
+.participantActions summary {
+  width: fit-content;
+  color: #1f3c88;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.participantActions[open] summary {
+  margin-bottom: var(--sg-space-3, 12px);
+}
+
+.pagination {
+  justify-content: center;
+}
+
+@media (min-width: 600px) {
+  .actions {
+    flex-flow: row wrap;
+  }
+}
+
+@media (max-width: 599px) {
+  .panel,
+  .card,
+  .participantCard {
+    padding: var(--sg-space-4, 16px);
+  }
+
+  .filterGrid,
+  .facts,
+  .roomGrid,
+  .operationGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .filterActions > *,
+  .pagination > a {
+    width: 100%;
+  }
+}

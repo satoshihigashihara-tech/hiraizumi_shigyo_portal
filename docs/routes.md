@@ -743,3 +743,5 @@ MVPのSQL018は現在存在する2区分だけを対象とする。団体テー�
 団体取消画面は`getCommunityGroupCancellation(groupId)`を取得し、`can_request=true`のときだけ`requestCommunityGroupCancellation`へ`groupId / updatedAt / reason / confirmed`を渡す。理由と明示確認はサーバーでも必須とする。職員は`getStaffCommunityGroupCancellation`と`confirmCommunityGroupCancellation`を使う。取消申請中は枠と部屋を保持し、職員確定時に未終了の参加者申請、部屋、団体枠を一括終了する。滞在開始後はボタンを表示せず町への連絡を案内する。
 
 許可後の一部減員は職員の`cancelApprovedCommunityGroupParticipant`へ`groupId / applicationId / updatedAt / reason / roomPlan`を渡す。`roomPlan`は残る参加者数と一致する部屋別人数。残り1人では団体専有を維持し、最後の1人なら空配列`[]`を渡して団体全体を終了する。古い版は再送せず画面を再取得する。
+
+2026年9月12日、Issue #80で`/staff/community/groups`と`/staff/community/groups/[groupId]`を上記契約へ接続した。一覧は団体名と状態で検索し、50件単位で移動する。詳細は目的確認、参加者審査、人数単位の部屋割り、団体の最終判断の順を画面上でも示し、取消確定と許可後減員も同じ詳細から行う。最終許可・不許可・取消・減員は明示確認なしではServer Actionを実行しない。新しいSQLはない。ローカル検証は成功し、実職員での受入確認は未実施。
