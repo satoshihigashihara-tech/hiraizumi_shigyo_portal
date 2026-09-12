@@ -21,14 +21,14 @@ do $$ declare message_value text; begin
   begin
     insert into private.camp_pdf_render_setting_versions(settings_version,template_hash,font_version,converter_image,mayor_name,
       user_name_limit,user_address_limit,emergency_name_limit,emergency_address_limit,purpose_limit,special_notes_limit,room_name_limit,verified_at)
-    values(1,repeat('a',64),'NotoSerifJP-2.003+sha256:'||repeat('b',64),'mutable-tag:latest','架空町長',20,30,20,30,60,80,15,clock_timestamp());
+    values(1,repeat('a',64),'NotoSerifJP-2.003+sha256:'||repeat('b',64),'mutable-tag:latest','架空町長',20,30,20,30,60,60,15,clock_timestamp());
   exception when check_violation then message_value='rejected'; end;
   perform pg_temp.a8_check(message_value='rejected','mutable image tag rejected');
 
   insert into private.camp_pdf_render_setting_versions(settings_version,template_hash,font_version,converter_image,mayor_name,
     user_name_limit,user_address_limit,emergency_name_limit,emergency_address_limit,purpose_limit,special_notes_limit,room_name_limit,verified_at)
   values(1,repeat('a',64),'NotoSerifJP-2.003+sha256:'||repeat('b',64),
-    'ghcr.io/example.invalid/camp-pdf-renderer@sha256:'||repeat('c',64),'架空町長',20,30,20,30,60,80,15,clock_timestamp());
+    'ghcr.io/example.invalid/camp-pdf-renderer@sha256:'||repeat('c',64),'架空町長',20,30,20,30,60,60,15,clock_timestamp());
   insert into private.camp_pdf_active_render_setting(settings_version) values(1);
   message_value=null;
   begin update private.camp_pdf_render_setting_versions set mayor_name='改変' where settings_version=1;

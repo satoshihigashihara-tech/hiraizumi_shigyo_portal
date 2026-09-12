@@ -16,7 +16,7 @@
     "emergency_address": 30,
     "emergency_phone": 20,
     "purpose": 60,
-    "special_notes": 80,
+    "special_notes": 60,
     "room_name": 15
   }
 }

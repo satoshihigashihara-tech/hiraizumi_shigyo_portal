@@ -132,6 +132,28 @@ def replace_cell(cell: ET.Element, text: str, font_name: str, size: int, alignme
     replace_paragraph(paragraph, text, font_name, size)
 
 
+def set_left_indent(paragraph: ET.Element, twips: int) -> None:
+    ppr = paragraph.find(f"{W}pPr")
+    if ppr is None:
+        ppr = ET.Element(f"{W}pPr")
+        paragraph.insert(0, ppr)
+    indent = ppr.find(f"{W}ind")
+    if indent is None:
+        indent = ET.SubElement(ppr, f"{W}ind")
+    indent.attrib.clear()
+    indent.set(f"{W}left", str(twips))
+
+
+def compact_title(paragraph: ET.Element, font_name: str) -> None:
+    for run in paragraph.findall(f"{W}r"):
+        set_run_font(run, font_name, 20)
+        rpr = run.find(f"{W}rPr")
+        for tag in ("spacing", "fitText"):
+            node = rpr.find(f"{W}{tag}") if rpr is not None else None
+            if node is not None:
+                rpr.remove(node)
+
+
 def patch_all_fonts(root: ET.Element, font_name: str) -> None:
     for run in root.findall(f".//{W}r"):
         current = run.find(f"{W}rPr/{W}sz")
@@ -263,6 +285,10 @@ def merge_docx(job: dict, settings: dict, output_path: Path) -> dict[str, str]:
         replace_paragraph(paragraphs[8], f"申請者　住　所　{values['user_address']}", settings["font_family"], 16)
         replace_paragraph(paragraphs[9], "団体名", settings["font_family"], 20)
         replace_paragraph(paragraphs[10], f"氏　名（代表者名）　{values['user_name']}", settings["font_family"], 18)
+        set_left_indent(paragraphs[8], 2600)
+        set_left_indent(paragraphs[9], 2600)
+        set_left_indent(paragraphs[10], 2600)
+        compact_title(paragraphs[2], settings["font_family"])
 
         table = body.find(f"{W}tbl")
         rows = table.findall(f"{W}tr") if table is not None else []

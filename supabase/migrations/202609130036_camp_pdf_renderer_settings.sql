@@ -13,7 +13,7 @@ create table private.camp_pdf_render_setting_versions (
   emergency_name_limit integer not null check (emergency_name_limit between 1 and 20),
   emergency_address_limit integer not null check (emergency_address_limit between 1 and 30),
   purpose_limit integer not null check (purpose_limit between 1 and 60),
-  special_notes_limit integer not null check (special_notes_limit between 1 and 80),
+  special_notes_limit integer not null check (special_notes_limit between 1 and 60),
   room_name_limit integer not null check (room_name_limit between 1 and 15),
   verified_at timestamptz not null,
   created_at timestamptz not null default clock_timestamp()
