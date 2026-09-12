@@ -630,6 +630,100 @@ async function groupExpirationConcurrency(c) {
   }
   console.log('PASS group expiration concurrency cleanup');
 }
+// A7 uses two physical sessions and observes real lock waits, not elapsed-time guesses.
+async function pdfConcurrency(c) {
+  const f=(await c.query('select * from a7_pdf_concurrency_test.context')).rows[0];
+  const a=await connect(), b=await connect(); let cases=0;
+  const report={page_count:1,fonts_embedded:true,text_verified:true,layout_verified:true};
+  const hash='b'.repeat(64);
+  async function session(client,role='service_role',actor=f.owner_id) {
+    await client.query('rollback'); await client.query('reset role');
+    await client.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:actor,role})]);
+    await client.query(`set role ${role}`);
+  }
+  async function beginVersion(key=randomUUID(),client=c) {
+    await client.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:f.owner_id,role:'authenticated'})]);
+    return (await client.query('select public.begin_camp_application_pdf($1,1,$2) id',[f.app_id,key])).rows[0].id;
+  }
+  async function job() {
+    const version=await beginVersion();
+    const id=(await c.query('select id from public.camp_pdf_jobs where version_id=$1',[version])).rows[0].id;
+    return (await c.query('select public.claim_camp_pdf_job($1) job',[id])).rows[0].job;
+  }
+  const complete=(client,j)=>client.query('select public.complete_camp_pdf_job($1,$2,$3,$4,100,$5) ok',[j.job_id,j.attempt_id,j.source_hash,hash,report]);
+  async function waiting(pending) {
+    const leader=(await a.query('select pg_backend_pid() id')).rows[0].id;
+    // Get B's PID ahead of the wait via its known startup identity.
+    let observed=false;
+    for(let n=0;n<100;n++) {
+      if((await c.query('select $1::integer=any(pg_blocking_pids($2)) ok',[leader,pdfBackendB])).rows[0].ok){observed=true;break;}
+      await new Promise(resolve=>setTimeout(resolve,20));
+    }
+    assert.ok(observed && leader!==pdfBackendB, 'A7 must observe a real distinct-session lock wait');
+    await a.query('commit');
+    return await pending;
+  }
+  const pdfBackendB=(await b.query('select pg_backend_pid() id')).rows[0].id;
+  try {
+    for(const same of [true,false]) {
+      await session(a,'authenticated');await session(b,'authenticated');await a.query('begin');await b.query('begin');
+      const key=randomUUID();const first=await beginVersion(key,a);
+      const pending=beginVersion(same?key:randomUUID(),b).then(value=>({value}),error=>({error}));
+      const result=await waiting(pending);assert.ifError(result.error);await b.query('commit');
+      assert.equal(result.value===first,same);cases++;
+    }
+    let j=await job();
+    await session(a);await session(b);await a.query('begin');await b.query('begin');
+    assert.equal((await complete(a,j)).rows[0].ok,true);
+    let pending=complete(b,j).then(value=>({value}),error=>({error}));
+    let result=await waiting(pending);assert.ifError(result.error);await b.query('commit');assert.equal(result.value.rows[0].ok,true);
+    assert.equal((await c.query("select count(*)::integer n from public.audit_logs where entity_id=$1 and action='pdf_ready'",[j.version_id])).rows[0].n,1);cases++;
+    await c.query('begin');await c.query("select set_config('private.camp_pdf_submission','allowed',true)");
+    await c.query("update public.camp_application_versions set state='submitted',confirmed_at=clock_timestamp(),submitted_at=clock_timestamp() where id=$1",[j.version_id]);await c.query('commit');
+    await session(a,'postgres');await session(b);await a.query('begin');await b.query('begin');
+    await a.query('select private.lock_calendar_facility()');await a.query('delete from public.staff_roles where user_id=$1',[f.staff_id]);
+    pending=b.query("select public.authorize_camp_pdf_delivery($1,$2,'HEAD') permit",[j.version_id,f.staff_id]).then(value=>({value}),error=>({error}));
+    result=await waiting(pending);assert.ifError(result.error);await b.query('commit');assert.equal(result.value.rows[0].permit.allowed,false);cases++;
+    await c.query('insert into public.staff_roles(user_id) values($1)',[f.staff_id]);
+    j=await job();
+    await session(a,'postgres');await session(b);await a.query('begin');await b.query('begin');
+    await a.query('select private.lock_calendar_facility()');await a.query('update public.camp_eligible_users set disabled_at=clock_timestamp() where id=$1',[f.eligible_id]);
+    pending=complete(b,j).then(value=>({value}),error=>({error}));result=await waiting(pending);
+    assert.equal(result.error?.code,'42501');await b.query('rollback');cases++;
+    await c.query('update public.camp_eligible_users set disabled_at=null where id=$1',[f.eligible_id]);
+    await c.query("update public.camp_pdf_jobs set lease_until=clock_timestamp()-interval '2 hours' where id=$1",[j.job_id]);
+    await session(a);await session(b);await a.query('begin');await b.query('begin');
+    const cleanup=(await a.query('select public.claim_camp_pdf_cleanup() job')).rows[0].job;assert.equal(cleanup.job_id,j.job_id);
+    pending=complete(b,j).then(value=>({value}),error=>({error}));result=await waiting(pending);
+    assert.equal(result.error?.message,'job-unavailable');await b.query('rollback');cases++;
+    assert.equal((await c.query('select public.complete_camp_pdf_cleanup($1,$2) ok',[j.job_id,cleanup.cleanup_token])).rows[0].ok,true);
+    // Actual A3 plan save wins over an in-flight A7 result registration.
+    j=await job();
+    await session(a,'authenticated',f.staff_id);await session(b);await a.query('begin');await b.query('begin');
+    const plan=(await c.query('select roster_version,room_plan_version from public.camps where id=$1',[f.camp_id])).rows[0];
+    const room=(await c.query('select room_id from public.camp_room_assignments where camp_id=$1 and eligible_user_id=$2',[f.camp_id,f.eligible_id])).rows[0].room_id;
+    await a.query('select public.save_camp_room_plan($1,$2,$3,$4)',[f.camp_id,plan.roster_version,plan.room_plan_version,JSON.stringify([{eligible_user_id:f.eligible_id,room_id:room}])]);
+    pending=complete(b,j).then(value=>({value}),error=>({error}));result=await waiting(pending);
+    assert.equal(result.error?.message,'stale-update');await b.query('rollback');cases++;
+    j=await job();
+    await session(a,'postgres');await session(b);await a.query('begin');await b.query('begin');
+    await a.query('select private.lock_calendar_facility()');await a.query('update public.camp_room_mapping set printing_enabled=false where room_id=$1',[room]);
+    pending=complete(b,j).then(value=>({value}),error=>({error}));result=await waiting(pending);
+    assert.equal(result.error?.message,'pdf-room-not-printable');await b.query('rollback');cases++;
+    await c.query('update public.camp_room_mapping set printing_enabled=true where room_id=$1',[room]);
+    await session(a,'authenticated');await session(b,'authenticated');await a.query('begin');await b.query('begin isolation level repeatable read');
+    await b.query('select 1 from public.profiles where id=$1',[f.owner_id]);
+    await beginVersion(randomUUID(),a);
+    pending=beginVersion(randomUUID(),b).then(value=>({value}),error=>({error}));result=await waiting(pending);
+    assert.equal(result.error?.code,'40001');await b.query('rollback');cases++;
+    console.log('PASS camp_pdf_versions_concurrency.sql',{checked_cases:cases,all_passed:true});
+  } finally {
+    await a.query('rollback');await b.query('rollback');await c.query('reset role');
+    await c.query('begin; select a7_pdf_concurrency_test.cleanup(); drop schema a7_pdf_concurrency_test cascade; commit');
+    assert.equal((await c.query("select count(*)::integer n from public.camp_application_versions where application_id=$1",[f.app_id])).rows[0].n,0);
+    console.log('PASS cleanup a7_pdf_concurrency_test; original fail-closed adapter restored');
+  }
+}
 let stage = 'start';
 let failed = false;
 try {
@@ -645,6 +739,13 @@ try {
     create role anon nologin;
     create role authenticated nologin;
     create role service_role nologin bypassrls;
+    create schema storage;
+    create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text);
+    alter table storage.objects enable row level security;
+    grant usage on schema storage to anon,authenticated,service_role;
+    grant all on storage.objects to anon,authenticated,service_role;
+    create policy local_only_permissive_fixture on storage.objects for all to anon,authenticated using(true) with check(true);
+    select set_config('test.a7_storage_mock','true',false);
     create schema auth;
     create table auth.users (
       id uuid primary key, instance_id uuid, aud text, role text, email text,
@@ -673,6 +774,7 @@ try {
   let beforeAuditUpgrade;
   let searchUpgrade;
   let beforeSearchUpgrade;
+  let beforePdfUpgrade;
   for (const file of (await readdir(join(root, 'supabase/migrations'))).filter(x => x.endsWith('.sql')).sort()) {
     stage = file;
     const sqlBytes = await readFile(join(root, 'supabase/migrations', file));
@@ -695,8 +797,14 @@ try {
       console.log('PASS migration 032 malformed function rejected: 42601 at raise; no A3 tables');
     }
     // Send the complete original bytes, decoded as UTF-8, without splitting or rewriting SQL.
+    if (file === '202609130033_camp_pdf_versions.sql') beforePdfUpgrade = await storedRows(c);
     await c.query(sqlBytes.toString('utf8'));
     console.log('PASS migration', file);
+    if(file==='202609130033_camp_pdf_versions.sql'){
+      assert.deepEqual(await storedRows(c),beforePdfUpgrade);
+      assert.equal((await c.query('select count(*)::integer n from public.camp_application_versions')).rows[0].n,0);
+      console.log('PASS 032 to 033 upgrade: existing rows unchanged; no synthetic PDFs');
+    }
     if (file === '202609100013_community_individual_applications.sql') {
       stage = 'prepare 013 upgrade fixtures';
       upgrade = await prepareUpgrade(c); beforeUpgrade = await storedRows(c);
@@ -737,8 +845,8 @@ try {
   if (requested.includes('--audit-notes-only')) await c.query("select set_config('test.operations_phase','audit-notes',false)");
   if (requested.includes('--staff-search-only')) await c.query("select set_config('test.operations_phase','staff-search',false)");
   if (requested.includes('--stays-only')) await c.query("select set_config('test.operations_phase','stays',false)");
-  const single = ['camp_room_plan_bulk_save.sql', 'application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql', 'community_groups.sql', 'group_invitations.sql', 'group_participant_submissions.sql', 'group_review_and_approval.sql', 'group_changes_and_cancellation.sql', 'group_deadline_expiration.sql', 'account_cleanup.sql', 'camp_roster_identity_foundation.sql', 'camp_roster_eligible_user_management.sql'];
-  const concurrent = ['camp_room_plan_bulk_save_concurrency.sql', 'camp_room_allocations_concurrency.sql', 'calendar_concurrency.sql', 'community_individual_applications_concurrency.sql', 'community_individual_room_allocations_concurrency.sql', 'camp_roster_identity_concurrency.sql', 'camp_roster_eligible_user_management_concurrency.sql'];
+  const single = ['camp_pdf_versions.sql', 'camp_room_plan_bulk_save.sql', 'application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql', 'community_groups.sql', 'group_invitations.sql', 'group_participant_submissions.sql', 'group_review_and_approval.sql', 'group_changes_and_cancellation.sql', 'group_deadline_expiration.sql', 'account_cleanup.sql', 'camp_roster_identity_foundation.sql', 'camp_roster_eligible_user_management.sql'];
+  const concurrent = ['camp_pdf_versions_concurrency.sql', 'camp_room_plan_bulk_save_concurrency.sql', 'camp_room_allocations_concurrency.sql', 'calendar_concurrency.sql', 'community_individual_applications_concurrency.sql', 'community_individual_room_allocations_concurrency.sql', 'camp_roster_identity_concurrency.sql', 'camp_roster_eligible_user_management_concurrency.sql'];
   const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.includes('--stays-only') ? ['application_operations.sql', ...(requested.includes('--stays-concurrency') ? ['--stays-concurrency'] : [])] : requested.includes('--audit-notes-only') ? ['application_operations.sql', ...(requested.includes('--audit-notes-concurrency') ? ['--audit-notes-concurrency'] : [])] : requested.includes('--staff-search-only') ? ['application_operations.sql'] : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency', '--stays-concurrency', '--audit-notes-concurrency', '--groups-concurrency', '--group-invitations-concurrency', '--group-expiration-concurrency'];
   for (const file of selected) {
     if (file === 'camp_room_plan_bulk_save_concurrency.sql') { stage=file; await roomPlanConcurrency(c); continue; }
@@ -750,6 +858,7 @@ try {
     if (file === '--payments-concurrency') { stage = file; await paymentConcurrency(c); continue; }
     assert.ok([...single, ...concurrent].includes(file), 'Unknown test file'); stage = file;
     const result = await c.query(await readFile(join(root, 'supabase/tests', file), 'utf8'));
+    if(file==='camp_pdf_versions_concurrency.sql'){await pdfConcurrency(c);continue;}
     if (!concurrent.includes(file)) {
       const summary = (Array.isArray(result) ? result : [result]).flatMap(x => x.rows || []).find(x => x.passed_checks !== undefined);
       assert.ok(summary && Number(summary.passed_checks) > 0, 'Missing test summary');

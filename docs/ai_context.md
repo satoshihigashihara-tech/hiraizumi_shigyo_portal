@@ -4,9 +4,21 @@
 
 PR #103はmain `90695de`へマージ済み。本番SQL032の実行は42601で全体ロールバックしたとのユーザー報告。設定画面のPostgres表示は17.6.1.166。SQL032原文は17.6・17.10・18.4で全文適用に成功したため、SQL番号・内容は変更していない。報告行316と原文行56の違いから入力過程も確認対象だが、送信全文は未取得で原因は未断定。
 
-DBランナーに17.6のバージョン必須照合、関数本体検査、SQL032全文のhash記録、`--verify-migration-032`による貼付全文の完全一致検査、実DBでの構文破損拒否を追加。GitHub CIに17.6・18.4の全DB回帰とNode・lint・buildを追加した。ローカルは各DB単体1,668項目・並行107ケース、Node383件、lint、build成功。本番独自patchやSQL Editorの送信そのものまで再現した扱いにはしない。
+DBランナーに17.6のバージョン必須照合、関数本体検査、SQL032全文のhash記録、`--verify-migration-032`による貼付全文の完全一致検査、実DBでの構文破損拒否を追加。GitHub CIに17.6・18.4の全DB回帰とNode・lint・buildを追加した。PR #104・#105（main `f325986`）の統合後、各DB単体1,754項目・並行116ケース、Node437件、lint、build成功。本番独自patchやSQL Editorの送信そのものまで再現した扱いにはしない。
 
 次の本番再適用では、新規の空Editorへ貼付後、編集領域から全選択・コピーした全文を照合する。取得元のhashだけでは送信内容の保証にならない。詳細・再現手順は `docs/tasks.md` の「A3 SQL032本番実行エラー後の検証補強」。修正の保存・コミット・push・PR・CI確認・マージはユーザー承認済み。本番SQL032はこのタスクでは再適用していない。
+
+## A7の最新引き継ぎ（2026年9月13日）
+
+基準mainは `90695de`（PR #102・#103、SQL032までのコード）。作業ブランチ `codex/camp-pdf-version-storage` にA7を保存済み。新方式camp限定の不変申請PDF版・生成ジョブ・認証配信・監査・差替え・過去版保持・孤立object清掃を追加した。料金・納付・stay・地域活動・legacy campは変更していない。過去申請からPDFを合成しない。
+
+A7の本人取得は現在有効な未提出確認版、active職員は提出済み最新版・過去版。全GET/HEAD/単一Rangeを認可しprivate/no-store。Storageの直接読取／書込はA7専用restrictive policyで拒否する。管理権限はSupabase内のFunctionだけに置き、Vercelは利用者JWTを転送する。`SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` をVercelへ登録しない。保護者同意書アップロードはMVP対象外・本番未対応で、A7はそのフォーマット作成でも有効化でもない。
+
+A3の実配置・配置履歴・印字許可・施設枠を接続済み。A8の原本・フォント・版付き設定が未実装なので、`private.camp_pdf_render_settings(uuid)` は常に `pdf-prerequisites-unavailable`。架空の配置や未検証PDFを本番の正本として登録しない。A9の確認・提出を有効化していない。次は [A7設定・接続契約](camp-pdf-storage-setup.md) のA3/A8/A9接続条件と実環境受入を参照する。
+
+検証：Node436件（A7 54件）、DB1,754項目（A7 86項目）、並行116ケース（A7 9ケース）、lint、Turbopack本番build、匿名GET/HEADの実HTTP検証が成功。SQL001〜033は一時ローカルDBへ適用し後片付け済み。実JWT、実Storage、Deno配備、日本語PDF生成、スマートフォンの確認提出は未検証。
+
+**コードの配布状態はGitHubのA7 PRを正とする。本番SQL033適用はメインチャット担当。バケット・Functionは未配備。** 以下の過去のA1/A2記述は当時の履歴として読む。
 
 ## 現在の引継ぎ：A3（2026年9月13日・ローカル検証済み）
 

@@ -1,15 +1,28 @@
-name: Database regression
-
+name: Portal checks
 on:
   pull_request:
+    branches: [main]
   push:
     branches: [main]
-  workflow_dispatch:
-
 permissions:
   contents: read
-
+concurrency:
+  group: portal-checks-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
+  application:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run build
   database:
     name: PostgreSQL ${{ matrix.postgres }} full regression
     runs-on: ubuntu-24.04
@@ -27,8 +40,8 @@ jobs:
       T10_DB_RUNTIME: /tmp/hiraizumi-postgres
       T10_DB_EXPECTED_VERSION: ${{ matrix.postgres }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: '24'
       - name: Install isolated PostgreSQL runtime
@@ -63,18 +76,3 @@ jobs:
         with:
           name: postgres-${{ matrix.postgres }}-regression-log
           path: ${{ runner.temp }}/database-regression.log
-
-  application:
-    name: Node tests, lint and build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci
-      - run: npm test
-      - run: npm run lint
-      - run: npm run build -- --webpack
