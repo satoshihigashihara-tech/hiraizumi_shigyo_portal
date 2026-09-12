@@ -110,7 +110,7 @@ test("camp entry pages include required copy and never create a draft during ren
   const camp = await readFile(new URL("../app/user/applications/new/camp/page.js", import.meta.url), "utf8");
 
   assert.match(entry, /スパルタキャンプで利用する/);
-  assert.match(entry, /地域活動で利用する（個人）/);
+  assert.doesNotMatch(entry, /地域活動で利用する（個人）|個人申請を始める/);
   assert.match(entry, /団体を作る/);
   assert.match(camp, /利用期間は固定です/);
   assert.match(camp, /受付期間が終了しました。町へ直接お問い合わせください。/);

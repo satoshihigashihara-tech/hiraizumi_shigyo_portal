@@ -9,7 +9,7 @@ import { getCommunityApplicationCancellation } from "@/utils/community-applicati
 import CancellationForm from "./CancellationForm";
 import styles from "../page.module.css";
 
-export const metadata = { title: "地域活動の個人申請を取り消す｜ひらいずみ志業ポータル" };
+export const metadata = { title: "利用申請を取り消す｜ひらいずみ志業ポータル" };
 
 export default async function CommunityApplicationCancellationPage({ params }) {
   const { applicationId } = await params;
@@ -18,7 +18,7 @@ export default async function CommunityApplicationCancellationPage({ params }) {
 
   const application = result.application;
   return (
-    <PageShell title="地域活動の個人申請を取り消す" description="取消理由と手続き後の扱いを確認してください。">
+    <PageShell title="利用申請を取り消す" description="取消理由と手続き後の扱いを確認してください。">
       {result.error || !application ? (
         <AlertMessage tone="error" title="取消の受付状態を確認できませんでした">
           <p>{errorMessage(result.error)}</p>

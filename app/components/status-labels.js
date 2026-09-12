@@ -52,7 +52,7 @@ export const STAY_STATUS_LABELS = {
 /** 利用区分（applications.usage_type） */
 export const USAGE_TYPE_LABELS = {
   camp: "スパルタキャンプ利用",
-  community_individual: "地域活動利用・個人",
+  community_individual: "利用申請",
   community_group: "地域活動利用・団体",
 };
 

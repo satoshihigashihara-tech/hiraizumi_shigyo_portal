@@ -17,9 +17,9 @@ export default function Home() {
       <section className={styles.choice} aria-labelledby="fieldwork-choice"><div>
         <h2 id="fieldwork-choice">大学・学生団体でフィールドワークを行う方</h2>
         <p>団体での利用内容、利用期間、予定人数を登録し、参加者を招待する方はこちらです。</p>
-      </div><LinkButton href="/user/groups?mode=fieldwork" variant="primary" fullWidthOnMobile>団体での利用へ進む</LinkButton></section>
+      </div><LinkButton href="/user?mode=fieldwork" variant="primary" fullWidthOnMobile>団体での利用へ進む</LinkButton></section>
     </div>
-    <p className={styles.help}>はじめての方は、利用する入口を選んだあとにアカウントを作成できます。ログイン済みの方も、利用目的に合う入口から進んでください。</p>
+    <p className={styles.help}>職員から案内された利用者情報でログインしてください。ログイン済みの方も、利用目的に合う入口から進んでください。</p>
     <div className={styles.calendar}><LinkButton href="/calendar" fullWidthOnMobile>利用状況カレンダーを見る</LinkButton></div>
   </PageShell></div>;
 }

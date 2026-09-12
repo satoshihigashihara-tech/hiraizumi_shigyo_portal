@@ -1,5 +1,7 @@
 import LinkButton from "@/app/components/LinkButton";
 import PageShell from "@/app/components/PageShell";
+import { redirect } from "next/navigation";
+import { modeFromSearchParams } from "@/utils/navigation/mode";
 import styles from "./page.module.css";
 
 export const metadata = {
@@ -7,7 +9,10 @@ export const metadata = {
   description: "利用目的に合った申請手続きを選びます。",
 };
 
-export default function NewApplicationPage() {
+export default async function NewApplicationPage({ searchParams }) {
+  const mode = modeFromSearchParams((await searchParams) ?? {});
+  if (mode === "fieldwork") redirect("/user/groups/new?mode=fieldwork");
+
   return (
     <PageShell
       title="新しく申請する"
@@ -28,20 +33,6 @@ export default function NewApplicationPage() {
           fullWidthOnMobile
         >
           キャンプを選ぶ
-        </LinkButton>
-      </section>
-
-      <section className={styles.available} aria-labelledby="community-application-heading">
-        <div className={styles.availableCopy}>
-          <h2 className={styles.sectionTitle} id="community-application-heading">
-            地域活動で利用する（個人）
-          </h2>
-          <p className={styles.description}>
-            町内で行う活動の内容と、2日から15日までの利用期間を入力して申請します。
-          </p>
-        </div>
-        <LinkButton href="/user/applications/new/community-activity" variant="primary" fullWidthOnMobile>
-          個人申請を始める
         </LinkButton>
       </section>
 
