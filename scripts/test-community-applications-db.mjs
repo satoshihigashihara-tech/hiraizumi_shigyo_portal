@@ -9,6 +9,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:net';
 import assert from 'node:assert/strict';
+import { campAcceptance } from './test-camp-acceptance.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const migration032 = '202609130032_camp_room_plan_bulk_save.sql';
@@ -1003,19 +1004,19 @@ try {
       beforeLifecycleUpgrade={common:await storedRows(c),roster:(await c.query('select a4_lifecycle_test.snapshot() data')).rows[0].data,
         retained:(await c.query('select a4_lifecycle_test.retained_snapshot() data')).rows[0].data};
     }
-    if(file==='202609130039_camp_post_approval_review.sql') {
+    if(['202609130039_camp_post_approval_review.sql','202609130040_camp_auth_delete_guard.sql'].includes(file)) {
       await c.query(await readFile(join(root,'supabase/tests/fixtures/camp_roster_lifecycle.sql'),'utf8'));
       await c.query("select a4_lifecycle_test.setup('approved','before_move_in'); select a4_lifecycle_test.seed_retained_records()");
       beforeA10Upgrade={common:await storedRows(c),roster:(await c.query('select a4_lifecycle_test.snapshot() data')).rows[0].data,
         retained:(await c.query('select a4_lifecycle_test.retained_snapshot() data')).rows[0].data};
     }
     await c.query(sqlBytes.toString('utf8'));
-    if(file==='202609130039_camp_post_approval_review.sql') {
+    if(['202609130039_camp_post_approval_review.sql','202609130040_camp_auth_delete_guard.sql'].includes(file)) {
       assert.deepEqual(await storedRows(c),beforeA10Upgrade.common);
       assert.deepEqual((await c.query('select a4_lifecycle_test.snapshot() data')).rows[0].data,beforeA10Upgrade.roster);
       assert.deepEqual((await c.query('select a4_lifecycle_test.retained_snapshot() data')).rows[0].data,beforeA10Upgrade.retained);
       await c.query('select a4_lifecycle_test.cleanup(); drop schema a4_lifecycle_test cascade');
-      console.log('PASS 038 to 039 upgrade: populated applications, assignments, claims, charges, stays, events and PDFs unchanged');
+      console.log('PASS upgrade',file,': populated applications, assignments, claims, charges, stays, events and PDFs unchanged');
     }
 
     console.log('PASS migration', file);
@@ -1068,6 +1069,8 @@ try {
       console.log('PASS 017 to 018 upgrade: existing rows unchanged');
     }
   }
+  if (!requested.length || requested.includes('--a12-only')) await campAcceptance(c, connect);
+  if (requested.includes('--a12-only')) requested.splice(0, requested.length, '--migrate-only');
   if (requested.includes('--audit-notes-only')) await c.query("select set_config('test.operations_phase','audit-notes',false)");
   if (requested.includes('--staff-search-only')) await c.query("select set_config('test.operations_phase','staff-search',false)");
   if (requested.includes('--stays-only')) await c.query("select set_config('test.operations_phase','stays',false)");
