@@ -29,6 +29,10 @@ jobs:
           docker start --attach "$room_plan_id" || renderer_status=$?
           docker cp "$room_plan_id:/tmp/a11-output" "$RUNNER_TEMP/a11-output"
           docker rm "$room_plan_id"
+          post_approval_id="$(docker create --network none --entrypoint /bin/sh camp-pdf-renderer:a8-v1 /app/test-post-approval-renderer.sh)"
+          docker start --attach "$post_approval_id" || renderer_status=$?
+          docker cp "$post_approval_id:/tmp/a10-output" "$RUNNER_TEMP/a10-output"
+          docker rm "$post_approval_id"
           exit "$renderer_status"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
@@ -42,6 +46,13 @@ jobs:
         with:
           name: a11-max-room-plan-linux
           path: ${{ runner.temp }}/a11-output
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: a10-post-approval-linux
+          path: ${{ runner.temp }}/a10-output
           if-no-files-found: error
           retention-days: 7
   application:

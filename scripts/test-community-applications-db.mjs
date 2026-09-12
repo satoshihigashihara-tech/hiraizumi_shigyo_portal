@@ -190,6 +190,110 @@ async function roomPlanConcurrency(observer) {
   console.log('PASS cleanup', schema);
 }
 
+async function campPostApprovalConcurrency(observer) {
+  const schema='a10_review_test';
+  await observer.query(await readFile(join(root,'supabase/tests/fixtures/camp_post_approval_review.sql'),'utf8'));
+  await observer.query(await readFile(join(root,'supabase/tests/camp_post_approval_review_concurrency.sql'),'utf8'));
+  const a=await connect(), b=await connect();
+  const pidA=(await a.query('select pg_backend_pid() id')).rows[0].id;
+  const pidB=(await b.query('select pg_backend_pid() id')).rows[0].id;
+  const cases=[
+    ['double-change','change','change','stale-update'],['save-first','save','change','stale-update'],['change-first-save','change','save','stale-update'],
+    ['submit-first','submit','change','stale-update'],['change-first-submit','change','submit','stale-update'],['review-first','start-review','change','stale-update'],
+    ['change-first-review','change','start-review','stale-update'],['approve-first','approve','change','stale-update'],
+    ['double-approve','approve','approve','stale-update'],['payment-first','payment','change','stale-update'],
+    ['change-first-payment','change','payment','stale-update'],['draft-first','draft','change','stale-update'],
+    ['change-first-draft','change','draft','success'],['reject-first','reject','change','stale-update'],
+    ['change-first-reject','change','reject','stale-update'],['withdraw-first','withdraw','change','stale-update'],
+    ['staff-revoked','revoke','change','staff-required'],['role-revoked','role-revoke','approve','staff-required'],
+    ['mapping-revoked','mapping','change','room-not-confirmed'],['member-added','add','change','stale-update'],
+    ['member-edited','edit','change','stale-update'],['repeatable-read','change','change','40001'],
+    ['change-first-plan-pdf','change','plan-pdf','stale-update'],['plan-pdf-first','plan-pdf','change','success'],
+    ['deadline-while-waiting','wait','change','deadline-passed'],
+    ['change-first-callback','change','pdf-callback','stale-update'],
+    ['change-first-plan-callback','change','plan-callback','stale-update'],
+    ['change-first-checkin','change','check-in','stale-update'],
+  ];
+  const counters=(await observer.query('select * from public.reception_counters order by fiscal_year')).rows;
+  try {
+    for(const [name,firstKind,secondKind,expected] of cases) {
+      await observer.query(`select ${schema}.setup()`);
+      const f=(await observer.query(`select * from ${schema}.context`)).rows[0];
+      if (firstKind==='submit'||secondKind==='submit') await observer.query(`select ${schema}.prepare_pdf($1)`,[f.app[4]]);
+      const command=async kind=>(await observer.query(`select ${schema}.race_command($1) command`,[kind])).rows[0].command;
+      if(name==='deadline-while-waiting')await observer.query("update public.applications set revision_due_at=clock_timestamp()+interval '1 second' where id=$1",[f.app[4]]);
+      let firstCommand=['revoke','role-revoke','mapping','add','edit','wait'].includes(firstKind)?null:await command(firstKind);
+      let secondCommand,secondRole='authenticated';
+      if(secondKind==='pdf-callback'||secondKind==='plan-callback') {
+        const plan=secondKind==='plan-callback';
+        let version;
+        if(plan)version=(await observer.query(`select ${schema}.call_as($1,$2) result`,[f.staff,await command('plan-pdf')])).rows[0].result.rows[0].begin_staff_camp_room_plan_pdf;
+        else {
+          const app=f.app[4];
+          const input=(await observer.query('select input_version from public.applications where id=$1',[app])).rows[0].input_version;
+          version=(await observer.query(`select ${schema}.call_as($1,format('select public.begin_camp_application_pdf(%L,%s,%L)', $2::text,$3::text,$4::text)) result`,[f.owner[4],app,input,randomUUID()])).rows[0].result.rows[0].begin_camp_application_pdf;
+        }
+        const table=plan?'camp_room_plan_pdf_jobs':'camp_pdf_jobs';
+        const jobId=(await observer.query(`select id from public.${table} where version_id=$1`,[version])).rows[0].id;
+        const claim=plan?'claim_camp_room_plan_pdf_job':'claim_camp_pdf_job';
+        const job=(await observer.query(`select ${schema}.call_as(null,format('select public.${claim}(%L) value',$1::text),'service_role') result`,[jobId])).rows[0].result.rows[0].value;
+        const check=plan?'check_camp_room_plan_pdf_attempt':'check_camp_pdf_attempt';
+        secondCommand=(await observer.query(`select format('select public.${check}(%L,%L,%L)', $1::text,$2::text,$3::text) command`,[jobId,job.attempt_id,job.source_hash])).rows[0].command;
+        secondRole='service_role';
+      } else secondCommand=await command(secondKind);
+      let pending;
+      try {
+        await b.query(name==='repeatable-read'?'begin isolation level repeatable read':'begin');
+        await b.query('select count(*) from public.facility_guard');
+        await a.query('begin');await a.query('select private.lock_calendar_facility()');
+        const manual={
+          revoke:["update public.profiles set account_state='disabled' where id=$1",[f.staff]],
+          'role-revoke':['delete from public.staff_roles where user_id=$1',[f.staff]],
+          mapping:['update public.camp_room_mapping set printing_enabled=false where room_id=$1',[f.room[3]]],
+          add:["insert into public.camp_eligible_users(camp_id,email_normalized,management_name) values($1,'a10-extra@example.invalid','架空追加')",[f.camp]],
+          edit:["update public.camp_eligible_users set management_name='架空名更新' where id=$1",[f.eligible[3]]],
+        }[firstKind];
+        if(manual)await a.query(...manual);
+        else if(firstCommand) {
+          const actor=['draft','submit'].includes(firstKind)?f.owner[4]:f.staff;
+          const result=(await a.query(`select ${schema}.call_as($1,$2) result`,[actor,firstCommand])).rows[0].result;
+          assert.equal(result.ok,true,`${name} first: ${JSON.stringify(result)}`);
+        }
+        const actor=secondRole==='service_role'?null:['draft','submit'].includes(secondKind)?f.owner[4]:f.staff;
+        pending=b.query(`select ${schema}.call_as($1,$2,$3) result`,[actor,secondCommand,secondRole]).then(result=>({result}),error=>({error}));
+        let waited=false;
+        for(const deadline=Date.now()+5000;Date.now()<deadline;) {
+          const row=(await observer.query("select wait_event_type='Lock' and $2=any(pg_blocking_pids(pid)) waiting from pg_stat_activity where pid=$1",[pidB,pidA])).rows[0];
+          if(row?.waiting){waited=true;break;}
+          await new Promise(resolve=>setTimeout(resolve,20));
+        }
+        assert.equal(waited,true,`${name} actual lock wait`);
+        if(name==='deadline-while-waiting')await a.query('select pg_sleep(1.1)');
+        await a.query('commit');
+        const outcome=await pending;assert.ok(!outcome.error,outcome.error?.message);
+        const result=outcome.result.rows[0].result;
+        if(expected==='success')assert.equal(result.ok,true,`${name}: ${JSON.stringify(result)}`);
+        else assert.equal(expected==='40001'?result.code:result.message,expected,`${name}: ${JSON.stringify(result)}`);
+        await b.query('commit');
+        const counts=(await observer.query(`select (select count(*)::int from public.stays where application_id=$1) stays,
+          (select count(*)::int from public.calendar_claims where camp_id=$2 and released_from is null) claims`,[f.app[5],f.camp])).rows[0];
+        assert.deepEqual(counts,{stays:1,claims:1},name);
+        console.log('PASS A10 actual lock race',name);
+      } finally {
+        await a.query('rollback');if(pending)await pending;await b.query('rollback');
+        await observer.query(`select ${schema}.cleanup()`);
+        assert.equal((await observer.query('select count(*)::int n from public.camps where id=$1',[f.camp])).rows[0].n,0);
+      }
+    }
+    console.log('PASS camp_post_approval_review_concurrency.sql',{checked_cases:cases.length,all_passed:true,actual_lock_waits:true});
+  } finally {
+    await observer.query(`drop schema ${schema} cascade`);
+    await observer.query('delete from public.reception_counters');
+    for(const c of counters)await observer.query('insert into public.reception_counters(fiscal_year,last_number,updated_at) values($1,$2,$3)',[c.fiscal_year,c.last_number,c.updated_at]);
+    console.log('PASS cleanup A10 fixtures, schema and receipt counters');
+  }
+}
+
 async function rosterLifecycleConcurrency(observer) {
   const schema='a4_lifecycle_test';
   await observer.query(await readFile(join(root,'supabase/tests/fixtures/camp_roster_lifecycle.sql'),'utf8'));
@@ -869,6 +973,7 @@ try {
   let beforeSearchUpgrade;
   let beforePdfUpgrade;
   let beforeLifecycleUpgrade;
+  let beforeA10Upgrade;
   for (const file of (await readdir(join(root, 'supabase/migrations'))).filter(x => x.endsWith('.sql')).sort()) {
     stage = file;
     const sqlBytes = await readFile(join(root, 'supabase/migrations', file));
@@ -898,7 +1003,21 @@ try {
       beforeLifecycleUpgrade={common:await storedRows(c),roster:(await c.query('select a4_lifecycle_test.snapshot() data')).rows[0].data,
         retained:(await c.query('select a4_lifecycle_test.retained_snapshot() data')).rows[0].data};
     }
+    if(file==='202609130039_camp_post_approval_review.sql') {
+      await c.query(await readFile(join(root,'supabase/tests/fixtures/camp_roster_lifecycle.sql'),'utf8'));
+      await c.query("select a4_lifecycle_test.setup('approved','before_move_in'); select a4_lifecycle_test.seed_retained_records()");
+      beforeA10Upgrade={common:await storedRows(c),roster:(await c.query('select a4_lifecycle_test.snapshot() data')).rows[0].data,
+        retained:(await c.query('select a4_lifecycle_test.retained_snapshot() data')).rows[0].data};
+    }
     await c.query(sqlBytes.toString('utf8'));
+    if(file==='202609130039_camp_post_approval_review.sql') {
+      assert.deepEqual(await storedRows(c),beforeA10Upgrade.common);
+      assert.deepEqual((await c.query('select a4_lifecycle_test.snapshot() data')).rows[0].data,beforeA10Upgrade.roster);
+      assert.deepEqual((await c.query('select a4_lifecycle_test.retained_snapshot() data')).rows[0].data,beforeA10Upgrade.retained);
+      await c.query('select a4_lifecycle_test.cleanup(); drop schema a4_lifecycle_test cascade');
+      console.log('PASS 038 to 039 upgrade: populated applications, assignments, claims, charges, stays, events and PDFs unchanged');
+    }
+
     console.log('PASS migration', file);
     if(file==='202609130035_camp_roster_lifecycle.sql') {
       assert.deepEqual(await storedRows(c),beforeLifecycleUpgrade.common);
@@ -952,10 +1071,22 @@ try {
   if (requested.includes('--audit-notes-only')) await c.query("select set_config('test.operations_phase','audit-notes',false)");
   if (requested.includes('--staff-search-only')) await c.query("select set_config('test.operations_phase','staff-search',false)");
   if (requested.includes('--stays-only')) await c.query("select set_config('test.operations_phase','stays',false)");
-  const single = ['staff_camp_room_plan_pdfs.sql', 'camp_roster_lifecycle.sql', 'camp_pdf_versions.sql', 'camp_pdf_renderer_settings.sql', 'camp_pdf_confirm_submit.sql', 'camp_room_plan_bulk_save.sql', 'application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql', 'community_groups.sql', 'group_invitations.sql', 'group_participant_submissions.sql', 'group_review_and_approval.sql', 'group_changes_and_cancellation.sql', 'group_deadline_expiration.sql', 'account_cleanup.sql', 'camp_roster_identity_foundation.sql', 'camp_roster_eligible_user_management.sql'];
-  const concurrent = ['camp_roster_lifecycle_concurrency.sql', 'camp_pdf_versions_concurrency.sql', 'camp_room_plan_bulk_save_concurrency.sql', 'camp_room_allocations_concurrency.sql', 'calendar_concurrency.sql', 'community_individual_applications_concurrency.sql', 'community_individual_room_allocations_concurrency.sql', 'camp_roster_identity_concurrency.sql', 'camp_roster_eligible_user_management_concurrency.sql'];
+  const single = ['camp_post_approval_review.sql', 'staff_camp_room_plan_pdfs.sql', 'camp_roster_lifecycle.sql', 'camp_pdf_versions.sql', 'camp_pdf_renderer_settings.sql', 'camp_pdf_confirm_submit.sql', 'camp_room_plan_bulk_save.sql', 'application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql', 'community_groups.sql', 'group_invitations.sql', 'group_participant_submissions.sql', 'group_review_and_approval.sql', 'group_changes_and_cancellation.sql', 'group_deadline_expiration.sql', 'account_cleanup.sql', 'camp_roster_identity_foundation.sql', 'camp_roster_eligible_user_management.sql'];
+  const concurrent = ['camp_post_approval_review_concurrency.sql', 'camp_roster_lifecycle_concurrency.sql', 'camp_pdf_versions_concurrency.sql', 'camp_room_plan_bulk_save_concurrency.sql', 'camp_room_allocations_concurrency.sql', 'calendar_concurrency.sql', 'community_individual_applications_concurrency.sql', 'community_individual_room_allocations_concurrency.sql', 'camp_roster_identity_concurrency.sql', 'camp_roster_eligible_user_management_concurrency.sql'];
   const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.includes('--stays-only') ? ['application_operations.sql', ...(requested.includes('--stays-concurrency') ? ['--stays-concurrency'] : [])] : requested.includes('--audit-notes-only') ? ['application_operations.sql', ...(requested.includes('--audit-notes-concurrency') ? ['--audit-notes-concurrency'] : [])] : requested.includes('--staff-search-only') ? ['application_operations.sql'] : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency', '--stays-concurrency', '--audit-notes-concurrency', '--groups-concurrency', '--group-invitations-concurrency', '--group-expiration-concurrency'];
   for (const file of selected) {
+    if (file === 'camp_post_approval_review_concurrency.sql') { stage=file; await campPostApprovalConcurrency(c); continue; }
+    if (file === 'camp_post_approval_review.sql') {
+      stage=file;
+      await c.query(await readFile(join(root,'supabase/tests/fixtures/camp_post_approval_review.sql'),'utf8'));
+      try {
+        const results=await c.query(await readFile(join(root,'supabase/tests',file),'utf8'));
+        const summary=results.flatMap(r=>r.rows ?? []).find(r=>r.result?.all_passed !== undefined)?.result;
+        assert.equal(summary?.all_passed,true);
+        console.log('PASS',file,summary);
+      } finally { await c.query('rollback'); await c.query('drop schema a10_review_test cascade'); }
+      continue;
+    }
     if (file === 'camp_roster_lifecycle_concurrency.sql') { stage=file; await rosterLifecycleConcurrency(c); continue; }
     if (file === 'camp_roster_lifecycle.sql') {
       stage=file;

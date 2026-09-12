@@ -14,7 +14,7 @@ RUN fc-cache -f \
   && fc-match 'Noto Serif JP' | grep -F 'NotoSerifJP-Regular.otf'
 COPY assets/ assets/
 COPY fixtures/ fixtures/
-COPY render-settings.json renderer.py worker.py test_renderer.py test-renderer.sh test-room-plan-renderer.sh ./
+COPY render-settings.json renderer.py worker.py test_renderer.py test-renderer.sh test-room-plan-renderer.sh test-post-approval-renderer.sh ./
 RUN sha256sum -c <<'EOF'
 39d3621b02fd4559fa227f263f541ccc92dbd0d1b19a663891d0783407c33bfe  assets/02-02.使用許可申請書（様式第１号）.docx
 2c9a12dbd4f2408c4610c7ee84a108b62d7236c3775baed618c64d9cb44b2f04  assets/fonts/NotoSerifJP-Regular.otf
