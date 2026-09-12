@@ -44,6 +44,7 @@ node scripts/test-community-applications-db.mjs
 
 - [MVP総合受入チェックリスト](docs/mvp-acceptance.md)
 - [5役割の発表デモ手順](docs/demo-runbook.md)
+- [5分発表資料と通信障害時の代替手順](docs/presentation/README.md)
 - [障害時の緊急対応](docs/incident-runbook.md)
 - [要件定義](docs/requirements.md)
 - [画面・URL設計](docs/routes.md)
