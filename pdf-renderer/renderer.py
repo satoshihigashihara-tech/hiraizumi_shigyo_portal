@@ -343,6 +343,29 @@ def normalized(value: str) -> str:
     return re.sub(r"\s+", "", value)
 
 
+def trim_empty_edge_pages(pdf_path: Path, work_dir: Path) -> None:
+    info = run(["pdfinfo", str(pdf_path)]).stdout
+    match = re.search(r"^Pages:\s+(\d+)$", info, re.MULTILINE)
+    page_count = int(match.group(1)) if match else 0
+    if page_count <= 1:
+        return
+    nonempty = []
+    for page in range(1, page_count + 1):
+        text = run(["pdftotext", "-f", str(page), "-l", str(page), "-raw", str(pdf_path), "-"]).stdout
+        if normalized(text):
+            nonempty.append(page)
+    if not nonempty:
+        raise RenderError("empty-pdf")
+    first, last = nonempty[0], nonempty[-1]
+    if first == 1 and last == page_count:
+        return
+    split_pattern = work_dir / "room-plan-page-%d.pdf"
+    run(["pdfseparate", str(pdf_path), str(split_pattern)])
+    trimmed = work_dir / "room-plan-trimmed.pdf"
+    run(["pdfunite", *[str(work_dir / f"room-plan-page-{page}.pdf") for page in range(first, last + 1)], str(trimmed)])
+    shutil.copyfile(trimmed, pdf_path)
+
+
 def validate_pdf(pdf_path: Path, expected: list[str], qa_dir: Path, expected_font: str, max_pages: int = 1) -> dict[str, object]:
     info = run(["pdfinfo", str(pdf_path)]).stdout
     match = re.search(r"^Pages:\s+(\d+)$", info, re.MULTILINE)
@@ -410,13 +433,15 @@ def room_plan_html(job: dict, settings: dict, output_path: Path) -> list[str]:
         raise RenderError("font-hash-mismatch")
     document = f'''<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>
 @page {{ size: A4 landscape; margin: 8mm; }}
-body {{ font-family: "Noto Serif JP"; color:#000; }} h1 {{ font-size:13pt; text-align:center; margin:0 0 2mm; }}
-.meta {{ font-size:7.5pt; margin:0 0 2mm; }} table {{ border-collapse:collapse; width:100%; table-layout:fixed; font-size:5pt; }}
+body {{ font-family: "Noto Serif JP"; color:#000; }} table {{ border-collapse:collapse; width:100%; table-layout:fixed; font-size:5pt; }}
 tr {{ page-break-inside:avoid; }} th,td {{ border:0.25mm solid #000; padding:0.4mm; vertical-align:middle; overflow-wrap:anywhere; white-space:nowrap; }}
 td {{ font-size:5pt; line-height:6pt; }} th {{ background:#eee; font-size:6pt; line-height:7pt; }} th:nth-child(1){{width:5%}} th:nth-child(2){{width:22%}} th:nth-child(3){{width:29%}} th:nth-child(4){{width:14%}} th:nth-child(5){{width:30%}}
-</style></head><body><div class="page"><h1>職員用配置表</h1>
-<p class="meta">キャンプ: {html.escape(camp_name)}　日程: {starts} 〜 {ends}　配置版: {snapshot.get('room_plan_version')}</p>
-<table><thead><tr><th>No.</th><th>氏名</th><th>対象者ID</th><th>部屋名</th><th>日程</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div></body></html>'''
+.title th {{ background:#fff; border:0; font-size:13pt; line-height:15pt; text-align:center; padding:0 0 2mm; }}
+.meta th {{ background:#fff; border:0; font-size:7.5pt; line-height:9pt; text-align:left; padding:0 0 2mm; }}
+</style></head><body><div class="page"><table><thead>
+<tr class="title"><th colspan="5">職員用配置表</th></tr>
+<tr class="meta"><th colspan="5">キャンプ: {html.escape(camp_name)}　日程: {starts} 〜 {ends}　配置版: {snapshot.get('room_plan_version')}</th></tr>
+<tr><th>No.</th><th>氏名</th><th>対象者ID</th><th>部屋名</th><th>日程</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div></body></html>'''
     output_path.write_text(document, encoding="utf-8")
     return expected
 
@@ -442,6 +467,8 @@ def render(job: dict, output_pdf: Path, output_docx: Path | None, qa_dir: Path) 
             "--convert-to", "pdf", "--outdir", str(output_dir), str(docx_path),
         ], env=environment, timeout=90)
         converted = output_dir / ("room-plan.pdf" if room_plan else "application.pdf")
+        if room_plan:
+            trim_empty_edge_pages(converted, work_root)
         expected = room_expected or [
             settings["mayor_name"], values["user_name"], values["user_address"], values["user_phone"],
             values["emergency_name"], values["emergency_address"], values["emergency_phone"], values["purpose"],
