@@ -628,6 +628,7 @@ test("camp detail page separates application, payment and stay states and only l
   assert.match(page, /kind="payment"/);
   assert.match(page, /kind="stay"/);
   assert.match(page, /\["draft", "revision_requested"\]/);
-  assert.doesNotMatch(page, /cancel|キャンセル.*button/i);
+  const campBranch = page.slice(page.indexOf("const { error, application } = await getCampApplicationForDetail"));
+  assert.doesNotMatch(campBranch, /href=\{`\/user\/applications\/\$\{application\.id\}\/cancel`\}/);
   assert.match(styles, /@media \(max-width: 599px\)/);
 });

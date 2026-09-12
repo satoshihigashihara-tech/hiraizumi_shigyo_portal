@@ -23,7 +23,7 @@ function nextStep(status) {
   return "この申請に関する案内をご確認ください。";
 }
 
-export default function CommunityApplicationDetail({ application }) {
+export default function CommunityApplicationDetail({ application, cancellation, extension }) {
   const periodStart = application.reserved_start_date ?? application.fields.start_date;
   const periodEnd = application.reserved_end_date ?? application.fields.end_date;
   const room = application.room_allocation?.is_current ? application.room_allocation : null;
@@ -66,6 +66,9 @@ export default function CommunityApplicationDetail({ application }) {
     </section>
 
     <div className={styles.actions}>{editable && <LinkButton href={`/user/applications/${application.id}/edit`} variant="primary" fullWidthOnMobile>申請内容を編集する</LinkButton>}
+      {cancellation?.can_request && <LinkButton href={`/user/applications/${application.id}/cancel`} variant="danger" fullWidthOnMobile>取消を申請する</LinkButton>}
+      {extension?.can_extend && <LinkButton href={`/user/applications/${application.id}/extension`} fullWidthOnMobile>継続申請を開始する</LinkButton>}
+      {extension?.existing_extension_id && <LinkButton href={`/user/applications/${extension.existing_extension_id}`} fullWidthOnMobile>作成済みの継続申請を見る</LinkButton>}
       <LinkButton href="/user/applications" fullWidthOnMobile>申請一覧へ戻る</LinkButton></div>
   </>;
 }

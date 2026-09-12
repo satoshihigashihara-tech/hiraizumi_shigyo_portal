@@ -15,7 +15,7 @@ import {
 import { statusLabel } from "@/app/components/status-labels";
 import { errorMessage } from "@/app/components/messages";
 import { getCampApplicationForDetail } from "@/utils/camp-applications/queries";
-import { getCommunityApplication } from "@/utils/community-applications/queries";
+import { getCommunityApplication, getCommunityApplicationCancellation, getCommunityApplicationExtensionSource } from "@/utils/community-applications/queries";
 import { getGroupParticipantApplication } from "@/utils/group-participants/queries";
 import { getUserApplicationUsageType } from "@/utils/user-applications/queries";
 import { DUE_KINDS, nextAction } from "@/app/user/next-action";
@@ -133,8 +133,9 @@ function StaySection({ application }) {
   );
 }
 
-export default async function CampApplicationDetailPage({ params }) {
+export default async function CampApplicationDetailPage({ params, searchParams }) {
   const { applicationId } = await params;
+  const query = (await searchParams) ?? {};
   const kind = await getUserApplicationUsageType(applicationId, `/user/applications/${applicationId}`);
   if (kind.usageType === "community_group") {
     const result = await getGroupParticipantApplication(applicationId, "detail");
@@ -160,9 +161,19 @@ export default async function CampApplicationDetailPage({ params }) {
     </PageShell>;
   }
   if (kind.usageType === "community_individual") {
-    const result = await getCommunityApplication(applicationId, "detail");
+    const [result, cancellationResult, extensionResult] = await Promise.all([
+      getCommunityApplication(applicationId, "detail"),
+      getCommunityApplicationCancellation(applicationId),
+      kind.originalApplicationId ? Promise.resolve({ error: null, application: null }) : getCommunityApplicationExtensionSource(applicationId),
+    ]);
     if (result.error || !result.application) return <PageShell title="地域活動の個人申請詳細"><AlertMessage tone="error" title="申請を開けませんでした"><p>{errorMessage(result.error)}</p></AlertMessage><LinkButton href="/user/applications" fullWidthOnMobile>申請一覧へ戻る</LinkButton></PageShell>;
-    return <PageShell title="地域活動の個人申請詳細" description="申請内容、審査、料金、部屋、滞在の状態を確認できます。"><CommunityApplicationDetail application={result.application} /></PageShell>;
+    return <PageShell title="地域活動の個人申請詳細" description={kind.originalApplicationId ? "継続申請の内容、審査、料金、部屋、滞在の状態を確認できます。" : "申請内容、審査、料金、部屋、滞在の状態を確認できます。"}>
+      {(Array.isArray(query.updated) ? query.updated[0] : query.updated) === "cancellation-requested" && <AlertMessage tone="success" title="取消を申請しました"><p>町の職員による確認結果をお待ちください。</p></AlertMessage>}
+      {kind.originalApplicationId && <AlertMessage tone="info" title="継続申請です"><p>元の申請とは別に審査・料金・部屋が設定されます。</p><LinkButton href={`/user/applications/${kind.originalApplicationId}`}>元の申請を見る</LinkButton></AlertMessage>}
+      {cancellationResult.error && <AlertMessage tone="warning" title="取消の受付状態を確認できませんでした"><p>{errorMessage(cancellationResult.error)}</p></AlertMessage>}
+      {!kind.originalApplicationId && extensionResult.error && <AlertMessage tone="warning" title="継続申請の受付状態を確認できませんでした"><p>{errorMessage(extensionResult.error)}</p></AlertMessage>}
+      <CommunityApplicationDetail application={result.application} cancellation={cancellationResult.application} extension={extensionResult.application} />
+    </PageShell>;
   }
   const { error, application } = await getCampApplicationForDetail(applicationId);
 
