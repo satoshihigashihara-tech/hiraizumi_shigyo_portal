@@ -106,6 +106,8 @@ class RendererContractTests(unittest.TestCase):
             document = output.read_text(encoding="utf-8")
             self.assertEqual(document.count("<tr>"), 16)
             self.assertEqual(document.count('<div class="page'), 1)
+            self.assertNotRegex(document, r"table\s*\{[^}]*page-break-inside")
+            self.assertIn("tr { page-break-inside:avoid; }", document)
             self.assertEqual(len(expected), 49)
             for entry in job["source_snapshot"]["entries"]:
                 self.assertIn(entry["eligible_user_id"], document)
