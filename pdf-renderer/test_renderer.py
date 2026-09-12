@@ -5,6 +5,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import renderer
@@ -97,6 +98,51 @@ class RendererContractTests(unittest.TestCase):
                 os.environ.pop("CAMP_PDF_CONVERTER_IMAGE", None)
             else:
                 os.environ["CAMP_PDF_CONVERTER_IMAGE"] = previous
+
+    def test_staff_room_plan_contains_all_fifteen_identities_and_rooms(self):
+        job = json.loads((renderer.ROOT / "fixtures/max-room-plan-job.json").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "room-plan.html"
+            expected = renderer.room_plan_html(job, self.settings, output)
+            document = output.read_text(encoding="utf-8")
+            self.assertEqual(document.count("<tr"), 18)
+            self.assertEqual(document.count('<div class="page'), 1)
+            self.assertIn('<tr class="title"><th colspan="5">職員用配置表</th></tr>', document)
+            self.assertNotRegex(document, r"table\s*\{[^}]*page-break-inside")
+            self.assertIn("tr { page-break-inside:avoid; }", document)
+            self.assertEqual(len(expected), 49)
+            for entry in job["source_snapshot"]["entries"]:
+                self.assertIn(entry["eligible_user_id"], document)
+                self.assertIn(entry["management_name"], document)
+                self.assertIn(entry["room_name"], document)
+
+    def test_staff_room_plan_rejects_duplicate_target_id(self):
+        job = json.loads((renderer.ROOT / "fixtures/max-room-plan-job.json").read_text(encoding="utf-8"))
+        job["source_snapshot"]["entries"][1]["eligible_user_id"] = job["source_snapshot"]["entries"][0]["eligible_user_id"]
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(renderer.RenderError, "invalid-room-plan-entry"):
+                renderer.room_plan_html(job, self.settings, Path(directory) / "room-plan.html")
+
+    def test_staff_room_plan_trims_only_empty_edge_pages(self):
+        responses = [
+            SimpleNamespace(stdout="Pages:           3\n"),
+            SimpleNamespace(stdout="\f"),
+            SimpleNamespace(stdout="職員用配置表\n"),
+            SimpleNamespace(stdout="\f"),
+            SimpleNamespace(stdout=""),
+            SimpleNamespace(stdout=""),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pdf = root / "room-plan.pdf"
+            pdf.write_bytes(b"pdf")
+            with mock.patch.object(renderer, "run", side_effect=responses) as run_mock, \
+                    mock.patch.object(renderer.shutil, "copyfile") as copy_mock:
+                renderer.trim_empty_edge_pages(pdf, root)
+            commands = [call.args[0] for call in run_mock.call_args_list]
+            self.assertEqual(commands[-2][0], "pdfseparate")
+            self.assertEqual(commands[-1], ["pdfunite", str(root / "room-plan-page-2.pdf"), str(root / "room-plan-trimmed.pdf")])
+            copy_mock.assert_called_once_with(root / "room-plan-trimmed.pdf", pdf)
 
 
 class WorkerContractTests(unittest.TestCase):

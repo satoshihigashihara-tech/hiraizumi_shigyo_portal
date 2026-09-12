@@ -14,7 +14,7 @@ const hash = await shared.sha256(PDF);
 const report = { page_count: 1, fonts_embedded: true, text_verified: true, layout_verified: true };
 function fixture(options = {}) {
   const calls = [];
-  const permit = { allowed: true, object_path: `${ID}/${ATTEMPT}.pdf`, size_bytes: PDF.length, pdf_hash: hash, ...options.permit };
+  const permit = { allowed: true, ...(options.roomPlan ? { document_type: 'staff_room_plan', object_path: `room-plans/${ID}/${ATTEMPT}.pdf` } : { object_path: `${ID}/${ATTEMPT}.pdf` }), size_bytes: PDF.length, pdf_hash: hash, ...options.permit };
   let authorizationCount = 0;
   const admin = {
     async rpc(name, args) {
@@ -24,7 +24,12 @@ function fixture(options = {}) {
         authorizationCount++;
         return { data: options.deny || (options.revokeDuringFetch && authorizationCount > 1) ? { allowed: false } : permit };
       }
+      if (name === 'authorize_camp_room_plan_pdf_delivery') {
+        authorizationCount++;
+        return { data: options.deny || (options.revokeDuringFetch && authorizationCount > 1) ? { allowed: false } : permit };
+      }
       if (name === 'check_camp_pdf_attempt') return { data: options.committed ? { committed: true, pdf_hash: hash, size_bytes: PDF.length, validation: report } : { version_id: ID, object_path: `${ID}/${ATTEMPT}.pdf` } };
+      if (name === 'check_camp_room_plan_pdf_attempt') return { data: options.committed ? { committed: true, pdf_hash: hash, size_bytes: PDF.length, validation: report } : { version_id: ID, object_path: `room-plans/${ID}/${ATTEMPT}.pdf` } };
       if (name === 'claim_camp_pdf_cleanup') return { data: options.noOrphan ? null : { job_id: ID, cleanup_token: ATTEMPT, object_path: `${ID}/${ATTEMPT}.pdf` } };
       return { data: true };
     },
@@ -41,7 +46,7 @@ function fixture(options = {}) {
   };
   const auth = { async getUser(token) { calls.push(['auth', token]); return options.anonymous ? { error: {} } : { data: { user: { id: USER } } }; } };
   const download = async path => { calls.push(['download', path]); if (options.downloadError) throw new Error('private-path'); return options.bytes ?? PDF; };
-  return { calls, delivery: shared.createDeliveryHandler({ admin, auth, download }), worker: shared.createWorkerHandler({ admin, workerSecret: SECRET }), cleanup: shared.createCleanupHandler({ admin, cleanupSecret: SECRET }) };
+  return { calls, delivery: shared.createDeliveryHandler({ admin, auth, download }), roomPlanDelivery: shared.createRoomPlanDeliveryHandler({ admin, auth, download }), worker: shared.createWorkerHandler({ admin, workerSecret: SECRET }), cleanup: shared.createCleanupHandler({ admin, cleanupSecret: SECRET }) };
 }
 function request(method = 'GET', extra = {}, id = ID) {
   return new Request(`https://example.invalid/pdf?versionId=${id}`, { method, headers: { authorization: 'Bearer verified-test-jwt', ...extra } });
@@ -96,6 +101,21 @@ test('worker computes byte hash and uploads immutable object', async () => {
   const complete = f.calls.find(x => x[0] === 'complete_camp_pdf_job')[1];
   assert.equal(complete.pdf_hash_value, hash); assert.equal(complete.size_bytes_value, PDF.length);
   assert.equal(f.calls.some(x => x[0] === 'remove'), false);
+});
+test('staff room-plan delivery requires its own authorization twice and does not support ranges', async () => {
+  const f = fixture({ roomPlan: true });
+  const r = await f.roomPlanDelivery(request('GET', { range: 'bytes=0-4' }));
+  assert.equal(r.status, 200); assert.equal((await r.arrayBuffer()).byteLength, PDF.length);
+  assert.equal(r.headers.get('accept-ranges'), 'none');
+  assert.equal(f.calls.filter(x => x[0] === 'authorize_camp_room_plan_pdf_delivery').length, 2);
+  assert.equal(f.calls.some(x => x[0] === 'authorize_camp_pdf_delivery'), false);
+});
+test('room-plan worker accepts bounded multi-page validation and separate object namespace', async () => {
+  const f = fixture({ roomPlan: true });
+  const r = await f.worker(workerRequest({ documentType: 'staff_room_plan', validation: { ...report, page_count: 3 } }));
+  assert.equal(r.status, 200);
+  assert.match(f.calls.find(x => x[0] === 'upload')[1], /^room-plans\//);
+  assert.equal(f.calls.some(x => x[0] === 'complete_camp_room_plan_pdf_job'), true);
 });
 for (const [label, overrides] of [['missing validation', { validation: {} }], ['two pages', { validation: { ...report, page_count: 2 } }], ['missing fonts', { validation: { ...report, fonts_embedded: false } }], ['not PDF', { pdfBase64: Buffer.from('not pdf').toString('base64') }], ['invalid job', { jobId: '../other' }], ['missing source', { sourceHash: '' }]]) {
   test(`worker rejects ${label} before upload`, async () => {
@@ -187,6 +207,10 @@ test('gateway rejects oversized or truncated success bodies', async () => {
 test('PDF route awaits dynamic params and implements explicit HEAD', async () => {
   const text = await readFile(new URL('app/api/camp/application-pdfs/[versionId]/route.js', root), 'utf8');
   assert.match(text, /await context.params/); assert.match(text, /export async function HEAD/);
+});
+test('staff room-plan PDF route awaits dynamic params and implements explicit HEAD', async () => {
+  const text = await readFile(new URL('app/api/staff/camps/room-plan-pdfs/[versionId]/route.js', root), 'utf8');
+  assert.match(text, /await params/); assert.match(text, /export async function HEAD/);
 });
 // Ensure Web Crypto is available in the same Node runtime used by the suite.
 assert.ok(webcrypto.subtle);

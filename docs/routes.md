@@ -802,3 +802,7 @@ DBの `save_camp_room_plan(target_camp_id,expected_roster_version,expected_room_
 職員向け `getStaffCampRosterLifecycle(campId, eligibleUserId)` と `endCampRosterParticipationState(previousState, formData)` を追加。前者の対象者updated_at・camp版・申請ID／updated_atを後者に渡し、理由・明示確認、滞在中は退去確認を必須にする。`withdraw` は資格を無効化、`reject` は資格を保持し、どちらも今回参加を終了する。終了UIはA5でこの契約へ接続する。
 
 通常入退去の既存Actionは同じAPIのままSQL034が新方式を振り分ける。成功時に名簿も再検証する。詳しい入力、エラー、状態表、非公開項目、PDF／料金影響は [A4接続契約](camp-roster-lifecycle.md) を参照。
+
+## A11 職員用配置表PDF
+
+`/staff/camps/[campId]/room-plan` はA3の `complete=true` のときだけ `get_staff_camp_room_plan_pdf` を読み、氏名等のPDF本文は画面データとして取得しない。作成Actionはcamp ID、対象集合版、氏名表示版、配置版だけを `begin_staff_camp_room_plan_pdf` へ渡す。ready版は `/api/staff/camps/room-plan-pdfs/[versionId]` のGET/HEADで取得する。各入口は毎回職員認証を行い、DBもactive職員と最新版完全配置を再検査する。詳細は [A11契約](staff-room-plan-pdf.md)。

@@ -94,3 +94,5 @@ A7内部Functionは既存のDeno Edge Functionと同じ配置に置き、JavaScr
 ### A8のPDF変換
 
 A8の変換は `pdf-renderer/` のLinux imageだけで行う。Word原本・Noto Serif JP・設定版・町長名・OCI manifest digestを固定し、DBのactive設定と実行中imageが一致しなければ拒否する。タグ、ブラウザ入力、環境別の緩和フラグでDBゲートを開かない。文字抽出成功だけを描画成功と扱わず、指定Notoフォントの埋込み、1ページ、PNGレンダー、最大入力の欄内収容を併せて確認する。
+
+A11の職員用配置表はA8と同じ認証済みLinux変換器、Noto Serif JP、LibreOffice、Poppler、3MiB上限を使う。申請PDFとは不変版tableとStorage pathを分け、氏名・対象者ID・配置はactive職員だけに認証Routeから配信する。一般利用者・匿名へ存在情報も返さず、氏名変更を含む版差分後の旧PDFは配信しない。詳細は [A11契約](staff-room-plan-pdf.md)。

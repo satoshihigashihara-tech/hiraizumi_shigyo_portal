@@ -7,6 +7,7 @@ import argparse
 import base64
 import copy
 import hashlib
+import html
 import json
 import os
 import re
@@ -342,7 +343,30 @@ def normalized(value: str) -> str:
     return re.sub(r"\s+", "", value)
 
 
-def validate_pdf(pdf_path: Path, expected: list[str], qa_dir: Path, expected_font: str) -> dict[str, object]:
+def trim_empty_edge_pages(pdf_path: Path, work_dir: Path) -> None:
+    info = run(["pdfinfo", str(pdf_path)]).stdout
+    match = re.search(r"^Pages:\s+(\d+)$", info, re.MULTILINE)
+    page_count = int(match.group(1)) if match else 0
+    if page_count <= 1:
+        return
+    nonempty = []
+    for page in range(1, page_count + 1):
+        text = run(["pdftotext", "-f", str(page), "-l", str(page), "-raw", str(pdf_path), "-"]).stdout
+        if normalized(text):
+            nonempty.append(page)
+    if not nonempty:
+        raise RenderError("empty-pdf")
+    first, last = nonempty[0], nonempty[-1]
+    if first == 1 and last == page_count:
+        return
+    split_pattern = work_dir / "room-plan-page-%d.pdf"
+    run(["pdfseparate", str(pdf_path), str(split_pattern)])
+    trimmed = work_dir / "room-plan-trimmed.pdf"
+    run(["pdfunite", *[str(work_dir / f"room-plan-page-{page}.pdf") for page in range(first, last + 1)], str(trimmed)])
+    shutil.copyfile(trimmed, pdf_path)
+
+
+def validate_pdf(pdf_path: Path, expected: list[str], qa_dir: Path, expected_font: str, max_pages: int = 1) -> dict[str, object]:
     info = run(["pdfinfo", str(pdf_path)]).stdout
     match = re.search(r"^Pages:\s+(\d+)$", info, re.MULTILINE)
     page_count = int(match.group(1)) if match else 0
@@ -362,8 +386,8 @@ def validate_pdf(pdf_path: Path, expected: list[str], qa_dir: Path, expected_fon
     extracted_normalized = normalized(extracted)
     text_verified = all(normalized(value) in extracted_normalized for value in expected if value)
     run(["pdftoppm", "-png", "-r", "144", str(pdf_path), str(qa_dir / "page")])
-    page_png = qa_dir / "page-1.png"
-    layout_verified = page_count == 1 and page_png.is_file() and page_png.stat().st_size > 10000
+    page_pngs = [qa_dir / f"page-{page}.png" for page in range(1, page_count + 1)]
+    layout_verified = 1 <= page_count <= max_pages and all(path.is_file() and path.stat().st_size > 10000 for path in page_pngs)
     return {
         "page_count": page_count,
         "fonts_embedded": fonts_embedded,
@@ -372,12 +396,64 @@ def validate_pdf(pdf_path: Path, expected: list[str], qa_dir: Path, expected_fon
     }
 
 
+def room_plan_html(job: dict, settings: dict, output_path: Path) -> list[str]:
+    snapshot = job.get("source_snapshot")
+    context = job.get("render_context")
+    if not isinstance(snapshot, dict) or not isinstance(context, dict) or snapshot.get("document_type") != "staff_room_plan":
+        raise RenderError("invalid-room-plan-job")
+    if context.get("document_type") != "staff_room_plan" or context.get("template_hash") != "01381635183d96b6cf8345372f94d1fc1a687e19c72fd6b5d88db562af071ecc":
+        raise RenderError("settings-mismatch")
+    for key in ("settings_version", "font_version", "converter_image"):
+        if context.get(key) != settings.get(key):
+            raise RenderError("settings-mismatch")
+    camp_name = require_text(snapshot.get("camp_name"), "camp-name", 200)
+    starts = parse_iso_date(snapshot.get("start_date"), "start-date")
+    ends = parse_iso_date(snapshot.get("end_date"), "end-date")
+    entries = snapshot.get("entries")
+    if not isinstance(entries, list) or not 1 <= len(entries) <= 15:
+        raise RenderError("invalid-room-plan-entries")
+    rows = []
+    expected = ["職員用配置表", camp_name, str(starts), str(ends)]
+    seen = set()
+    for index, entry in enumerate(entries, 1):
+        if not isinstance(entry, dict):
+            raise RenderError("invalid-room-plan-entry")
+        eligible_id = require_text(entry.get("eligible_user_id"), "eligible-user-id", 36)
+        if not re.fullmatch(r"[0-9a-f-]{36}", eligible_id, re.I) or eligible_id in seen:
+            raise RenderError("invalid-room-plan-entry")
+        seen.add(eligible_id)
+        name = require_text(entry.get("management_name"), "management-name", 200)
+        room = require_text(entry.get("room_name"), "room-name", 100)
+        if parse_iso_date(entry.get("start_date"), "entry-start-date") != starts or parse_iso_date(entry.get("end_date"), "entry-end-date") != ends:
+            raise RenderError("invalid-room-plan-period")
+        expected.extend([eligible_id, name, room])
+        rows.append(f"<tr><td>{index}</td><td>{html.escape(name)}</td><td>{html.escape(eligible_id)}</td><td>{html.escape(room)}</td><td>{starts} 〜 {ends}</td></tr>")
+    font_path = ROOT / settings["font_path"]
+    if sha256_file(font_path) != settings["font_hash"]:
+        raise RenderError("font-hash-mismatch")
+    document = f'''<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>
+@page {{ size: A4 landscape; margin: 8mm; }}
+body {{ font-family: "Noto Serif JP"; color:#000; }} table {{ border-collapse:collapse; width:100%; table-layout:fixed; font-size:5pt; }}
+tr {{ page-break-inside:avoid; }} th,td {{ border:0.25mm solid #000; padding:0.4mm; vertical-align:middle; overflow-wrap:anywhere; white-space:nowrap; }}
+td {{ font-size:5pt; line-height:6pt; }} th {{ background:#eee; font-size:6pt; line-height:7pt; }} th:nth-child(1){{width:5%}} th:nth-child(2){{width:22%}} th:nth-child(3){{width:29%}} th:nth-child(4){{width:14%}} th:nth-child(5){{width:30%}}
+.title th {{ background:#fff; border:0; font-size:13pt; line-height:15pt; text-align:center; padding:0 0 2mm; }}
+.meta th {{ background:#fff; border:0; font-size:7.5pt; line-height:9pt; text-align:left; padding:0 0 2mm; }}
+</style></head><body><div class="page"><table><thead>
+<tr class="title"><th colspan="5">職員用配置表</th></tr>
+<tr class="meta"><th colspan="5">キャンプ: {html.escape(camp_name)}　日程: {starts} 〜 {ends}　配置版: {snapshot.get('room_plan_version')}</th></tr>
+<tr><th>No.</th><th>氏名</th><th>対象者ID</th><th>部屋名</th><th>日程</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div></body></html>'''
+    output_path.write_text(document, encoding="utf-8")
+    return expected
+
+
 def render(job: dict, output_pdf: Path, output_docx: Path | None, qa_dir: Path) -> dict[str, object]:
     settings = runtime_settings()
     work_root = Path(tempfile.mkdtemp(prefix="camp-pdf-", dir=os.environ.get("TMPDIR", "/tmp")))
     try:
-        docx_path = work_root / "application.docx"
-        values = merge_docx(job, settings, docx_path)
+        room_plan = job.get("document_type") == "staff_room_plan"
+        docx_path = work_root / ("room-plan.html" if room_plan else "application.docx")
+        values = None if room_plan else merge_docx(job, settings, docx_path)
+        room_expected = room_plan_html(job, settings, docx_path) if room_plan else None
         profile = work_root / "lo-profile"
         output_dir = work_root / "converted"
         profile.mkdir()
@@ -390,18 +466,20 @@ def render(job: dict, output_pdf: Path, output_docx: Path | None, qa_dir: Path) 
             "soffice", "--headless", f"-env:UserInstallation=file://{profile}",
             "--convert-to", "pdf", "--outdir", str(output_dir), str(docx_path),
         ], env=environment, timeout=90)
-        converted = output_dir / "application.pdf"
-        expected = [
+        converted = output_dir / ("room-plan.pdf" if room_plan else "application.pdf")
+        if room_plan:
+            trim_empty_edge_pages(converted, work_root)
+        expected = room_expected or [
             settings["mayor_name"], values["user_name"], values["user_address"], values["user_phone"],
             values["emergency_name"], values["emergency_address"], values["emergency_phone"], values["purpose"],
             values["special_notes"], values["room_name"], wareki(parse_iso_date(job["source_snapshot"]["application_date"], "application-date")),
         ]
-        report = validate_pdf(converted, expected, qa_dir, settings["font_family"])
-        if report != {"page_count": 1, "fonts_embedded": True, "text_verified": True, "layout_verified": True}:
+        report = validate_pdf(converted, expected, qa_dir, settings["font_family"], 8 if room_plan else 1)
+        if not report["fonts_embedded"] or not report["text_verified"] or not report["layout_verified"] or (not room_plan and report["page_count"] != 1):
             raise RenderError(f"validation-failed:{json.dumps(report, ensure_ascii=False, sort_keys=True)}")
         output_pdf.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(converted, output_pdf)
-        if output_docx:
+        if output_docx and not room_plan:
             output_docx.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(docx_path, output_docx)
         return report

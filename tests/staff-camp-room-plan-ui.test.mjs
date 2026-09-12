@@ -22,3 +22,16 @@ test("A5 room-plan form uses stable eligible-user IDs and blocks incomplete or o
   assert.match(form, /pendingLabel="保存中…"/);
   assert.match(form, /stale-update/);
 });
+
+test("A11 exposes staff-only PDF generation only beside a complete eligible-roster plan", () => {
+  const page = read("app/staff/camps/[campId]/room-plan/page.js");
+  const pdf = read("app/staff/camps/[campId]/room-plan/CampRoomPlanPdf.js");
+  const action = read("app/actions/staff-camp-room-plans.js");
+  assert.match(page, /planResult\.plan\.complete/);
+  assert.match(page, /getStaffCampRoomPlanPdf/);
+  assert.match(pdf, /氏名・対象者ID・部屋名・利用日程/);
+  assert.match(pdf, /api\/staff\/camps\/room-plan-pdfs/);
+  assert.match(action, /requireStaff\('\/staff\/camps'\)/);
+  assert.match(action, /expected_roster_label_version/);
+  assert.match(action, /begin_staff_camp_room_plan_pdf/);
+});

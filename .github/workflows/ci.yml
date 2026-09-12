@@ -25,12 +25,23 @@ jobs:
           docker start --attach "$container_id" || renderer_status=$?
           docker cp "$container_id:/tmp/a8-output" "$RUNNER_TEMP/a8-output"
           docker rm "$container_id"
+          room_plan_id="$(docker create --network none --entrypoint /bin/sh camp-pdf-renderer:a8-v1 /app/test-room-plan-renderer.sh)"
+          docker start --attach "$room_plan_id" || renderer_status=$?
+          docker cp "$room_plan_id:/tmp/a11-output" "$RUNNER_TEMP/a11-output"
+          docker rm "$room_plan_id"
           exit "$renderer_status"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: a8-max-input-linux
           path: ${{ runner.temp }}/a8-output
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: a11-max-room-plan-linux
+          path: ${{ runner.temp }}/a11-output
           if-no-files-found: error
           retention-days: 7
   application:

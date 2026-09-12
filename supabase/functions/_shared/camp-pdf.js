@@ -113,6 +113,38 @@ export function createDeliveryHandler({ admin, auth, download }) {
     }
   };
 }
+export function createRoomPlanDeliveryHandler({ admin, auth, download }) {
+  return async request => {
+    const method = request.method;
+    if (!['GET', 'HEAD'].includes(method)) return failure(405, 'method-not-allowed', method);
+    const token = /^Bearer (\S+)$/.exec(request.headers.get('authorization') ?? '')?.[1];
+    if (!token || token.length > 16384) return failure(401, 'login-required', method);
+    try {
+      const { data, error } = await auth.getUser(token);
+      if (error || !data?.user) return failure(401, 'login-required', method);
+      const versionId = new URL(request.url).searchParams.get('versionId');
+      if (!UUID.test(versionId ?? '')) return failure(404, 'not-found', method);
+      const authorize = () => rpc(admin, 'authorize_camp_room_plan_pdf_delivery', {
+        target_version_id: versionId, actor: data.user.id, request_method: method,
+      });
+      const permit = await authorize();
+      if (permit?.allowed !== true || permit.document_type !== 'staff_room_plan') return failure(404, 'not-found', method);
+      await privateBucket(admin);
+      if (!Number.isSafeInteger(permit.size_bytes) || permit.size_bytes < 1 || permit.size_bytes > MAX_PDF_BYTES
+        || !HASH.test(permit.pdf_hash ?? '')
+        || !new RegExp(`^room-plans/${versionId}/[0-9a-f-]{36}\\.pdf$`, 'i').test(permit.object_path ?? '')) throw new Error('invalid-object');
+      const bytes = await download(permit.object_path, MAX_PDF_BYTES);
+      if (bytes.length !== permit.size_bytes || !validPdf(bytes) || await sha256(bytes) !== permit.pdf_hash) throw new Error('invalid-object');
+      const finalPermit = await authorize();
+      if (finalPermit?.allowed !== true || finalPermit.pdf_hash !== permit.pdf_hash || finalPermit.object_path !== permit.object_path) return failure(404, 'not-found', method);
+      return new Response(method === 'HEAD' ? null : bytes, { status: 200, headers: {
+        ...privateHeaders, 'content-type': 'application/pdf', 'accept-ranges': 'none',
+        'content-disposition': `inline; filename="camp-room-plan-${versionId}.pdf"`,
+        'content-length': String(bytes.length),
+      } });
+    } catch { return failure(503, 'pdf-unavailable', method); }
+  };
+}
 export function createWorkerHandler({ admin, workerSecret }) {
   return async request => {
     if (request.method !== 'POST') return failure(405, 'method-not-allowed');
@@ -124,40 +156,47 @@ export function createWorkerHandler({ admin, workerSecret }) {
     try {
       if (body.operation === 'claim') {
         await privateBucket(admin);
-        return json(await rpc(admin, 'claim_camp_pdf_job', { target_job_id: body.jobId ?? null }));
+        const application = await rpc(admin, 'claim_camp_pdf_job', { target_job_id: body.jobId ?? null });
+        if (application) return json(application);
+        return json(await rpc(admin, 'claim_camp_room_plan_pdf_job', { target_job_id: body.jobId ?? null }));
       }
       if (!UUID.test(body.attemptId ?? '')) return failure(400, 'invalid-request');
       const args = { target_job_id: body.jobId, target_attempt_id: body.attemptId };
       if (body.operation === 'fail') {
-        return json({ recorded: await rpc(admin, 'fail_camp_pdf_job', { ...args, error_code_value: 'generation-failed' }) });
+        const name = body.documentType === 'staff_room_plan' ? 'fail_camp_room_plan_pdf_job' : 'fail_camp_pdf_job';
+        return json({ recorded: await rpc(admin, name, { ...args, error_code_value: 'generation-failed' }) });
       }
       if (body.operation !== 'complete' || !HASH.test(body.sourceHash ?? '') || typeof body.pdfBase64 !== 'string'
         || body.pdfBase64.length > 4 * 1024 * 1024 || !/^[A-Za-z0-9+/]*={0,2}$/.test(body.pdfBase64)) return failure(400, 'invalid-request');
       const report = body.validation;
-      if (!report || report.page_count !== 1 || report.fonts_embedded !== true || report.text_verified !== true || report.layout_verified !== true) return failure(400, 'invalid-validation');
-      const validation = { page_count: 1, fonts_embedded: true, text_verified: true, layout_verified: true };
+      const roomPlan = body.documentType === 'staff_room_plan';
+      if (!report || !Number.isInteger(report.page_count) || report.page_count < 1 || report.page_count > (roomPlan ? 8 : 1)
+        || report.fonts_embedded !== true || report.text_verified !== true || report.layout_verified !== true) return failure(400, 'invalid-validation');
+      const validation = { page_count: report.page_count, fonts_embedded: true, text_verified: true, layout_verified: true };
       const bytes = Uint8Array.from(atob(body.pdfBase64), c => c.charCodeAt(0));
       if (!validPdf(bytes)) return failure(400, 'invalid-pdf');
       const hash = await sha256(bytes);
       await privateBucket(admin);
-      const artifact = await rpc(admin, 'check_camp_pdf_attempt', { ...args, source_hash_value: body.sourceHash });
+      const prefix = roomPlan ? 'camp_room_plan_' : 'camp_';
+      const artifact = await rpc(admin, `check_${prefix}pdf_attempt`, { ...args, source_hash_value: body.sourceHash });
       if (artifact.committed === true) {
         if (artifact.pdf_hash !== hash || artifact.size_bytes !== bytes.length
           || !Object.keys(validation).every(k => artifact.validation?.[k] === validation[k])) return failure(409, 'job-unavailable');
         return json({ recorded: true });
       }
       const path = artifact.object_path;
-      if (!new RegExp(`^[0-9a-f-]{36}/${body.attemptId}\\.pdf$`, 'i').test(path ?? '')) throw new Error('invalid-path');
+      const pathPattern = roomPlan ? `^room-plans/[0-9a-f-]{36}/${body.attemptId}\\.pdf$` : `^[0-9a-f-]{36}/${body.attemptId}\\.pdf$`;
+      if (!new RegExp(pathPattern, 'i').test(path ?? '')) throw new Error('invalid-path');
       const { error } = await admin.storage.from(BUCKET).upload(path, bytes, { contentType: 'application/pdf', cacheControl: '0', upsert: false });
       if (error) {
         // A prior response may be lost. Never overwrite or delete an existing object.
         const { data: existing, error: readError } = await admin.storage.from(BUCKET).download(path);
         if (readError || !existing || existing.size !== bytes.length || await sha256(new Uint8Array(await existing.arrayBuffer())) !== hash) {
-          await rpc(admin, 'fail_camp_pdf_job', { ...args, error_code_value: 'storage-failed' });
+          await rpc(admin, `fail_${prefix}pdf_job`, { ...args, error_code_value: 'storage-failed' });
           return failure(503, 'storage-failed');
         }
       }
-      await rpc(admin, 'complete_camp_pdf_job', { ...args, source_hash_value: body.sourceHash, pdf_hash_value: hash, size_bytes_value: bytes.length, validation_value: validation });
+      await rpc(admin, `complete_${prefix}pdf_job`, { ...args, source_hash_value: body.sourceHash, pdf_hash_value: hash, size_bytes_value: bytes.length, validation_value: validation });
       return json({ recorded: true });
     } catch {
       // Completion may already have committed. Do not mark failed/delete blindly;

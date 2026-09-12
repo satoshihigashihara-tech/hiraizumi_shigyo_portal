@@ -137,6 +137,8 @@ export const ERROR_MESSAGES = {
   "invalid-allocation": "保存済みの情報が整合していません。管理担当へ確認してください。",
   "invalid-stay": "保存済みの情報が整合していません。管理担当へ確認してください。",
   "calendar-inconsistent": "保存済みの情報が整合していません。管理担当へ確認してください。",
+  "room-plan-incomplete": "最新の対象者全員の部屋割りを確定してから、配置表PDFを作成してください。",
+  "pdf-prerequisites-unavailable": "PDF変換の準備が完了していません。管理担当へ確認してください。",
   "application-inconsistent": "保存済みの情報が整合していません。管理担当へ確認してください。",
 
   // 取得・保存の失敗
