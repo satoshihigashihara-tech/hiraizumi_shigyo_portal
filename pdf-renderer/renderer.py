@@ -300,15 +300,12 @@ def validate_pdf(pdf_path: Path, expected: list[str], qa_dir: Path, expected_fon
         and all(len(row) >= 6 and row[4] == "yes" for row in font_rows)
         and any(expected_font.replace(" ", "") in row[0].replace(" ", "") for row in font_rows)
     )
-    extracted = run(["pdftotext", "-layout", str(pdf_path), "-"]).stdout
+    extracted = run(["pdftotext", "-raw", str(pdf_path), "-"]).stdout
+    layout_text = run(["pdftotext", "-layout", str(pdf_path), "-"]).stdout
     qa_dir.mkdir(parents=True, exist_ok=True)
     (qa_dir / "extracted.txt").write_text(extracted, encoding="utf-8")
+    (qa_dir / "layout.txt").write_text(layout_text, encoding="utf-8")
     extracted_normalized = normalized(extracted)
-    # Poppler may interleave the left-hand table label between wrapped lines in
-    # the right-hand cell. Remove only immutable template labels before checking
-    # that each complete inserted value survived extraction.
-    for label in ("（変更内容）", "特記事項"):
-        extracted_normalized = extracted_normalized.replace(normalized(label), "")
     text_verified = all(normalized(value) in extracted_normalized for value in expected if value)
     run(["pdftoppm", "-f", "1", "-singlefile", "-png", "-r", "144", str(pdf_path), str(qa_dir / "page-1")])
     page_png = qa_dir / "page-1.png"

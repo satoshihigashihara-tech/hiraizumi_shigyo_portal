@@ -47,13 +47,13 @@ do $$ declare u uuid:=gen_random_uuid(); o uuid:=gen_random_uuid(); s uuid:=gen_
     user_name_limit,user_address_limit,emergency_name_limit,emergency_address_limit,purpose_limit,special_notes_limit,room_name_limit,verified_at)
   values(1,'39d3621b02fd4559fa227f263f541ccc92dbd0d1b19a663891d0783407c33bfe',
     'NotoSerifJP-2.003+sha256:2c9a12dbd4f2408c4610c7ee84a108b62d7236c3775baed618c64d9cb44b2f04',
-    'ghcr.io/example.invalid/camp-pdf-renderer@sha256:'||repeat('a',64),'青木 幸保',40,80,40,80,120,180,40,clock_timestamp());
+    'ghcr.io/example.invalid/camp-pdf-renderer@sha256:'||repeat('a',64),'青木 幸保',20,30,20,30,60,80,15,clock_timestamp());
   insert into private.camp_pdf_active_render_setting(settings_version) values(1);
   update public.applications set user_address='架空住所',user_phone='0191-46-2111',emergency_name='架空連絡先',
     emergency_address='架空住所',emergency_phone='090-0000-0000',usage_place='common_and_second_floor',purpose='架空の滞在目的'
     where id=a;
   perform pg_temp.a7_check(private.camp_pdf_render_settings(a)->>'mayor_name'='青木 幸保','verified versioned settings open gate');
-  update public.applications set purpose=repeat('目',121) where id=a;
+  update public.applications set purpose=repeat('目',61) where id=a;
   r:=pg_temp.a7_call(u,format('select public.begin_camp_application_pdf(%L,%s,%L)',a,
     (select input_version from public.applications where id=a),gen_random_uuid()));
   perform pg_temp.a7_check(r->>'message'='pdf-content-too-long','renderer field capacity enforced by DB gate');

@@ -23,7 +23,7 @@ SQL036と変換imageのソースを追加した。本番SupabaseへのSQL適用�
 
 `pdf-renderer/worker.py` はブラウザから直接呼ばれない。32文字以上の `CAMP_PDF_WORKER_SECRET` を使い、A7の `camp-pdf-worker` へHTTPSでclaim/complete/failを送る。claimが返したsource snapshotとrender contextが一致し、原本hash、設定版、フォント版、町長名、配備image digestが一致した場合だけ変換する。
 
-変換はLinux上のLibreOffice Writerで行う。申請日と利用日は和暦に変換し、A3の印字用部屋名を使用する。氏名40、住所80、電話20、目的120、特記事項180、部屋名40文字をDBと変換器の両方で検査する。上限超過をフォント縮小で押し込まず拒否する。
+変換はLinux上のLibreOffice Writerで行う。申請日と利用日は和暦に変換し、A3の印字用部屋名を使用する。氏名20、住所30、電話20、目的60、特記事項80、部屋名15文字をDBと変換器の両方で検査する。上限超過をフォント縮小で押し込まず拒否する。
 
 出力はPopplerで次を実測する。
 
@@ -57,7 +57,7 @@ insert into private.camp_pdf_render_setting_versions(
   '39d3621b02fd4559fa227f263f541ccc92dbd0d1b19a663891d0783407c33bfe',
   'NotoSerifJP-2.003+sha256:2c9a12dbd4f2408c4610c7ee84a108b62d7236c3775baed618c64d9cb44b2f04',
   'ghcr.io/OWNER/IMAGE@sha256:REPLACE_WITH_64_HEX_DIGEST',
-  '青木 幸保',40,80,40,80,120,180,40,clock_timestamp()
+  '青木 幸保',20,30,20,30,60,80,15,clock_timestamp()
 );
 insert into private.camp_pdf_active_render_setting(singleton,settings_version)
 values(true,1)

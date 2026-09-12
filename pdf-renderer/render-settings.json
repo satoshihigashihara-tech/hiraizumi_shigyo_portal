@@ -9,14 +9,14 @@
   "converter_image": "camp-pdf-renderer-a8-v1",
   "mayor_name": "青木 幸保",
   "field_limits": {
-    "user_name": 40,
-    "user_address": 80,
+    "user_name": 20,
+    "user_address": 30,
     "user_phone": 20,
-    "emergency_name": 40,
-    "emergency_address": 80,
+    "emergency_name": 20,
+    "emergency_address": 30,
     "emergency_phone": 20,
-    "purpose": 120,
-    "special_notes": 180,
-    "room_name": 40
+    "purpose": 60,
+    "special_notes": 80,
+    "room_name": 15
   }
 }
