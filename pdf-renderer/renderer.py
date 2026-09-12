@@ -154,23 +154,6 @@ def compact_title(paragraph: ET.Element, font_name: str) -> None:
                 rpr.remove(node)
 
 
-def minimize_trailing_paragraph(paragraph: ET.Element, font_name: str) -> None:
-    replace_paragraph(paragraph, "", font_name, 2)
-    ppr = paragraph.find(f"{W}pPr")
-    if ppr is None:
-        ppr = ET.Element(f"{W}pPr")
-        paragraph.insert(0, ppr)
-    for child in list(ppr):
-        ppr.remove(child)
-    spacing = ET.SubElement(ppr, f"{W}spacing")
-    spacing.set(f"{W}before", "0")
-    spacing.set(f"{W}after", "0")
-    spacing.set(f"{W}line", "20")
-    spacing.set(f"{W}lineRule", "exact")
-    rpr = paragraph.find(f"{W}r/{W}rPr")
-    ET.SubElement(rpr, f"{W}vanish")
-
-
 def patch_all_fonts(root: ET.Element, font_name: str) -> None:
     for run in root.findall(f".//{W}r"):
         current = run.find(f"{W}rPr/{W}sz")
@@ -306,7 +289,7 @@ def merge_docx(job: dict, settings: dict, output_path: Path) -> dict[str, str]:
         set_left_indent(paragraphs[9], 2600)
         set_left_indent(paragraphs[10], 2600)
         compact_title(paragraphs[2], settings["font_family"])
-        minimize_trailing_paragraph(paragraphs[14], settings["font_family"])
+        body.remove(paragraphs[14])
 
         table = body.find(f"{W}tbl")
         rows = table.findall(f"{W}tr") if table is not None else []
