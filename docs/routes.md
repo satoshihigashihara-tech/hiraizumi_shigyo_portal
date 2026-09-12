@@ -784,3 +784,15 @@ DBの `save_camp_room_plan(target_camp_id,expected_roster_version,expected_room_
 | `staff-required / not-found / eligible-roster-required / invalid-version / save-failed` | 権限・対象・入力版を確認。DB内部のmessage／DETAILをそのまま表示しない |
 
 初回保存前は未確保。保存後の対象者追加では `complete=false` になっても既存配置・claimを維持する。全員保存で揃うまで一部保存を成功として表示しない。実部屋対応を確認するまで本番割当を有効化せず、既存campのモード切替やPDF提供は別の受入条件を満たしてから行う。
+
+## A7 キャンプ申請PDFの認証配信
+
+2026年9月13日追加。`/api/camp/application-pdfs/[versionId]` のGET/HEADを使用する。単一Range取得は206、取得範囲不正は認可後に416。HEADはRangeを無視して本文なし。未ログインは401、他利用者・権限不足・無効版・存在しない版は404、内部処理やStorageの失敗は503。DB詳細やStorageパスを応答しない。
+
+全応答はprivate/no-store。Next.jsは毎回getUserで認証し、利用者JWTだけをSupabase `camp-pdf-delivery` へ渡す。Edge側もgetUserで検証し、DBでactive状態と文書版単位の認可を取得前・送信前に再検査する。ブラウザへ公開URL・署名URLは渡さない。VercelへSupabaseの管理キーを置かない。
+
+本人は最新かつ有効な未提出確認版だけ、active職員は提出済み最新版・過去版だけ取得できる。職員一覧RPCは `get_staff_camp_application_versions(application UUID)`。返却はversion ID、版番号、申請日、提出日時、PDF hashだけ。本文・snapshot・Storageパスは返さない。
+
+本人要求は `begin_camp_application_pdf(application UUID, expected_input_version bigint, request_key UUID)`。成功はversion ID。同じ有効な要求の再送は同じID。stale-updateは最新の版へ自動差替えして再送しない。A3は接続済みで、配置や印字許可が無効なら拒否する。A8未実装のため有効な配置でも `pdf-prerequisites-unavailable` で拒否する。A9のフォーム・PDF表示確認・提出への接続は未実装。
+
+この経路は使用許可申請書PDF専用。保護者同意書はMVP対象外・本番未対応であり、同意書のフォーマット作成や有効化を行わない。正式な許可通知書・納付書の交付機能も追加しない。後続契約は [A7設定・接続契約](camp-pdf-storage-setup.md) を参照。

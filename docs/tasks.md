@@ -1,6 +1,20 @@
 # ひらいずみ志業ポータル 作業一覧
 
-確認日：2026年9月12日／基準ブランチ：`main`
+確認日：2026年9月13日／A7基準main：`90695de`（PR #102・#103）
+
+## A7 PDF版・非公開Storage・認証配信（2026年9月13日）
+
+最新のA7引き継ぎ。この節より下のA1/A2等の未反映・未適用記述は当時の検証履歴であり、現在のmainコードにはSQL032まで存在する。本番への適用状態は今回照会していない。
+
+`codex/camp-pdf-version-storage` でSQL033、文書版・ジョブ・監査・保持・清掃、Supabase内部Function、Next.jsのGET/HEAD/単一Range配信を保存済み。本人は現在有効な未提出確認版、active職員は提出済み最新版・過去版だけ取得する。差替えは新version IDで、過去版を上書きしない。StorageはA7専用restrictive policyで直接アクセスを拒否し、Supabase管理キーをVercelへ置かない。
+
+A3の実配置・印字許可・施設枠を接続済み。A8変換設定が未実装のため生成は引き続き拒否する。本番有効化、A9の確認提出、Word差込、正式な許可通知書・納付書の電子交付は未実装。保護者同意書アップロードはMVP対象外・本番未対応で、A7の実装・設定と分離する。
+
+検証済み：A7 Node54件、全Node436件、A7 DB86項目・別接続9ケース、全DB1,754項目・並行116ケース、SQL001〜033のローカル適用、032→033の既存行不変・PDF backfillなし、テスト用schema・一時DBの後片付け、lint、Turbopack本番build、実Next.jsの匿名GET/HEAD（401・no-store・リダイレクトなし）。Auth・Storageはローカル代替、PDF bytesは架空の配信fixtureであり、実JWT・実Storage・日本語変換・スマートフォンでの確認提出は未検証。
+
+保存対象19ファイル：`.github/workflows/ci.yml`、SQL033、`supabase/functions/{camp-pdf-delivery,camp-pdf-worker,camp-pdf-cleanup}/index.js`、`supabase/functions/_shared/camp-pdf.js`、`app/api/camp/application-pdfs/[versionId]/route.js`、`utils/camp-pdfs/{server,validation}.js`、`tests/camp-pdfs.test.mjs`、`supabase/tests/camp_pdf_versions.sql`、`supabase/tests/camp_pdf_versions_concurrency.sql`、`scripts/test-community-applications-db.mjs`、`docs/{camp-pdf-storage-setup,database,routes,coding_rules,tasks,ai_context}.md`。
+
+**コードの配布状態はGitHubのA7 PRを正とする。本番SQL033はメインチャットが別途適用する。バケット・Functionは未配備。** 指定された無関係な未追跡ファイルは変更・追加・削除していない。詳細・再現手順・後続条件は [A7設定・接続契約](camp-pdf-storage-setup.md) を参照。
 
 ## 0. 現在の正本：MVP完成・公開・発表までのロードマップ
 
