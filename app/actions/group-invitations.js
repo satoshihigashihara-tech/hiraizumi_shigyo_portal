@@ -40,6 +40,7 @@ export async function joinCommunityGroup(formData) {
   const { supabase } = await requireActiveUser("/invite");
   const fields = readInviteFields(formData);
   if (!isUuid(fields.applicationId)) return inviteFailure("invalid-application", fields);
+  if (fields.confirmed !== "true") return inviteFailure("confirmation-required", fields);
   const inviteValue = normalizeInvite(fields.inviteValue, fields.inviteKind);
   if (!inviteValue) return inviteFailure("invalid-invite", fields);
   const { data, error } = await supabase.rpc("join_community_group", {
