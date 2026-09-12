@@ -15,7 +15,7 @@ DBランナーに17.6のバージョン必須照合、関数本体検査、SQL03
 次の本番再適用では、新規の空Editorへ貼付後、編集領域から全選択・コピーした全文を照合する。取得元のhashだけでは送信内容の保証にならない。詳細・再現手順は `docs/tasks.md` の「A3 SQL032本番実行エラー後の検証補強」。修正の保存・コミット・push・PR・CI確認・マージはユーザー承認済み。本番SQL032はこのタスクでは再適用していない。
 ## A8の最新引き継ぎ（2026年9月13日）
 
-基準mainは `da4493d`（A4 PR #109・SQL035まで）。作業ブランチ `codex/camp-pdf-renderer-a8` に、ユーザー提供の使用許可申請書原本、Noto Serif JP 2.003、和暦・町長名・A3印字部屋名のWord差込、Linux LibreOffice変換、Poppler検証、SQL036の版付き設定ゲートを追加した。
+基準mainは `94028a7`（B0 PR #110・A4 PR #109・SQL035まで）。作業ブランチ `codex/camp-pdf-renderer-a8` に、ユーザー提供の使用許可申請書原本、Noto Serif JP 2.003、和暦・町長名・A3印字部屋名のWord差込、Linux LibreOffice変換、Poppler検証、SQL036の版付き設定ゲートを追加した。
 
 SQL036はactive設定を作らないため、本番SQL適用だけではA8ゲートは閉じたまま。メインチャットがGHCRへimageをpushし、manifest digestと本番同等Linuxの最大入力PDFを確認後、不変設定version 1を登録してactiveポインタを切り替える。外部配備・active化・A3実部屋有効化・A9確認提出はA8 PRで行わない。詳細は [A8変換設定](camp-pdf-renderer-setup.md)。
 
