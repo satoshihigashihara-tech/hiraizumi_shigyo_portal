@@ -796,3 +796,9 @@ DBの `save_camp_room_plan(target_camp_id,expected_roster_version,expected_room_
 本人要求は `begin_camp_application_pdf(application UUID, expected_input_version bigint, request_key UUID)`。成功はversion ID。同じ有効な要求の再送は同じID。stale-updateは最新の版へ自動差替えして再送しない。A3は接続済みで、配置や印字許可が無効なら拒否する。A8未実装のため有効な配置でも `pdf-prerequisites-unavailable` で拒否する。A9のフォーム・PDF表示確認・提出への接続は未実装。
 
 この経路は使用許可申請書PDF専用。保護者同意書はMVP対象外・本番未対応であり、同意書のフォーマット作成や有効化を行わない。正式な許可通知書・納付書の交付機能も追加しない。後続契約は [A7設定・接続契約](camp-pdf-storage-setup.md) を参照。
+
+## A4 対象者終了の取得・Server Action契約
+
+職員向け `getStaffCampRosterLifecycle(campId, eligibleUserId)` と `endCampRosterParticipationState(previousState, formData)` を追加。前者の対象者updated_at・camp版・申請ID／updated_atを後者に渡し、理由・明示確認、滞在中は退去確認を必須にする。`withdraw` は資格を無効化、`reject` は資格を保持し、どちらも今回参加を終了する。終了UIはA5でこの契約へ接続する。
+
+通常入退去の既存Actionは同じAPIのままSQL034が新方式を振り分ける。成功時に名簿も再検証する。詳しい入力、エラー、状態表、非公開項目、PDF／料金影響は [A4接続契約](camp-roster-lifecycle.md) を参照。

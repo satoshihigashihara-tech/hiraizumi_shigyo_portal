@@ -719,3 +719,9 @@ T19以降の`group_members / group_invites`、参加者数集計、団体審査�
 両表はRLS有効、直接の読取・更新権限はanon/authenticated/service_roleへ与えない。本人の要求RPC・職員の提出済み版一覧以外はservice_role専用RPC。本人RPCはStorageパスを返さない。StorageにA7バケットだけをanon/authenticatedから隔離するrestrictive policyを追加する。既存の共通テーブル・状態・料金・滞在は変更しない。
 
 A3実配置・配置履歴・印字許可・施設枠を `private.camp_pdf_assignment_context(uuid)` で照合する。A8の `private.camp_pdf_render_settings(uuid)` は未実装のため必ず拒否する。過去申請からPDFを合成せず、既存行のbackfillもない。SQL 033は本番未適用。保存・認可・保持・実環境受入の詳細は [A7設定・接続契約](camp-pdf-storage-setup.md) を参照。
+
+## A4 新方式キャンプの参加終了（SQL035）
+
+`end_camp_roster_participation` はactive職員だけに対象者無効化／不許可、参加終了、配置解放、不変配置版、申請終了、必要な退去、履歴・監査を原子的に提供する。料金・納付・stay行・提出PDFは保持し、キャンプ専有claimは最後の参加者でも解除しない。共通stay更新・取得は新方式だけ `camp_room_assignments` を読む。正常退去済みapprovedの保持と、申請前の新方式参加予定によるアカウント清掃阻止をcamp限定で補完する。
+
+状態表・日付境界・版・ロック・移行不変性・適用手順の正本は [A4接続契約](camp-roster-lifecycle.md)。期間変更・camp削除・再参加のガードは維持する。

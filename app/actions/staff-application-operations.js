@@ -62,6 +62,11 @@ async function updateStay(formData, operation) {
   const path = `${base}/applications/${fields.applicationId}`;
   for (const route of [path, base, `${base}/applications`, "/staff", "/staff/calendar", "/calendar", "/user", "/user/applications",
     ...["", "/edit", "/confirm", "/complete"].map((suffix) => `/user/applications/${fields.applicationId}${suffix}`)]) revalidatePath(route);
+  if (result.result_usage_type === "camp") {
+    revalidatePath(`${base}/eligible-users`);
+    revalidatePath(`${base}/room-plan`);
+    revalidatePath("/user/camp-room");
+  }
   redirect(`${path}?updated=${operation === "check_in" ? "checked-in" : "checked-out"}`);
 }
 
