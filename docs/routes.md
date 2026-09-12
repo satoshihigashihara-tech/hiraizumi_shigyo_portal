@@ -755,3 +755,32 @@ MVPのSQL018は現在存在する2区分だけを対象とする。団体テー�
 許可後の一部減員は職員の`cancelApprovedCommunityGroupParticipant`へ`groupId / applicationId / updatedAt / reason / roomPlan`を渡す。`roomPlan`は残る参加者数と一致する部屋別人数。残り1人では団体専有を維持し、最後の1人なら空配列`[]`を渡して団体全体を終了する。古い版は再送せず画面を再取得する。
 
 2026年9月12日、Issue #80で`/staff/community/groups`と`/staff/community/groups/[groupId]`を上記契約へ接続した。一覧は団体名と状態で検索し、50件単位で移動する。詳細は目的確認、参加者審査、人数単位の部屋割り、団体の最終判断の順を画面上でも示し、取消確定と許可後減員も同じ詳細から行う。最終許可・不許可・取消・減員は明示確認なしではServer Actionを実行しない。新しいSQLはない。ローカル検証は成功し、実職員での受入確認は未実施。
+
+## A3 職員向け事前部屋割りバックエンド契約（SQL032）
+
+配置UIはA5で接続する。新しいURL・画面・新方式作成入口はA3で追加しない。Action、取得とも毎回 `requireStaff('/staff/camps')` を実行し、利用者セッションでRPCへ接続する。画面のモード選択を認可に使わない。
+
+| 入口 | 入出力 |
+|---|---|
+| `getStaffCampRoomPlan(campId)` | `utils/staff-camps/room-plan-queries.js`。`{error,plan}`。planはcampId、rosterVersion、roomPlanVersion、savedRosterVersion、committedAt、complete、users、rooms |
+| users | 有効・participatingの対象者だけ。id、managementName、roomId（未配置はNULL）、assignmentVersion。本人結合UUID・メール・住所等は含めない |
+| rooms | 確認済み割当可能部屋のid、name、capacity。対応が未確認なら空配列 |
+| `saveCampRoomPlanState(previousState, formData)` | `app/actions/staff-camp-room-plans.js`。入力はcampId、rosterVersion、roomPlanVersion、assignmentsだけ |
+| assignments | JSON文字列。`[{"eligible_user_id":"対象者UUID","room_id":"部屋UUID"}]`。1〜15件、全員分、ID重複なし、余分な列なし、4096文字以下 |
+| 成功 | `{error:null,fields,saved:true}`。fields.roomPlanVersionを保存後の版へ更新。関連camp詳細・対象者一覧・職員／公開カレンダーを再検証 |
+| 失敗 | `{error,fields}`。入力を保持し、成功扱いや自動再送をしない。過大payloadは返却から除く |
+
+DBの `save_camp_room_plan(target_camp_id,expected_roster_version,expected_room_plan_version,submitted_assignments)` はjsonbを返す。期待版と返却版は10進文字列として扱い、JavaScriptの安全整数範囲を超えて丸めない。DB内部の計算はbigint。Actionは返却camp ID・対象集合版・保存版・配置版の一致も検査する。
+
+| エラーコード | 画面で案内する内容 |
+|---|---|
+| `stale-update`（40001を含む） | 別の更新があるため最新情報を読み直して再判断。入力版を勝手に最新値へ差し替えない |
+| `invalid-roster / duplicate-assignment / invalid-assignments` | 最新の対象者全員を1人1室へ配置し直す |
+| `room-capacity-full / facility-capacity-full` | 部屋定員／施設上限を超えている |
+| `room-not-confirmed` | 確認済みの部屋対応が必要 |
+| `date-conflict / calendar-inconsistent` | 日程競合または施設枠の不整合。保存済み配置は維持される |
+| `room-change-review-required` | 提出済み等の部屋変更には修正依頼を含むA10処理が必要 |
+| `camp-started / roster-lifecycle-required` | 開始後操作、参加終了、期間変更等はこの保存入口では処理できない |
+| `staff-required / not-found / eligible-roster-required / invalid-version / save-failed` | 権限・対象・入力版を確認。DB内部のmessage／DETAILをそのまま表示しない |
+
+初回保存前は未確保。保存後の対象者追加では `complete=false` になっても既存配置・claimを維持する。全員保存で揃うまで一部保存を成功として表示しない。実部屋対応を確認するまで本番割当を有効化せず、既存campのモード切替やPDF提供は別の受入条件を満たしてから行う。

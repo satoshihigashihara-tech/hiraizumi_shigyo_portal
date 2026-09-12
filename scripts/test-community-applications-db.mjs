@@ -83,6 +83,86 @@ async function cleanupUpgrade(c, fixture) {
   await c.query('commit');
   assert.equal((await c.query('select count(*)::integer as n from public.applications where id=any($1::uuid[])', [fixture.applications])).rows[0].n, 0);
 }
+// A3: execute actual RPCs on distinct connections and prove waiting using an observer.
+async function roomPlanConcurrency(observer) {
+  const schema = 'a3_room_plan_concurrency_test';
+  await observer.query(await readFile(join(root, 'supabase/tests/camp_room_plan_bulk_save_concurrency.sql'), 'utf8'));
+  const a = await connect(), b = await connect();
+  const pidA = (await a.query('select pg_backend_pid() id')).rows[0].id;
+  const pidB = (await b.query('select pg_backend_pid() id')).rows[0].id;
+  const cases = ['same-save', 'add-member', 'disable-member', 'release-member', 'label-edit', 'staff-revoked', 'mapping-revoked', 'repeatable-read',
+    ...['camp', 'blocked', 'individual', 'group'].flatMap(kind => [`${kind}-first`, `save-before-${kind}`])];
+  for (const scenario of cases) {
+    await observer.query(`select ${schema}.setup()`);
+    let pending;
+    try {
+      await b.query(scenario === 'repeatable-read' ? 'begin isolation level repeatable read' : 'begin');
+      await b.query('select count(*) from public.facility_guard');
+      await a.query('begin');
+      await a.query('select private.lock_calendar_facility()');
+      const isFirst = scenario.endsWith('-first');
+      const isReverse = scenario.startsWith('save-before-');
+      const firstKind = isFirst ? scenario.replace('-first', '') : 'save';
+      const secondKind = isReverse ? scenario.replace('save-before-', '') : 'save';
+      let first;
+      if (isFirst || isReverse || scenario === 'same-save' || scenario === 'repeatable-read') {
+        first = (await a.query(`select ${schema}.act($1) result`, [firstKind])).rows[0].result;
+        assert.equal(first.ok, true, `${scenario} first RPC: ${JSON.stringify(first)}`);
+      }
+      pending = b.query(`select ${schema}.act($1) result`, [secondKind]).then(result => ({ result }), error => ({ error }));
+      let waited = false;
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        const row = (await observer.query("select wait_event_type='Lock' and $2=any(pg_blocking_pids(pid)) waiting from pg_stat_activity where pid=$1", [pidB, pidA])).rows[0];
+        if (row?.waiting) { waited = true; break; }
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      assert.equal(waited, true, `${scenario}: second connection must actually wait on first`);
+      const mutations = {
+        'add-member': "insert into public.camp_eligible_users(camp_id,email_normalized,management_name) select camp,'a3-add-race@example.invalid','架空追加' from a3_room_plan_concurrency_test.context",
+        'disable-member': 'update public.camp_eligible_users set disabled_at=clock_timestamp() where id=(select eligible from a3_room_plan_concurrency_test.context)',
+        'release-member': "update public.camp_eligible_users set participation_status='released',released_at=clock_timestamp(),release_reason='架空解放' where id=(select eligible from a3_room_plan_concurrency_test.context)",
+        'label-edit': "update public.camp_eligible_users set management_name='架空変更',email_normalized='a3-label-race@example.invalid' where id=(select eligible from a3_room_plan_concurrency_test.context)",
+        'staff-revoked': "update public.profiles set account_state='disabled' where id=(select staff from a3_room_plan_concurrency_test.context)",
+        'mapping-revoked': 'update public.camp_room_mapping set assignment_enabled=false where room_id=(select room from a3_room_plan_concurrency_test.context)',
+      };
+      if (mutations[scenario]) await a.query(mutations[scenario]);
+      await a.query('commit');
+      const second = await pending;
+      assert.ok(!second.error, `${scenario}: ${second.error?.message}`);
+      const outcome = second.result.rows[0].result;
+      await b.query('commit');
+      let expected = isFirst ? 'date-conflict' : isReverse ? (secondKind === 'camp' || secondKind === 'blocked' ? 'date-conflict' : 'calendar-unavailable')
+        : scenario === 'mapping-revoked' ? 'room-not-confirmed' : scenario === 'staff-revoked' ? 'staff-required' : 'stale-update';
+      if (scenario === 'label-edit') assert.equal(outcome.ok, true, JSON.stringify(outcome));
+      else if (scenario === 'repeatable-read') assert.equal(outcome.state, '40001', JSON.stringify(outcome));
+      else { assert.equal(outcome.ok, false, JSON.stringify(outcome)); assert.equal(outcome.message, expected, `${scenario}: ${JSON.stringify(outcome)}`); }
+      const totals = (await observer.query(`select
+        (select count(*)::int from public.camp_room_plan_versions where camp_id=x.camp) plans,
+        (select count(*)::int from public.camp_room_assignments where camp_id=x.camp) assignments,
+        (select count(*)::int from public.calendar_claims where camp_id=x.camp) claims,
+        (select count(*)::int from public.audit_logs where entity_id=x.camp and action='save_camp_room_plan') audits
+        from ${schema}.context x`)).rows[0];
+      const saved = (isReverse || scenario === 'same-save' || scenario === 'repeatable-read' || scenario === 'label-edit') ? 1 : 0;
+      assert.deepEqual(totals, { plans: saved, assignments: saved, claims: saved, audits: saved }, scenario);
+      await observer.query(`insert into ${schema}.results values($1,true,$2,$3,true,$4,$5)`, [scenario, pidA, pidB, outcome.state ?? null, outcome.message ?? null]);
+    } finally {
+      await a.query('rollback');
+      if (pending) await pending;
+      await b.query('rollback');
+      await observer.query(`select ${schema}.cleanup_case()`);
+      await observer.query('delete from public.camp_room_mapping');
+    }
+  }
+  const verified = (await observer.query(`select * from ${schema}.verify()`)).rows;
+  assert.equal(verified.length, cases.length);
+  assert.ok(verified.every(row => row.passed && row.waited && row.backend_a !== row.backend_b));
+  console.log('PASS camp_room_plan_bulk_save_concurrency.sql', { checked_cases: verified.length, all_passed: true, actual_lock_waits: true });
+  await observer.query(`drop schema ${schema} cascade`);
+  assert.equal((await observer.query('select to_regnamespace($1) is null gone', [schema])).rows[0].gone, true);
+  console.log('PASS cleanup', schema);
+}
+
 // Phase 1 only: exercise real waiting on two local connections; no hosted DB.
 async function paymentConcurrency(c) {
   const fixture = await prepareUpgrade(c);
@@ -604,10 +684,11 @@ try {
   if (requested.includes('--audit-notes-only')) await c.query("select set_config('test.operations_phase','audit-notes',false)");
   if (requested.includes('--staff-search-only')) await c.query("select set_config('test.operations_phase','staff-search',false)");
   if (requested.includes('--stays-only')) await c.query("select set_config('test.operations_phase','stays',false)");
-  const single = ['application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql', 'community_groups.sql', 'group_invitations.sql', 'group_participant_submissions.sql', 'group_review_and_approval.sql', 'group_changes_and_cancellation.sql', 'group_deadline_expiration.sql', 'account_cleanup.sql', 'camp_roster_identity_foundation.sql', 'camp_roster_eligible_user_management.sql'];
-  const concurrent = ['camp_room_allocations_concurrency.sql', 'calendar_concurrency.sql', 'community_individual_applications_concurrency.sql', 'community_individual_room_allocations_concurrency.sql', 'camp_roster_identity_concurrency.sql', 'camp_roster_eligible_user_management_concurrency.sql'];
+  const single = ['camp_room_plan_bulk_save.sql', 'application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql', 'community_groups.sql', 'group_invitations.sql', 'group_participant_submissions.sql', 'group_review_and_approval.sql', 'group_changes_and_cancellation.sql', 'group_deadline_expiration.sql', 'account_cleanup.sql', 'camp_roster_identity_foundation.sql', 'camp_roster_eligible_user_management.sql'];
+  const concurrent = ['camp_room_plan_bulk_save_concurrency.sql', 'camp_room_allocations_concurrency.sql', 'calendar_concurrency.sql', 'community_individual_applications_concurrency.sql', 'community_individual_room_allocations_concurrency.sql', 'camp_roster_identity_concurrency.sql', 'camp_roster_eligible_user_management_concurrency.sql'];
   const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.includes('--stays-only') ? ['application_operations.sql', ...(requested.includes('--stays-concurrency') ? ['--stays-concurrency'] : [])] : requested.includes('--audit-notes-only') ? ['application_operations.sql', ...(requested.includes('--audit-notes-concurrency') ? ['--audit-notes-concurrency'] : [])] : requested.includes('--staff-search-only') ? ['application_operations.sql'] : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency', '--stays-concurrency', '--audit-notes-concurrency', '--groups-concurrency', '--group-invitations-concurrency', '--group-expiration-concurrency'];
   for (const file of selected) {
+    if (file === 'camp_room_plan_bulk_save_concurrency.sql') { stage=file; await roomPlanConcurrency(c); continue; }
     if (file === '--group-invitations-concurrency') { stage=file; await groupInvitationConcurrency(c); continue; }
     if (file === '--group-expiration-concurrency') { stage=file; await groupExpirationConcurrency(c); continue; }
     if (file === '--groups-concurrency') { stage=file; await groupConcurrency(c); continue; }
@@ -643,4 +724,7 @@ try {
   try { await pg.stop(); } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 
-process.exitCode = failed ? 1 : 0;
+// embedded-postgres uses async-exit-hook, whose beforeExit hook forces status 0.
+// All clients and the temporary database have already been closed above.
+await Promise.all([process.stdout, process.stderr].map(stream => new Promise(resolve => stream.write("", resolve))));
+process.exit(failed ? 1 : 0);
