@@ -76,3 +76,36 @@ test("approved database errors are stable and malformed successes fail closed", 
     assert.equal((await api.submitGroupParticipantApplication(form())).error, expected);
   }
 });
+
+test("participant UI exposes only owned fields and dispatches all shared routes", async () => {
+  const formSource = await readFile(new URL("app/user/applications/[applicationId]/edit/GroupParticipantForm.js", ROOT), "utf8");
+  for (const name of ["applicantName", "applicantAddress", "applicantPhone", "emergencyContactName",
+    "emergencyContactAddress", "emergencyContactPhone", "notes", "guardianConsentRequired"]) {
+    assert.match(formSource, new RegExp(`name="${name}"`));
+  }
+  for (const forbidden of ["representativeAddress", "representativePhone", "otherParticipants", "startDate", "endDate", "usagePurpose"]) {
+    assert.doesNotMatch(formSource, new RegExp(`name="${forbidden}"`));
+  }
+  assert.match(formSource, /saveGroupParticipantApplication/);
+  assert.match(formSource, /useActionState/);
+  assert.match(formSource, /自動保存はされません/);
+
+  const submitSource = await readFile(new URL("app/user/applications/[applicationId]/confirm/SubmitConfirmation.js", ROOT), "utf8");
+  assert.match(submitSource, /submitGroupParticipantApplication/);
+  assert.match(submitSource, /usageType === "community_group"/);
+  for (const path of ["edit/page.js", "confirm/page.js", "complete/page.js", "page.js"]) {
+    const source = await readFile(new URL(`app/user/applications/[applicationId]/${path}`, ROOT), "utf8");
+    assert.match(source, /kind\.usageType === "community_group"/);
+    assert.match(source, /getGroupParticipantApplication/);
+  }
+});
+
+test("correction migration aligns read and consent edit guards", async () => {
+  const sql = await readFile(new URL("supabase/migrations/202609120028_group_participant_read_corrections.sql", ROOT), "utf8");
+  assert.match(sql, /create or replace function public\.get_group_participant_application/);
+  assert.match(sql, /create or replace function public\.register_group_guardian_consent_document/);
+  assert.match(sql, /a\.status='revision_requested' and g\.status='revision_requested'/);
+  assert.match(sql, /'active_deadline',deadline/);
+  assert.match(sql, /coalesce\(a\.decision_reason,g\.decision_reason\)/);
+  assert.doesNotMatch(sql, /representative_address|representative_phone|other_participants/);
+});

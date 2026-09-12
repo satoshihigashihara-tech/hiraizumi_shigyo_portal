@@ -728,6 +728,8 @@ MVPのSQL018は現在存在する2区分だけを対象とする。団体テー�
 
 提出入力は`applicationId / updatedAt / submissionKey / confirmed`だけ。同じ操作の再送では同じキーと版を使う。`result_group_status=under_review`なら全員提出完了を案内する。同意書は既存`uploadGuardianConsent`を使う。主なエラーは`participant-deadline-passed / required-fields / guardian-consent / duplicate-stay / stale-update / not-editable / not-submittable / forbidden / update-failed`。
 
+画面は共通の`/user/applications/[applicationId]`配下で本人所有の`usage_type`を先に確認し、`community_group`を団体参加者用の入力・確認・完了・詳細へ振り分ける。団体名、期間、使用箇所、目的、町内活動は確認用の固定表示とし、フォームから送信しない。SQL028は`get_group_participant_application`と団体参加者用同意書登録関数を補正し、初回提出期限に加えて差し戻し時の団体修正期限を使う。返却する差し戻し理由は公開理由だけで、代表者の連絡先や他参加者の情報は含めない。
+
 ### T20前半：職員の団体審査接続
 
 `/staff/community/groups/[groupId]`は`getStaffCommunityGroupReview`で固定項目だけを取得する。操作順は目的確認`confirmCommunityGroupPurpose`、各参加者の`startCommunityGroupParticipantReview`と`approveCommunityGroupParticipant`（または期限付き`requestCommunityGroupParticipantRevision`）、部屋別人数をJSONで渡す`setCommunityGroupRooms`、最後に`approveCommunityGroup`。団体不許可は理由必須の`rejectCommunityGroup`。すべて`groupId / applicationId / updatedAt`を画面表示時の値から渡すが、権限・対象・最新状態はDBで再取得する。SQL024未適用時は画面を接続しない。

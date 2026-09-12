@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { submitCampApplication } from "@/app/actions/camp-applications";
 import { submitCommunityApplication } from "@/app/actions/community-applications";
+import { submitGroupParticipantApplication } from "@/app/actions/group-participants";
 import AlertMessage from "@/app/components/AlertMessage";
 import { errorMessage } from "@/app/components/messages";
 import LinkButton from "@/app/components/LinkButton";
@@ -17,10 +18,16 @@ async function submitCommunityState(_previousState, formData) {
   return submitCommunityApplication(formData);
 }
 
+async function submitGroupParticipantState(_previousState, formData) {
+  return submitGroupParticipantApplication(formData);
+}
+
 export default function SubmitConfirmation({ applicationId, usageType = "camp", updatedAt, submissionKey }) {
   const [confirmed, setConfirmed] = useState(false);
+  const action = usageType === "community_group" ? submitGroupParticipantState
+    : usageType === "community_individual" ? submitCommunityState : submitCampState;
   const [state, formAction, pending] = useActionState(
-    usageType === "community_individual" ? submitCommunityState : submitCampState,
+    action,
     { error: null },
   );
 

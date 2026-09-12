@@ -16,10 +16,12 @@ import { statusLabel } from "@/app/components/status-labels";
 import { errorMessage } from "@/app/components/messages";
 import { getCampApplicationForDetail } from "@/utils/camp-applications/queries";
 import { getCommunityApplication } from "@/utils/community-applications/queries";
+import { getGroupParticipantApplication } from "@/utils/group-participants/queries";
 import { getUserApplicationUsageType } from "@/utils/user-applications/queries";
 import { DUE_KINDS, nextAction } from "@/app/user/next-action";
 import CampApplicationReview from "./CampApplicationReview";
 import CommunityApplicationDetail from "./CommunityApplicationDetail";
+import GroupParticipantReview from "./GroupParticipantReview";
 import styles from "./page.module.css";
 
 export const metadata = {
@@ -134,6 +136,29 @@ function StaySection({ application }) {
 export default async function CampApplicationDetailPage({ params }) {
   const { applicationId } = await params;
   const kind = await getUserApplicationUsageType(applicationId, `/user/applications/${applicationId}`);
+  if (kind.usageType === "community_group") {
+    const result = await getGroupParticipantApplication(applicationId, "detail");
+    if (result.error || !result.application) return <PageShell title="団体参加者の申請詳細"><AlertMessage tone="error" title="申請を開けませんでした"><p>{errorMessage(result.error)}</p></AlertMessage><LinkButton href="/user/applications" fullWidthOnMobile>申請一覧へ戻る</LinkButton></PageShell>;
+    const application = result.application;
+    const editable = application.can_edit && ["draft", "revision_requested"].includes(application.status);
+    return <PageShell title="団体参加者の申請詳細" description={application.group_name}>
+      <StatusRow><StatusBadge kind="application" value={application.status} showKind /><StatusBadge kind="group" value={application.group_status} showKind /></StatusRow>
+      {application.status === "revision_requested" && <AlertMessage tone="warning" title="申請内容の修正が必要です"><p>{application.decision_reason || "町からの案内を確認して修正してください。"}</p>{application.active_deadline && <p>再提出の期限：{formatDeadline(application.active_deadline)}</p>}</AlertMessage>}
+      {application.status === "rejected" && <AlertMessage tone="error" title="この参加者申請は許可されませんでした"><p>{application.decision_reason || "団体の代表者または町の担当へお問い合わせください。"}</p></AlertMessage>}
+      {application.status === "approved" && <AlertMessage tone="success" title="参加者申請が許可されました"><p>団体全体の利用状態は、団体の代表者からの案内もご確認ください。</p></AlertMessage>}
+      <AlertMessage tone="info" title="次にすること"><p>{application.status === "draft" ? "本人情報を入力し、確認画面から提出してください。" : application.status === "revision_requested" ? "町からの案内を確認し、期限内に修正して再提出してください。" : ["submitted", "under_review"].includes(application.status) ? "町が内容を確認しています。審査結果をお待ちください。" : "団体と町からの案内をご確認ください。"}</p></AlertMessage>
+      <section className={styles.panel} aria-labelledby="group-participant-receipt-heading"><h2 id="group-participant-receipt-heading">受付情報</h2>
+        <dl className={styles.facts}>
+          <div><dt>受付番号</dt><dd className={styles.reception}>{application.reception_number ?? "未発行"}</dd></div>
+          <div><dt>提出日時</dt><dd>{application.last_submitted_at ? formatJstDateTime(application.last_submitted_at) : "未提出"}</dd></div>
+          <div><dt>利用期間</dt><dd>{formatPeriod(application.start_date, application.end_date)}</dd></div>
+        </dl>
+      </section>
+      <GroupParticipantReview application={application} />
+      <div className={styles.actions}>{editable && <LinkButton href={`/user/applications/${application.id}/edit`} variant="primary" fullWidthOnMobile>申請内容を編集する</LinkButton>}
+        <LinkButton href="/user/applications" fullWidthOnMobile>申請一覧へ戻る</LinkButton></div>
+    </PageShell>;
+  }
   if (kind.usageType === "community_individual") {
     const result = await getCommunityApplication(applicationId, "detail");
     if (result.error || !result.application) return <PageShell title="地域活動の個人申請詳細"><AlertMessage tone="error" title="申請を開けませんでした"><p>{errorMessage(result.error)}</p></AlertMessage><LinkButton href="/user/applications" fullWidthOnMobile>申請一覧へ戻る</LinkButton></PageShell>;

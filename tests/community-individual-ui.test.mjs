@@ -27,7 +27,7 @@ test("shared application routes dispatch only after an owner-scoped type read", 
   const query = read("utils/user-applications/queries.js");
   assert.match(query, /getUserApplicationUsageType/);
   assert.match(query, /\.eq\("user_id", user\.id\)/);
-  assert.match(query, /\["camp", "community_individual"\]/);
+  assert.match(query, /USAGE_TYPES\.includes\(data\.usage_type\)/);
   for (const path of ["edit/page.js", "confirm/page.js", "complete/page.js", "page.js"]) {
     assert.match(read(`app/user/applications/[applicationId]/${path}`), /getUserApplicationUsageType/);
   }
