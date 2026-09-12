@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireActiveUser } from "@/utils/auth/guards";
+import { normalizeMode, withMode } from "@/utils/navigation/mode";
 
 const PHONE_PATTERN = /^[0-9+][0-9() -]{7,19}$/;
 
@@ -37,6 +38,7 @@ function valueOrNull(value) {
 
 async function saveProfileValues(formData, returnState) {
   const { supabase, user } = await requireActiveUser("/user/profile");
+  const mode = normalizeMode(getText(formData, "mode"));
   const fields = {
     fullName: getText(formData, "fullName"),
     address: getText(formData, "address"),
@@ -53,7 +55,7 @@ async function saveProfileValues(formData, returnState) {
 
   if (Object.keys(fieldErrors).length > 0) {
     if (returnState) return { error: "too-long", fieldErrors, fields };
-    redirect(profilePath({ error: "too-long" }));
+    redirect(withMode(profilePath({ error: "too-long" }), mode));
   }
 
   if (fields.phone && !PHONE_PATTERN.test(fields.phone)) {
@@ -64,7 +66,7 @@ async function saveProfileValues(formData, returnState) {
   }
   if (Object.keys(fieldErrors).length > 0) {
     if (returnState) return { error: "invalid-phone", fieldErrors, fields };
-    redirect(profilePath({ error: "invalid-phone" }));
+    redirect(withMode(profilePath({ error: "invalid-phone" }), mode));
   }
 
   const { error } = await supabase
@@ -81,13 +83,13 @@ async function saveProfileValues(formData, returnState) {
 
   if (error) {
     if (returnState) return { error: "save-failed", fieldErrors: {}, fields };
-    redirect(profilePath({ error: "save-failed" }));
+    redirect(withMode(profilePath({ error: "save-failed" }), mode));
   }
 
   revalidatePath("/user/profile");
   revalidatePath("/user/applications/new/camp");
   revalidatePath("/user/applications/new/community-activity");
-  redirect(profilePath({ saved: "1" }));
+  redirect(withMode(profilePath({ saved: "1" }), mode));
 }
 
 export async function saveProfile(formData) {

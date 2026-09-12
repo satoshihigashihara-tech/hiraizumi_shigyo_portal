@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
+import { destinationForViewer } from "@/utils/auth/destination";
 // 戻り先の検証は画面（app/login/page.js）と共通の1か所に置く。
 // "use server" のこのファイルは同期関数を export できないため、
 // 純粋モジュール側から双方が import する（utils/auth/return-to.js）。
@@ -15,6 +16,11 @@ function getText(formData, name) {
 
 function getPassword(formData) {
   const value = formData.get("password");
+  return typeof value === "string" ? value : "";
+}
+
+function getRawText(formData, name) {
+  const value = formData.get(name);
   return typeof value === "string" ? value : "";
 }
 
@@ -38,44 +44,22 @@ function signUpUrl(parameter, code, returnTo) {
   return `/signup?${searchParams.toString()}`;
 }
 
-function destinationForRole(returnTo, isStaff) {
-  if (!returnTo) {
-    return isStaff ? "/staff" : "/user";
-  }
-
-  if (returnTo === "/staff" || returnTo.startsWith("/staff/")) {
-    return isStaff ? returnTo : "/forbidden";
-  }
-
-  if (returnTo === "/user" || returnTo.startsWith("/user/")) {
-    return isStaff ? "/staff" : returnTo;
-  }
-
-  if (returnTo === "/invite" || returnTo.startsWith("/invite/")) {
-    return isStaff ? "/staff" : returnTo;
-  }
-
-  return isStaff ? "/staff" : "/user";
-}
-
-async function userIsStaff(supabase, userId) {
-  const { data, error } = await supabase
-    .from("staff_roles")
-    .select("user_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) {
-    return false;
-  }
-
-  return Boolean(data);
+async function viewerAccess(supabase, userId) {
+  const profileRequest = supabase.from("profiles").select("account_state")
+    .eq("id", userId).maybeSingle();
+  const staffRequest = supabase.from("staff_roles").select("user_id")
+    .eq("user_id", userId).maybeSingle();
+  const [profile, staff] = await Promise.all([profileRequest, staffRequest]);
+  return {
+    isActive: !profile.error && profile.data?.account_state === "active",
+    isStaff: !staff.error && Boolean(staff.data),
+  };
 }
 
 export async function login(formData) {
   const email = getText(formData, "email").toLowerCase();
   const password = getPassword(formData);
-  const returnTo = safeReturnTo(getText(formData, "returnTo"));
+  const returnTo = safeReturnTo(getRawText(formData, "returnTo"));
 
   if (!email || !password) {
     redirect(loginErrorUrl("required", returnTo));
@@ -91,16 +75,16 @@ export async function login(formData) {
     redirect(loginErrorUrl("invalid", returnTo));
   }
 
-  const isStaff = await userIsStaff(supabase, data.user.id);
+  const access = await viewerAccess(supabase, data.user.id);
 
   revalidatePath("/", "layout");
-  redirect(destinationForRole(returnTo, isStaff));
+  redirect(destinationForViewer(returnTo, access));
 }
 
 export async function signUp(formData) {
   const email = getText(formData, "email").toLowerCase();
   const password = getPassword(formData);
-  const returnTo = safeReturnTo(getText(formData, "returnTo"));
+  const returnTo = safeReturnTo(getRawText(formData, "returnTo"));
 
   if (!email || !password) {
     redirect(signUpUrl("error", "required", returnTo));
@@ -113,7 +97,7 @@ export async function signUp(formData) {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({ email, password });
 
-  if (error) {
+  if (error || !data.user) {
     redirect(signUpUrl("error", "signup", returnTo));
   }
 
@@ -122,7 +106,8 @@ export async function signUp(formData) {
   }
 
   revalidatePath("/", "layout");
-  redirect(destinationForRole(returnTo, false));
+  const access = await viewerAccess(supabase, data.user.id);
+  redirect(destinationForViewer(returnTo, access));
 }
 
 export async function logout() {

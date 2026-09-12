@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireActiveUser } from "@/utils/auth/guards";
+import { withMode } from "@/utils/navigation/mode";
 import { inviteFailure, isUpdatedAt, isUuid, normalizeInvite, readInviteFields } from "@/utils/group-invitations/validation";
 import { validateReason } from "@/utils/community-groups/review";
 
@@ -17,7 +18,7 @@ function refresh(groupId, applicationId = null) {
 }
 
 export async function issueCommunityGroupInvite(formData) {
-  const { supabase } = await requireActiveUser("/user/groups");
+  const { supabase } = await requireActiveUser(withMode("/user/groups", "fieldwork"));
   const fields = readInviteFields(formData);
   if (!isUuid(fields.groupId)) return inviteFailure("invalid-group", fields);
   if (!isUpdatedAt(fields.updatedAt)) return inviteFailure("invalid-version", fields);
@@ -37,7 +38,7 @@ export async function issueCommunityGroupInvite(formData) {
 }
 
 export async function joinCommunityGroup(formData) {
-  const { supabase } = await requireActiveUser("/invite");
+  const { supabase } = await requireActiveUser(withMode("/invite", "fieldwork"));
   const fields = readInviteFields(formData);
   if (!isUuid(fields.applicationId)) return inviteFailure("invalid-application", fields);
   if (fields.confirmed !== "true") return inviteFailure("confirmation-required", fields);
@@ -51,11 +52,11 @@ export async function joinCommunityGroup(formData) {
   if (!isUuid(result?.result_group_id) || !isUuid(result?.result_application_id)
     || !isUpdatedAt(result?.result_group_updated_at)) return inviteFailure("update-failed", fields);
   refresh(result.result_group_id, result.result_application_id);
-  redirect(`/user/applications/${result.result_application_id}/edit?joined=group`);
+  redirect(withMode(`/user/applications/${result.result_application_id}/edit?joined=group`, "fieldwork"));
 }
 
 export async function removeCommunityGroupParticipant(formData) {
-  const { supabase } = await requireActiveUser("/user/groups");
+  const { supabase } = await requireActiveUser(withMode("/user/groups", "fieldwork"));
   const fields = readInviteFields(formData);
   if (!isUuid(fields.groupId)) return inviteFailure("invalid-group", fields);
   if (!isUuid(fields.applicationId)) return inviteFailure("invalid-application", fields);
@@ -74,5 +75,5 @@ export async function removeCommunityGroupParticipant(formData) {
     return inviteFailure("update-failed", fields);
   }
   refresh(fields.groupId, fields.applicationId);
-  redirect(`/user/groups/${fields.groupId}/participants?updated=participant-removed`);
+  redirect(withMode(`/user/groups/${fields.groupId}/participants?updated=participant-removed`, "fieldwork"));
 }

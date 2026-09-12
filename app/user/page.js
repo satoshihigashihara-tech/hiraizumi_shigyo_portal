@@ -9,6 +9,7 @@ import { USAGE_TYPE_LABELS } from "@/app/components/status-labels";
 import { getUserHomeApplications } from "@/utils/user-applications/queries";
 import { DUE_KINDS, needsUserAction, nextAction } from "./next-action";
 import styles from "./page.module.css";
+import { modeFromSearchParams } from "@/utils/navigation/mode";
 
 export const metadata = {
   title: "利用者ホーム｜ひらいずみ志業ポータル",
@@ -112,15 +113,16 @@ function ApplicationCard({ application, today }) {
   );
 }
 
-export default async function UserHomePage() {
-  const result = await getUserHomeApplications();
+export default async function UserHomePage({ searchParams }) {
+  const mode = modeFromSearchParams((await searchParams) ?? {});
+  const result = await getUserHomeApplications(mode);
   const today = jstToday();
   const actionNeeded = result.applications.filter((application) =>
     needsUserAction(application, today),
   );
 
   return (
-    <PageShell title="利用者ホーム" description="申請の状態と、次に必要な操作を確認できます。">
+    <PageShell audienceMode={mode} title="利用者ホーム" description="申請の状態と、次に必要な操作を確認できます。">
       {result.error ? (
         <AlertMessage tone="error" title="申請を読み込めませんでした">
           <p>{errorMessage(result.error)}</p>

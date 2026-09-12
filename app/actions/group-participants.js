@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireActiveUser } from "@/utils/auth/guards";
+import { withMode } from "@/utils/navigation/mode";
 import { booleanField, isUpdatedAt, isUuid, participantFailure, readParticipantFields,
   toParticipantDatabaseFields, validateParticipantFields } from "@/utils/group-participants/validation";
 
@@ -15,7 +16,7 @@ function refresh(applicationId, groupId) {
 }
 
 export async function saveGroupParticipantApplication(formData) {
-  const { supabase } = await requireActiveUser("/user/applications");
+  const { supabase } = await requireActiveUser(withMode("/user/applications", "fieldwork"));
   const fields = readParticipantFields(formData);
   if (!isUuid(fields.applicationId)) return participantFailure("invalid-application", fields);
   if (!isUpdatedAt(fields.updatedAt)) return participantFailure("invalid-version", fields);
@@ -29,11 +30,11 @@ export async function saveGroupParticipantApplication(formData) {
   const result = Array.isArray(data) ? data[0] : null;
   if (result?.result_id !== fields.applicationId || !isUpdatedAt(result?.result_updated_at)) return participantFailure("update-failed", fields);
   refresh(fields.applicationId, null);
-  redirect(`/user/applications/${fields.applicationId}/${fields.intent === "confirm" ? "confirm" : "edit?saved=1"}`);
+  redirect(withMode(`/user/applications/${fields.applicationId}/${fields.intent === "confirm" ? "confirm" : "edit?saved=1"}`, "fieldwork"));
 }
 
 export async function submitGroupParticipantApplication(formData) {
-  const { supabase } = await requireActiveUser("/user/applications");
+  const { supabase } = await requireActiveUser(withMode("/user/applications", "fieldwork"));
   const fields = readParticipantFields(formData);
   if (!isUuid(fields.applicationId)) return participantFailure("invalid-application", fields);
   if (!isUpdatedAt(fields.updatedAt)) return participantFailure("invalid-version", fields);
@@ -51,5 +52,5 @@ export async function submitGroupParticipantApplication(formData) {
     || !["collecting", "under_review"].includes(result?.result_group_status)
     || !isUpdatedAt(result?.result_group_updated_at)) return participantFailure("update-failed", fields);
   refresh(fields.applicationId, result.result_group_id);
-  redirect(`/user/applications/${fields.applicationId}/complete`);
+  redirect(withMode(`/user/applications/${fields.applicationId}/complete`, "fieldwork"));
 }

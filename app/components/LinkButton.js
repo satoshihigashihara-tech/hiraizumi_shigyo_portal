@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { Suspense } from "react";
+import { useSiteAudience } from "./SiteHeader";
+import { withMode } from "@/utils/navigation/mode";
 import styles from "./Button.module.css";
 
 /*
@@ -48,7 +53,7 @@ function classifyHref(href) {
 }
 
 /**
- * ボタンの見た目のリンク。Server Component。
+ * ボタンの見た目のリンク。現在の利用モードを引き継ぐ Client Component。
  *
  * 画面内の遷移は next/link を使う。別サイトのURLのときだけ通常の <a> にし、
  * target="_blank" と rel="noopener noreferrer" を付ける
@@ -92,9 +97,20 @@ export default function LinkButton({
     );
   }
 
+  if (href.startsWith("/user") && !/[?&]mode=/.test(href)) {
+    return <Suspense fallback={<Link className={className} href={href}>{children}</Link>}>
+      <ModeAwareLink className={className} href={href}>{children}</ModeAwareLink>
+    </Suspense>;
+  }
+
   return (
     <Link className={className} href={href}>
       {children}
     </Link>
   );
+}
+
+function ModeAwareLink({ className, href, children }) {
+  const { mode } = useSiteAudience();
+  return <Link className={className} href={withMode(href, mode)}>{children}</Link>;
 }

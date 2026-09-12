@@ -106,7 +106,7 @@ test("group UI follows existing 8px system and collapses at narrow widths", asyn
   assert.match(css, /var\(--sg-radius, 8px\)/);
   assert.match(css, /@media \(max-width: 599px\)/);
   assert.match(css, /grid-template-columns: 1fr/);
-  assert.match(layout, /href: "\/user\/groups"/);
+  assert.match(layout, /currentReturnTo/);
   assert.match(home, /href="\/user\/groups"/);
   assert.match(chooser, /href="\/user\/groups\/new"/);
   assert.doesNotMatch(`${home}\n${chooser}`, /団体.*準備中/);

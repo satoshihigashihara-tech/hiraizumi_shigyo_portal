@@ -50,7 +50,7 @@ test("community detail, receipt and top-level entry are connected", () => {
   assert.match(detail, /料金/);
   assert.match(detail, /許可された部屋と滞在/);
   assert.match(read("app/user/applications/[applicationId]/complete/page.js"), /reception_number/);
-  assert.match(read("app/page.js"), /COMMUNITY_LOGIN_HREF/);
+  assert.match(read("app/page.js"), /href="\/user\/groups\?mode=fieldwork"/);
   assert.doesNotMatch(read("app/user/applications/new/page.js"), /地域活動の日程を選ぶ手続きは現在準備中/);
 });
 

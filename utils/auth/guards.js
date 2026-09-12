@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 // （utils/auth/return-to.js）。同じ判定をここへ複製すると、
 // 片方だけ直したときに防御がずれる（.claude/rules/security.md）。
 import { safeReturnTo } from "@/utils/auth/return-to";
-import { createClient } from "@/utils/supabase/server";
+import { getActiveViewer } from "@/utils/auth/session";
 
 /**
  * 戻り先を安全な内部パスへ絞る。判定できない値は fallback へ落とす。
@@ -23,41 +23,23 @@ function loginPath(returnTo) {
 
 export async function requireActiveUser(returnTo = "/user") {
   const destination = safeInternalPath(returnTo, "/user");
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  const viewer = await getActiveViewer();
+  if (!viewer.user) {
     redirect(loginPath(destination));
   }
-
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("id, account_state")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (profileError || !profile || profile.account_state !== "active") {
+  if (!viewer.isActive) {
     redirect("/forbidden?reason=account-unavailable");
   }
-
-  return { supabase, user };
+  return { supabase: viewer.supabase, user: viewer.user };
 }
 
 export async function requireStaff(returnTo = "/staff") {
   const destination = safeInternalPath(returnTo, "/staff");
-  const { supabase, user } = await requireActiveUser(destination);
-  const { data: staffRole, error: roleError } = await supabase
-    .from("staff_roles")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (roleError || !staffRole) {
+  const viewer = await getActiveViewer();
+  if (!viewer.user) redirect(loginPath(destination));
+  if (!viewer.isActive) redirect("/forbidden?reason=account-unavailable");
+  if (!viewer.isStaff) {
     redirect("/forbidden?reason=staff-only");
   }
-
-  return { supabase, user };
+  return { supabase: viewer.supabase, user: viewer.user };
 }

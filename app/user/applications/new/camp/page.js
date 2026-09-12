@@ -74,6 +74,7 @@ export default async function CampSelectionPage({ searchParams }) {
 
   return (
     <PageShell
+      audienceMode="camp"
       title="キャンプを選ぶ"
       description="申請するキャンプ、固定の利用期間、申請期限を確認してください。"
     >

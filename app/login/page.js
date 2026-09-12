@@ -1,4 +1,5 @@
 import { login } from "@/app/actions/auth";
+import { redirect } from "next/navigation";
 import AlertMessage from "@/app/components/AlertMessage";
 import FormField from "@/app/components/FormField";
 import LinkButton from "@/app/components/LinkButton";
@@ -6,6 +7,8 @@ import PageShell from "@/app/components/PageShell";
 import SubmitButton from "@/app/components/SubmitButton";
 import { errorMessage } from "@/app/components/messages";
 import { safeReturnTo } from "@/utils/auth/return-to";
+import { destinationForViewer } from "@/utils/auth/destination";
+import { getActiveViewer } from "@/utils/auth/session";
 import styles from "./page.module.css";
 
 /*
@@ -138,6 +141,8 @@ export async function generateMetadata({ searchParams }) {
 
 export default async function LoginPage({ searchParams }) {
   const { errorCode, returnTo } = await readQuery(searchParams);
+  const viewer = await getActiveViewer();
+  if (viewer.user) redirect(destinationForViewer(returnTo, viewer));
 
   // Object.hasOwn で自前のキーに限定する（messages.js と同じ対策）。
   // `FIELD_ERRORS_BY_CODE[code]` だけでは "toString" などが関数として返る。

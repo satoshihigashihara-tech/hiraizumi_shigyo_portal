@@ -26,15 +26,16 @@ async function load(path) {
 test("safeReturnTo keeps internal paths with their query string", async () => {
   const { safeReturnTo } = await load(RETURN_TO);
   assert.equal(safeReturnTo("/user"), "/user");
-  assert.equal(safeReturnTo("/staff/applications"), "/staff/applications");
+  assert.equal(safeReturnTo("/staff"), "/staff");
   assert.equal(safeReturnTo("/invite/abc123"), "/invite/abc123");
+  assert.equal(safeReturnTo("/user/applications?mode=camp"), "/user/applications?mode=camp");
   // docs/routes.md 8章: 日程付きの安全な本人URLをそのまま戻り先にできる。
   assert.equal(
     safeReturnTo("/user/applications/new?start=2026-10-11&end=2026-10-13"),
     "/user/applications/new?start=2026-10-11&end=2026-10-13",
   );
-  // hash はサーバーへ送られないため落とす。
-  assert.equal(safeReturnTo("/user?tab=list#section"), "/user?tab=list");
+  assert.equal(safeReturnTo("/user#section"), null);
+  assert.equal(safeReturnTo("/user?tab=list"), null);
 });
 
 test("safeReturnTo rejects anything that can leave the origin", async () => {
@@ -58,29 +59,46 @@ test("safeReturnTo rejects anything that can leave the origin", async () => {
     "/..//evil.example?next=/user",
     // バックスラッシュは `//` と同じ扱いなので、この経路でも再現する。
     "/..\\\\evil.example",
+    "/%5cevil.example/user",
+    "/%2f%2fevil.example",
+    "/user/../staff",
+    "/user/%2e%2e/staff",
   ]) {
     assert.equal(safeReturnTo(value), null, value);
   }
 });
 
-test("safeReturnTo trims surrounding whitespace before judging", async () => {
+test("safeReturnTo rejects auth loops, unknown and duplicate query parameters", async () => {
+  const { safeReturnTo } = await load(RETURN_TO);
+  for (const value of [
+    "/login",
+    "/signup",
+    "/forbidden",
+    "/user?returnTo=%2Fuser",
+    "/user?unknown=1",
+    "/user?mode=camp&mode=fieldwork",
+    "/staff?page=1&page=2",
+  ]) assert.equal(safeReturnTo(value), null, value);
+});
+
+test("safeReturnTo trims ordinary surrounding whitespace but rejects controls", async () => {
   const { safeReturnTo } = await load(RETURN_TO);
   // 画面は生のクエリ値を、Server Action は trim 済みの値を渡すため、
   // どちらの呼び出し順でも同じ結果になること。
   assert.equal(safeReturnTo("  /user  "), "/user");
-  assert.equal(safeReturnTo("\t/staff/applications\n"), "/staff/applications");
+  assert.equal(safeReturnTo("\t/staff\n"), null);
   assert.equal(safeReturnTo("  //evil.example  "), null);
   assert.equal(safeReturnTo("  https://evil.example  "), null);
 });
 
-test("safeReturnTo normalizes parser tricks down to an internal path", async () => {
+test("safeReturnTo rejects parser tricks instead of normalizing them", async () => {
   const { safeReturnTo } = await load(RETURN_TO);
   // URLパーサはバックスラッシュを `//` と同じに扱うため、ホスト部が落ちる。
-  assert.equal(safeReturnTo("/\\evil.example"), "/");
-  assert.equal(safeReturnTo("/\\evil.example/user"), "/user");
+  assert.equal(safeReturnTo("/\\evil.example"), null);
+  assert.equal(safeReturnTo("/\\evil.example/user"), null);
   // タブ・改行は除去されたうえで解釈される。ホストへは化けない。
-  assert.equal(safeReturnTo("/\t/evil.example"), "/");
-  assert.equal(safeReturnTo("/us\ner"), "/user");
+  assert.equal(safeReturnTo("/\t/evil.example"), null);
+  assert.equal(safeReturnTo("/us\ner"), null);
 });
 
 test("safeReturnTo returns null for empty and non-string values", async () => {

@@ -1,163 +1,25 @@
-import AlertMessage from "@/app/components/AlertMessage";
 import LinkButton from "@/app/components/LinkButton";
 import PageShell from "@/app/components/PageShell";
 import styles from "./page.module.css";
 
-/*
- * トップ画面（/）。Server Component（docs/routes.md 5章・141行の一覧）。
- *
- * 未ログインで開かれる前提の公開画面なので、個人・団体を特定できる情報は
- * 一切置かない。公開カレンダーも日付と利用可否だけを表示する。
- *
- * 用語は「使用許可申請」で統一する。「予約」と書くと、申請した時点で
- * 宿泊が確定するように読めるが、docs/requirements.md 4.3 のとおり
- * 「申請と同時に宿泊を確定する機能」は対象外のため。
- *
- * スパルタキャンプの申請入口は認証必須のため、直接リンクせず
- * /login?returnTo=... を経由する。トップでは複数の申請や進行中の手続きを
- * 選べる申請一覧（/user/applications）を戻り先にする。
- * returnTo の値は
- * utils/auth/return-to.js の safeReturnTo() が通す「/ で始まる内部パス」の形で
- * ハードコードする。
- *
- * 地域活動・個人の申請入口と公開カレンダーは実データ画面へ接続済み。
- */
-
-/*
- * ログイン画面へ渡す戻り先。"/" 部分をエンコードした値を定数にしておき、
- * 文字列の中に直接 %2F を書いて読みにくくならないようにする。
- */
-const CAMP_APPLICATION_PATH = "/user/applications";
-const CAMP_LOGIN_HREF = `/login?returnTo=${encodeURIComponent(
-  CAMP_APPLICATION_PATH,
-)}`;
-const COMMUNITY_LOGIN_HREF = `/login?returnTo=${encodeURIComponent(
-  "/user/applications/new/community-activity",
-)}`;
-
-/*
- * 画面の説明文。metadata.description と本文（PageShell）で同じ内容を
- * 二度書くと片方だけ更新され食い違うため、定数にして共有する。
- */
-const PAGE_DESCRIPTION =
-  "使用許可申請の受付窓口です。対象者・使用料・必要書類を確認してから申請へお進みください。";
-
-/*
- * title は app/layout.js のルート metadata と同一になるため上書きしない
- * （二重定義すると片方だけ更新され取り残されるため）。
- */
-export const metadata = {
-  description: PAGE_DESCRIPTION,
-};
+export const metadata = { description: "平泉町志業シェアハウスの利用目的に合う入口を選びます。" };
 
 export default function Home() {
-  return (
-    <div className={styles.page}>
-      <PageShell
-        title="平泉町志業シェアハウス"
-        description={PAGE_DESCRIPTION}
-      >
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>このサイトでできること</h2>
-          <p>
-            平泉町志業シェアハウスの使用許可申請ができます。申請いただいた内容は町が確認し、許可の可否をこの画面からお知らせします。申請しただけでは宿泊は確定しません。
-          </p>
-        </section>
-
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>対象者と利用条件</h2>
-          <ul className={styles.list}>
-            <li>
-              スパルタキャンプの参加者として、対象期間の利用を申請する方
-            </li>
-            <li>
-              スパルタキャンプ修了後に、町内での起業準備や地域振興につながる活動を行う方
-            </li>
-            <li>町が認める地域活動を行う個人または団体の方</li>
-            <li>
-              大学のゼミ・研究室、自治体や企業の視察研修、地域イベントの参加・運営団体の方
-            </li>
-          </ul>
-          <p>
-            宿泊を伴わない共用部分だけの利用、および観光目的の宿泊は対象外です。
-          </p>
-        </section>
-
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>使用料</h2>
-          {/*
-           * docs/requirements.md 16章（506〜520行）。
-           * 月9,000円の上限は「利用者の月間合計」ではなく「申請ごと」に
-           * 適用されるため、合計額と誤解されない書き方にする。
-           */}
-          <div className={styles.feeBox}>
-            <p className={styles.feeTitle}>1人につき1日300円</p>
-            <ul className={styles.list}>
-              <li>開始日と終了日の両方を日数に含めます。1泊2日は600円です。</li>
-              <li>
-                1つの申請で同じ月に9,000円を超える場合は、その月の分を9,000円までとします。上限は申請ごとに適用し、別々の申請の金額は合算しません。
-              </li>
-            </ul>
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>必要書類</h2>
-          {/* docs/requirements.md 8.2節（223〜225行） */}
-          <AlertMessage tone="warning" title="保護者同意書が必要な方がいます">
-            <p>
-              未成年の方および18歳の高校生の方は、申請ごとに保護者同意書の提出が必要です。
-            </p>
-          </AlertMessage>
-        </section>
-
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>申請へ進む</h2>
-          <h3 className={styles.subsectionTitle}>スパルタキャンプ利用の申請</h3>
-          <p>
-            ログイン後の申請一覧から、手続きの状況確認と続きの操作ができます。
-          </p>
-          <div className={styles.actions}>
-            <LinkButton
-              href={CAMP_LOGIN_HREF}
-              variant="primary"
-              fullWidthOnMobile
-            >
-              ログインして申請一覧へ進む
-            </LinkButton>
-          </div>
-
-          <h3 className={styles.subsectionTitle}>地域活動での利用</h3>
-          <p>個人で利用する方は、ログイン後に日程と町内で行う活動を入力できます。</p>
-          <div className={styles.actions}>
-            <LinkButton href={COMMUNITY_LOGIN_HREF} variant="primary" fullWidthOnMobile>
-              ログインして個人申請へ進む
-            </LinkButton>
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>アカウントをお持ちの方</h2>
-          <p>
-            申請の状況確認や続きの手続きは、ログイン後の画面から行えます。
-          </p>
-          <div className={styles.actions}>
-            <LinkButton href="/login" variant="secondary" fullWidthOnMobile>
-              ログイン画面を開く
-            </LinkButton>
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>利用状況カレンダー</h2>
-          <p>日付ごとの申請受付状況を、ログインせずに確認できます。</p>
-          <div className={styles.actions}>
-            <LinkButton href="/calendar" variant="secondary" fullWidthOnMobile>
-              カレンダーを見る
-            </LinkButton>
-          </div>
-        </section>
-      </PageShell>
+  return <div className={styles.page}><PageShell
+    title="平泉町志業シェアハウスの利用区分を選ぶ"
+    description="利用目的に合う入口を選んでください。申請した時点では利用は確定しません。"
+  >
+    <div className={styles.choices}>
+      <section className={styles.choice} aria-labelledby="camp-choice"><div>
+        <h2 id="camp-choice">スパルタキャンプに参加する方</h2>
+        <p>スパルタキャンプ参加者としての利用申請、申請状況の確認を行います。</p>
+      </div><LinkButton href="/camp" variant="primary" fullWidthOnMobile>キャンプ利用へ進む</LinkButton></section>
+      <section className={styles.choice} aria-labelledby="fieldwork-choice"><div>
+        <h2 id="fieldwork-choice">大学・学生団体でフィールドワークを行う方</h2>
+        <p>団体での利用内容、利用期間、予定人数を登録し、参加者を招待する方はこちらです。</p>
+      </div><LinkButton href="/user/groups?mode=fieldwork" variant="primary" fullWidthOnMobile>団体での利用へ進む</LinkButton></section>
     </div>
-  );
+    <p className={styles.help}>はじめての方は、利用する入口を選んだあとにアカウントを作成できます。ログイン済みの方も、利用目的に合う入口から進んでください。</p>
+    <div className={styles.calendar}><LinkButton href="/calendar" fullWidthOnMobile>利用状況カレンダーを見る</LinkButton></div>
+  </PageShell></div>;
 }
