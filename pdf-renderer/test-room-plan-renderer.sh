@@ -2,6 +2,7 @@
 set -eu
 rm -rf /tmp/a11-qa /tmp/a11-output
 mkdir -p /tmp/a11-qa /tmp/a11-output
+trap 'cp /tmp/a11-qa/* /tmp/a11-output/ 2>/dev/null || true' EXIT
 python3 /app/renderer.py --job /app/fixtures/max-room-plan-job.json \
   --output-pdf /tmp/a11-output/max-room-plan.pdf --qa-dir /tmp/a11-qa >/tmp/a11-output/result.json
 pages="$(pdfinfo /tmp/a11-output/max-room-plan.pdf | awk '/^Pages:/ {print $2}')"

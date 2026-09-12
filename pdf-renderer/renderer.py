@@ -412,8 +412,8 @@ def room_plan_html(job: dict, settings: dict, output_path: Path) -> list[str]:
 @page {{ size: A4 landscape; margin: 8mm; }}
 body {{ font-family: "Noto Serif JP"; color:#000; }} h1 {{ font-size:13pt; text-align:center; margin:0 0 2mm; }}
 .meta {{ font-size:7.5pt; margin:0 0 2mm; }} table {{ border-collapse:collapse; width:100%; table-layout:fixed; font-size:5pt; page-break-inside:avoid; }}
-tr {{ page-break-inside:avoid; }} th,td {{ border:0.25mm solid #000; padding:0.65mm; vertical-align:middle; overflow-wrap:anywhere; white-space:nowrap; }}
-th {{ background:#eee; font-size:6pt; }} th:nth-child(1){{width:5%}} th:nth-child(2){{width:22%}} th:nth-child(3){{width:29%}} th:nth-child(4){{width:14%}} th:nth-child(5){{width:30%}}
+tr {{ page-break-inside:avoid; }} th,td {{ border:0.25mm solid #000; padding:0.4mm; vertical-align:middle; overflow-wrap:anywhere; white-space:nowrap; }}
+td {{ font-size:5pt; line-height:6pt; }} th {{ background:#eee; font-size:6pt; line-height:7pt; }} th:nth-child(1){{width:5%}} th:nth-child(2){{width:22%}} th:nth-child(3){{width:29%}} th:nth-child(4){{width:14%}} th:nth-child(5){{width:30%}}
 </style></head><body><div class="page"><h1>職員用配置表</h1>
 <p class="meta">キャンプ: {html.escape(camp_name)}　日程: {starts} 〜 {ends}　配置版: {snapshot.get('room_plan_version')}</p>
 <table><thead><tr><th>No.</th><th>氏名</th><th>対象者ID</th><th>部屋名</th><th>日程</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div></body></html>'''
