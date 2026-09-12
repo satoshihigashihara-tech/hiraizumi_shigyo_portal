@@ -182,7 +182,7 @@ begin
 
   -- A9 integration simulation, never available to authenticated/service roles.
   perform set_config('private.camp_pdf_submission','allowed',true);
-  update public.camp_application_versions set state='submitted',confirmed_at=clock_timestamp(),submitted_at=clock_timestamp() where id=v;
+  update public.camp_application_versions set state='submitted',confirmed_at=clock_timestamp(),submitted_at=clock_timestamp(),submission_key=gen_random_uuid() where id=v;
   select to_jsonb(x) into original from public.camp_application_versions x where id=v;
   perform pg_temp.a7_check(public.authorize_camp_pdf_delivery(v,f.owner_id,'GET')->>'allowed'='false','owner submitted history not exposed');
   perform pg_temp.a7_check(public.authorize_camp_pdf_delivery(v,f.staff_id,'GET')->>'allowed'='true','staff submitted allowed');

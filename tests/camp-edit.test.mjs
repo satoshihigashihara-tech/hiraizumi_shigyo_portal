@@ -7,6 +7,9 @@ import vm from "node:vm";
 const ROOT = new URL("../", import.meta.url);
 const APPLICATION_ID = "10000000-0000-4000-8000-000000000001";
 const USER_ID = "10000000-0000-4000-8000-000000000002";
+const PDF_VERSION_ID = "10000000-0000-4000-8000-000000000003";
+const REQUEST_KEY = "10000000-0000-4000-8000-000000000004";
+const SUBMISSION_KEY = "10000000-0000-4000-8000-000000000005";
 
 const BASE_FIELDS = {
   applicationId: APPLICATION_ID,
@@ -152,6 +155,49 @@ test("camp edit blocks unauthenticated input before parsing or database access",
   assert.deepEqual(calls, [["auth", "/user/applications?mode=camp"]]);
 });
 
+test("eligible-roster edit uses the versioned allowlist and never sends a room preference", async () => {
+  const { api, calls } = await loadAction();
+  await assert.rejects(
+    api.saveCampApplicationDraft(null, form({
+      roomAssignmentMode: "eligible_roster",
+      inputVersion: "7",
+      requestedRoomPreference: "private_requested",
+    })),
+    /REDIRECT/,
+  );
+  assert.deepEqual(calls.find((call) => call[0] === "rpc"), [
+    "rpc",
+    "save_camp_roster_application_draft",
+    {
+      target_application_id: APPLICATION_ID,
+      expected_input_version: "7",
+      applicant_name: BASE_FIELDS.applicantName,
+      applicant_address: BASE_FIELDS.applicantAddress,
+      applicant_phone: BASE_FIELDS.applicantPhone,
+      emergency_contact_name: BASE_FIELDS.emergencyContactName,
+      emergency_contact_address: BASE_FIELDS.emergencyContactAddress,
+      emergency_contact_phone: BASE_FIELDS.emergencyContactPhone,
+      usage_purpose: BASE_FIELDS.usagePurpose,
+      notes: "",
+      guardian_consent_required: false,
+    },
+  ]);
+});
+
+test("eligible-roster confirmation enforces PDF print limits but not a room preference", async () => {
+  const { api, calls } = await loadAction();
+  const result = copy(await api.saveCampApplicationDraft(null, form({
+    roomAssignmentMode: "eligible_roster",
+    inputVersion: "1",
+    applicantName: "架".repeat(21),
+    requestedRoomPreference: "",
+    intent: "confirm",
+  })));
+  assert.equal(result.fieldErrors.applicantName, "field-too-long");
+  assert.equal(result.fieldErrors.requestedRoomPreference, undefined);
+  assert.ok(!calls.some((call) => call[0] === "rpc"));
+});
+
 test("confirm reports required and phone errors beside fields without losing input", async () => {
   const { api, calls } = await loadAction();
   const result = copy(
@@ -257,6 +303,55 @@ test("camp submission authenticates before reading untrusted form input", async 
   assert.deepEqual(calls, [["auth", "/user/applications?mode=camp"]]);
 });
 
+test("PDF request sends only the application, input version and idempotency key", async () => {
+  const { api, calls } = await loadAction({ rpcData: PDF_VERSION_ID });
+  await assert.rejects(
+    api.requestCampApplicationPdf(form({
+      inputVersion: "3",
+      requestKey: REQUEST_KEY,
+    })),
+    (error) => error.url === `/user/applications/${APPLICATION_ID}/confirm?pdf=requested&mode=camp`,
+  );
+  assert.deepEqual(calls.find((call) => call[0] === "rpc"), [
+    "rpc",
+    "begin_camp_application_pdf",
+    {
+      target_application_id: APPLICATION_ID,
+      expected_input_version: "3",
+      request_key_value: REQUEST_KEY,
+    },
+  ]);
+});
+
+test("PDF submission binds explicit confirmation to one canonical immutable version", async () => {
+  const { api, calls } = await loadAction({ rpcData: [{
+    submitted_application_id: APPLICATION_ID,
+    reception_number: "SG-2026-0008",
+    submission_time: "2026-09-12T03:04:05.000000+00:00",
+    submitted_version_id: PDF_VERSION_ID,
+  }] });
+  await assert.rejects(
+    api.submitCampApplication(form({
+      confirmed: "true",
+      pdfVersionId: PDF_VERSION_ID,
+      inputVersion: "4",
+      submissionKey: SUBMISSION_KEY,
+    })),
+    (error) => error.url === `/user/applications/${APPLICATION_ID}/complete?mode=camp`,
+  );
+  assert.deepEqual(calls.find((call) => call[0] === "rpc"), [
+    "rpc",
+    "submit_camp_application_with_pdf",
+    {
+      target_application_id: APPLICATION_ID,
+      target_version_id: PDF_VERSION_ID,
+      expected_input_version: "4",
+      submission_key_value: SUBMISSION_KEY,
+      confirmed: true,
+    },
+  ]);
+});
+
 async function loadQuery(responses, rpcResponses = {}) {
   const calls = [];
   const supabase = {
@@ -336,6 +431,7 @@ function completeQueryResponses({ status = "draft", submitted = false } = {}) {
     applications: {
       data: {
         id: APPLICATION_ID,
+        input_version: 1,
         status,
         start_date: "2026-09-30",
         end_date: "2026-10-02",
@@ -360,6 +456,7 @@ function completeQueryResponses({ status = "draft", submitted = false } = {}) {
           name: "動作確認キャンプ（架空）",
           start_date: "2026-09-30",
           end_date: "2026-10-02",
+          room_assignment_mode: "legacy_application",
         },
       },
       error: null,
@@ -388,6 +485,7 @@ test("camp edit query scopes to the owner and uses profile defaults only for a n
     applications: {
       data: {
         id: APPLICATION_ID,
+        input_version: 1,
         status: "draft",
         start_date: "2026-10-01",
         end_date: "2026-10-14",
@@ -412,6 +510,7 @@ test("camp edit query scopes to the owner and uses profile defaults only for a n
           name: "動作確認キャンプ（架空）",
           start_date: "2026-10-01",
           end_date: "2026-10-14",
+          room_assignment_mode: "legacy_application",
         },
       },
       error: null,
@@ -475,6 +574,42 @@ test("camp confirmation reads saved data and calculates each calendar month on t
     ],
     totalAmount: 900,
   });
+});
+
+test("eligible-roster confirmation reads only the owner-safe PDF context", async () => {
+  const responses = completeQueryResponses();
+  responses.applications.data.camps.room_assignment_mode = "eligible_roster";
+  responses.applications.data.room_preference = null;
+  const context = {
+    application_id: APPLICATION_ID,
+    eligible_user_id: "20000000-0000-4000-8000-000000000001",
+    status: "draft",
+    input_version: "1",
+    application_updated_at: "2026-09-12T01:02:03.000000+00:00",
+    room_plan_version: "2",
+    management_name: "管理用氏名",
+    profile_name: "プロフィール氏名",
+    applicant_name: "架空 利用者",
+    pdf_state: "ready",
+    pdf_version_id: PDF_VERSION_ID,
+    pdf_version_no: "1",
+    pdf_hash: "a".repeat(64),
+    pdf_size_bytes: 12345,
+    pdf_generated_at: "2026-09-12T02:00:00.000000+00:00",
+  };
+  const { api, calls } = await loadQuery(responses, {
+    get_my_camp_pdf_submission_context: { data: context, error: null },
+  });
+  const result = copy(await api.getCampApplicationForConfirm(APPLICATION_ID));
+  assert.equal(result.error, null);
+  assert.equal(result.application.pdfContext.pdfVersionId, PDF_VERSION_ID);
+  assert.equal(result.application.pdfContext.managementName, "管理用氏名");
+  assert.ok(!JSON.stringify(result).includes("object_path"));
+  assert.deepEqual(calls.find((call) => call[0] === "rpc"), [
+    "rpc",
+    "get_my_camp_pdf_submission_context",
+    { target_application_id: APPLICATION_ID },
+  ]);
 });
 
 test("camp completion reads the receipt and submission time from the database", async () => {
@@ -599,6 +734,10 @@ test("camp confirm and complete routes use awaited params, database values and a
     new URL("../app/user/applications/[applicationId]/confirm/SubmitConfirmation.js", import.meta.url),
     "utf8",
   );
+  const pdfSubmit = await readFile(
+    new URL("../app/user/applications/[applicationId]/confirm/CampPdfConfirmation.js", import.meta.url),
+    "utf8",
+  );
   const styles = await readFile(
     new URL("../app/user/applications/[applicationId]/application-view.module.css", import.meta.url),
     "utf8",
@@ -610,8 +749,13 @@ test("camp confirm and complete routes use awaited params, database values and a
   assert.match(submit, /^"use client"/);
   assert.match(submit, /name="confirmed"/);
   assert.match(submit, /disabled=\{!confirmed\}/);
+  assert.match(confirmPage, /roomAssignmentMode === "eligible_roster"/);
+  assert.match(pdfSubmit, /api\/camp\/application-pdfs\/\$\{pdfVersionId\}/);
+  assert.match(pdfSubmit, /name="submissionKey"/);
+  assert.match(pdfSubmit, /name="pdfVersionId"/);
+  assert.match(pdfSubmit, /disabled=\{!confirmed\}/);
   assert.match(styles, /@media \(max-width: 599px\)/);
-  assert.doesNotMatch(`${confirmPage}\n${completePage}\n${submit}`, /[—–]/);
+  assert.doesNotMatch(`${confirmPage}\n${completePage}\n${submit}\n${pdfSubmit}`, /[—–]/);
 });
 
 test("camp detail page separates application, payment and stay states and only links editable applications", async () => {

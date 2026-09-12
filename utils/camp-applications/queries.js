@@ -94,7 +94,8 @@ const APPLICATION_COLUMNS = [
   "submitted_at",
   "last_submitted_at",
   "updated_at",
-  "camps(name,start_date,end_date)",
+  "input_version",
+  "camps(name,start_date,end_date,room_assignment_mode)",
 ];
 
 const PROFILE_COLUMNS = [
@@ -185,6 +186,11 @@ function isApplicationPayload(application, profile) {
     isValidDate(application.end_date) &&
     application.camps &&
     typeof application.camps.name === "string" &&
+    ["legacy_application", "eligible_roster"].includes(
+      application.camps.room_assignment_mode,
+    ) &&
+    Number.isSafeInteger(application.input_version) &&
+    application.input_version >= 1 &&
     typeof profile === "object" &&
     profile !== null &&
     applicationTextFields.every((name) =>
@@ -281,11 +287,37 @@ async function readCampApplication(applicationId, returnTo, authContext = null) 
     };
   }
 
+  let pdfContext = null;
+  if (
+    application.camps.room_assignment_mode === "eligible_roster" &&
+    ["draft", "revision_requested"].includes(application.status)
+  ) {
+    const contextResult = await supabase.rpc(
+      "get_my_camp_pdf_submission_context",
+      { target_application_id: applicationId },
+    );
+    if (
+      contextResult.error ||
+      !isPdfSubmissionContext(contextResult.data, application)
+    ) {
+      return {
+        error:
+          contextResult.error?.message === "deadline-passed"
+            ? "deadline-passed"
+            : "load-failed",
+        application: null,
+      };
+    }
+    pdfContext = pickPdfSubmissionContext(contextResult.data);
+  }
+
   return {
     error: null,
     application: {
       id: application.id,
       status: application.status,
+      roomAssignmentMode: application.camps.room_assignment_mode,
+      inputVersion: String(application.input_version),
       campName: application.camps.name,
       startDate: application.start_date,
       endDate: application.end_date,
@@ -312,7 +344,50 @@ async function readCampApplication(applicationId, returnTo, authContext = null) 
         application.start_date,
         application.end_date,
       ),
+      pdfContext,
     },
+  };
+}
+
+function isNullableText(value) {
+  return value === null || typeof value === "string";
+}
+
+function isPdfSubmissionContext(value, application) {
+  return (
+    value &&
+    value.application_id === application.id &&
+    isCampApplicationId(value.eligible_user_id) &&
+    value.status === application.status &&
+    value.input_version === String(application.input_version) &&
+    /^\d+$/.test(value.room_plan_version ?? "") &&
+    ["not_requested", "generating", "ready", "failed", "stale"].includes(value.pdf_state) &&
+    isNullableText(value.management_name) &&
+    isNullableText(value.profile_name) &&
+    isNullableText(value.applicant_name) &&
+    (value.pdf_version_id === null || isCampApplicationId(value.pdf_version_id)) &&
+    (value.pdf_version_no === null || /^[1-9]\d*$/.test(value.pdf_version_no)) &&
+    (value.pdf_hash === null || /^[0-9a-f]{64}$/.test(value.pdf_hash)) &&
+    (value.pdf_size_bytes === null ||
+      (Number.isInteger(value.pdf_size_bytes) && value.pdf_size_bytes >= 1 && value.pdf_size_bytes <= 3 * 1024 * 1024)) &&
+    (value.pdf_generated_at === null || Number.isFinite(Date.parse(value.pdf_generated_at)))
+  );
+}
+
+function pickPdfSubmissionContext(value) {
+  return {
+    eligibleUserId: value.eligible_user_id,
+    managementName: value.management_name ?? "",
+    profileName: value.profile_name ?? "",
+    applicantName: value.applicant_name ?? "",
+    inputVersion: value.input_version,
+    roomPlanVersion: value.room_plan_version,
+    pdfState: value.pdf_state,
+    pdfVersionId: value.pdf_version_id,
+    pdfVersionNo: value.pdf_version_no,
+    pdfHash: value.pdf_hash,
+    pdfSizeBytes: value.pdf_size_bytes,
+    pdfGeneratedAt: value.pdf_generated_at,
   };
 }
 
@@ -335,7 +410,9 @@ export async function getCampApplicationForConfirm(applicationId) {
     return { error: "not-submittable", application };
   }
 
-  const fieldErrors = validateCampDraftFields(application.fields, "confirm");
+  const fieldErrors = validateCampDraftFields(application.fields, "confirm", {
+    eligibleRoster: application.roomAssignmentMode === "eligible_roster",
+  });
   if (Object.keys(fieldErrors).length > 0) {
     return { error: Object.values(fieldErrors)[0], application };
   }

@@ -111,7 +111,11 @@ begin
    size_bytes=100,validation='{"pages":1}',generated_at=clock_timestamp() where id=v;
   if n=1 then
    perform set_config('private.camp_pdf_submission','allowed',true);
-   update public.camp_application_versions set state='submitted',confirmed_at=now(),submitted_at=now() where id=v;
+   if exists(select 1 from pg_attribute where attrelid='public.camp_application_versions'::regclass and attname='submission_key' and not attisdropped) then
+    execute 'update public.camp_application_versions set state=''submitted'',confirmed_at=now(),submitted_at=now(),submission_key=gen_random_uuid() where id=$1' using v;
+   else
+    update public.camp_application_versions set state='submitted',confirmed_at=now(),submitted_at=now() where id=v;
+   end if;
   end if;
  end loop;
 end $$;

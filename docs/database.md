@@ -733,3 +733,7 @@ A3実配置・配置履歴・印字許可・施設枠を `private.camp_pdf_assig
 ## A11 職員用配置表PDF（SQL037）
 
 `camp_room_plan_pdf_versions` と専用jobは、最新の完全な対象者集合・氏名表示版・A3配置版・日程・印字部屋名・A8設定を不変snapshotとして保存する。active職員だけが要求・取得でき、直接table権限は全roleから剥奪する。生成時と配信時にA3の対象集合、定員、claim、配置履歴、印字許可と全versionを再検査し、変更後の旧PDFは返さない。一般利用者・匿名には氏名、対象者ID、配置、存在有無を返さない。詳細は [A11契約](staff-room-plan-pdf.md)。
+
+## A9 PDF確認提出・氏名同期（SQL038）
+
+`camp_application_versions.submission_key`と`applications.latest_submitted_camp_pdf_version_id`を追加する。新方式本人の保存は期待`input_version`付き専用RPC、提出は確認済みready PDF版付き専用RPCだけを使う。提出トランザクションは資格・期限・所有・入力／配置／設定／JST日付版を再検査し、申請、受付・初回料金、PDF、プロフィール氏名、対象者管理用氏名、監査を原子的に保存する。同じキーは再送、異なる2回目は拒否する。詳細は [A9契約](camp-pdf-confirm-submit.md)。SQL037はA11予約済み。

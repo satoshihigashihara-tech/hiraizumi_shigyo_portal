@@ -10,6 +10,7 @@ import { getCommunityApplication } from "@/utils/community-applications/queries"
 import { getGroupParticipantApplication } from "@/utils/group-participants/queries";
 import { getUserApplicationUsageType } from "@/utils/user-applications/queries";
 import SubmitConfirmation from "./SubmitConfirmation";
+import CampPdfConfirmation from "./CampPdfConfirmation";
 
 export const metadata = {
   title: "申請内容を確認｜ひらいずみ志業ポータル",
@@ -77,7 +78,21 @@ export default async function CampApplicationConfirmPage({ params, searchParams 
         </AlertMessage>
       )}
       <CampApplicationReview application={application} />
-      <SubmitConfirmation applicationId={application.id} />
+      {application.roomAssignmentMode === "eligible_roster" ? (
+        <CampPdfConfirmation
+          applicationId={application.id}
+          inputVersion={application.inputVersion}
+          pdfState={application.pdfContext?.pdfState ?? "not_requested"}
+          pdfVersionId={application.pdfContext?.pdfVersionId ?? null}
+          requestKey={crypto.randomUUID()}
+          submissionKey={crypto.randomUUID()}
+          profileName={application.pdfContext?.profileName ?? ""}
+          managementName={application.pdfContext?.managementName ?? ""}
+          applicantName={application.fields.applicantName}
+        />
+      ) : (
+        <SubmitConfirmation applicationId={application.id} />
+      )}
     </PageShell>
   );
 }
