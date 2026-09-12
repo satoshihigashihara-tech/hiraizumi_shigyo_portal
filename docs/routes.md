@@ -235,11 +235,13 @@ app/
 | `/staff/camps/new` | `app/staff/camps/new/page.js` | キャンプ名、固定期間、申請期限を登録する | Server Action。日程競合を検査 | 作成したキャンプ詳細 |
 | `/staff/camps/[campId]` | `app/staff/camps/[campId]/page.js` | キャンプ設定、対象者数、申請状況、日程への影響を表示する | Serverでキャンプ単位に取得 | 編集、対象者、申請一覧 |
 | `/staff/camps/[campId]/edit` | `app/staff/camps/[campId]/edit/page.js` | キャンプ名、固定期間、申請期限を編集し、条件を満たす場合はキャンプ期間を削除する | Server Action。競合申請と影響を表示し、未解決の競合がある編集・削除は実行しない | キャンプ詳細 |
-| `/staff/camps/[campId]/eligible-users` | `app/staff/camps/[campId]/eligible-users/page.js` | 対象メールを登録・編集し、形式不正・重複を表示する | Serverで一覧取得、Server Actionで一括登録・更新 | キャンプ詳細、申請一覧 |
+| `/staff/camps/[campId]/eligible-users` | `app/staff/camps/[campId]/eligible-users/page.js` | 対象メールを登録・変更・無効化し、形式不正・重複・既存申請の保護を表示する | Serverで有効・無効一覧を取得。更新は理由・更新日時・明示確認を検査するServer Action | キャンプ詳細、申請一覧 |
 | `/staff/camps/[campId]/applications` | `app/staff/camps/[campId]/applications/page.js` | 対象キャンプの個人申請を検索・絞り込みする | Serverでキャンプに属する申請だけ取得 | 申請詳細 |
 | `/staff/camps/[campId]/applications/[applicationId]` | `app/staff/camps/[campId]/applications/[applicationId]/page.js` | キャンプ個人申請の審査、部屋割り、料金・納付、入退去、メモ、履歴を扱う | Serverで取得。各更新は権限・状態・更新日時を検査するServer Actions | キャンプ詳細、申請一覧 |
 
 `campId` と `applicationId` の関連を必ず検証し、別キャンプの申請を誤って表示・更新しない。スパルタキャンプ利用者には本人によるキャンセル申請画面を表示せず、本人から町への連絡後に職員が申請詳細から処理する。
+
+SQL029は対象者メールの変更に`update_camp_eligible_user`、無効化に`disable_camp_eligible_user`を使う。両方とも職員権限、キャンプとの所属、`expected_updated_at`、変更理由をDBで再検査する。無効化は画面とServer Actionの双方で明示確認を必須にする。対象メールと一致する既存申請がある場合は変更・無効化を拒否し、申請内容を壊さない。
 
 ### 7.3 地域活動利用
 

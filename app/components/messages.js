@@ -34,6 +34,8 @@ export const ERROR_MESSAGES = {
   "too-long": "入力できる文字数を超えています。該当項目を短くしてください。",
   "invalid-phone": "電話番号の形式が正しくありません。数字とハイフンで入力してください。",
   "invalid-email": "メールアドレスの形式が正しくありません。",
+  "eligible-email-exists": "このメールアドレスは対象者として登録済みです。",
+  "eligible-has-application": "この対象者には既存の申請があるため変更または無効化できません。申請を確認してください。",
   "invalid-place": "使用箇所の指定が正しくありません。選び直してください。",
   "invalid-name": "名称の入力内容をご確認ください。",
 
@@ -215,6 +217,8 @@ export const FIELD_LABELS = {
   roomId: "部屋",
   reason: "理由",
   internalReason: "利用停止の内部理由",
+  campName: "キャンプ名",
+  applicationDeadline: "申請期限",
   approvalComment: "許可コメント",
   paymentStatus: "納付状態",
   paymentDueDate: "納付期限",

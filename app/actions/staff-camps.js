@@ -36,13 +36,16 @@ function revalidateCamp(campId) {
 async function runCampAction(formData, operation) {
   const { supabase } = await requireStaff("/staff/camps");
   const fields = Object.fromEntries([
-    "campId", "campName", "startDate", "endDate", "applicationDeadline", "updatedAt", "reason",
+    "campId", "campName", "startDate", "endDate", "applicationDeadline", "updatedAt", "reason", "confirmed",
   ].map((key) => [key, getText(formData, key)]));
   const editing = operation !== "create";
   if (editing && !isUuid(fields.campId)) return calendarFailure("not-found", fields);
   if (editing && !isUpdatedAt(fields.updatedAt)) return calendarFailure("invalid-version", fields);
   const invalidReason = reasonError(fields.reason, operation === "delete");
   if (invalidReason) return calendarFailure(invalidReason, fields);
+  if (operation === "delete" && fields.confirmed !== "true") {
+    return calendarFailure("confirmation-required", fields, { confirmed: "confirmation-required" });
+  }
   const input = editing ? {
     target_camp_id: fields.campId, expected_updated_at: fields.updatedAt, change_reason: fields.reason || null,
   } : {};
@@ -84,8 +87,61 @@ export async function updateStaffCamp(formData) {
   return runCampAction(formData, "update");
 }
 
+export async function updateStaffCampState(_previousState, formData) {
+  return runCampAction(formData, "update");
+}
+
 export async function deleteStaffCamp(formData) {
   return runCampAction(formData, "delete");
+}
+
+export async function deleteStaffCampState(_previousState, formData) {
+  return runCampAction(formData, "delete");
+}
+
+async function runEligibleUserAction(formData, operation) {
+  const { supabase } = await requireStaff("/staff/camps");
+  const fields = Object.fromEntries(["campId", "eligibleUserId", "updatedAt", "email", "reason", "confirmed"]
+    .map((key) => [key, getText(formData, key)]));
+  if (!isUuid(fields.campId) || !isUuid(fields.eligibleUserId)) return calendarFailure("not-found", fields);
+  if (!isUpdatedAt(fields.updatedAt)) return calendarFailure("invalid-version", fields);
+  const invalidReason = reasonError(fields.reason, true);
+  if (invalidReason) return calendarFailure(invalidReason, fields, { reason: invalidReason });
+  if (operation === "update" && !EMAIL_PATTERN.test(fields.email)) {
+    return calendarFailure("invalid-email", fields, { email: "invalid-email" });
+  }
+  if (operation === "disable" && fields.confirmed !== "true") {
+    return calendarFailure("confirmation-required", fields, { confirmed: "confirmation-required" });
+  }
+  const rpcName = operation === "update" ? "update_camp_eligible_user" : "disable_camp_eligible_user";
+  const input = {
+    target_camp_id: fields.campId,
+    target_eligible_user_id: fields.eligibleUserId,
+    expected_updated_at: fields.updatedAt,
+    change_reason: fields.reason,
+  };
+  if (operation === "update") input.new_email = fields.email.toLowerCase();
+  const { data, error } = await supabase.rpc(rpcName, input);
+  if (error) return calendarFailure(error, fields);
+  const result = Array.isArray(data) ? data[0] : null;
+  if (!result || result.result_id !== fields.eligibleUserId || typeof result.result_email !== "string"
+    || !isUpdatedAt(result.result_updated_at)
+    || (operation === "update" && (result.result_email !== fields.email.toLowerCase() || result.result_disabled_at !== null))
+    || (operation === "disable" && !isUpdatedAt(result.result_disabled_at))) {
+    return calendarFailure("update-failed", fields);
+  }
+  const path = `/staff/camps/${fields.campId}/eligible-users`;
+  revalidatePath(path);
+  revalidatePath(`/staff/camps/${fields.campId}`);
+  redirect(`${path}?updated=${operation === "update" ? "changed" : "disabled"}`);
+}
+
+export async function updateCampEligibleUserState(_previousState, formData) {
+  return runEligibleUserAction(formData, "update");
+}
+
+export async function disableCampEligibleUserState(_previousState, formData) {
+  return runEligibleUserAction(formData, "disable");
 }
 
 export async function addCampEligibleUsers(formData) {

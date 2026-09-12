@@ -4,7 +4,7 @@ import { requireStaff } from "@/utils/auth/guards";
 import { isDate, isUuid } from "@/utils/calendar/validation";
 
 const CAMP_COLUMNS = "id,name,start_date,end_date,application_deadline,created_at,updated_at";
-const ELIGIBLE_COLUMNS = "id,email_normalized,created_at,updated_at";
+const ELIGIBLE_COLUMNS = "id,email_normalized,disabled_at,created_at,updated_at";
 
 function isTimestamp(value) {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
@@ -56,9 +56,10 @@ export async function getCampEligibleUsers(campId) {
   const { supabase } = await requireStaff("/staff/camps");
   if (!isUuid(campId)) return { error: "not-found", users: [] };
   const { data, error } = await supabase.from("camp_eligible_users").select(ELIGIBLE_COLUMNS)
-    .eq("camp_id", campId).is("disabled_at", null).order("email_normalized").limit(1000);
+    .eq("camp_id", campId).order("email_normalized").limit(1000);
   if (error || !Array.isArray(data) || data.some((row) => !row || !isUuid(row.id)
     || typeof row.email_normalized !== "string" || row.email_normalized === ""
+    || (row.disabled_at !== null && !isTimestamp(row.disabled_at))
     || !isTimestamp(row.created_at) || !isTimestamp(row.updated_at))) {
     return { error: "load-failed", users: [] };
   }
