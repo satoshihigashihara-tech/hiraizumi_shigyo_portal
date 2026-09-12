@@ -100,6 +100,18 @@
   font-size: var(--sg-font-sm, 14px);
 }
 
+.inlineLink {
+  color: var(--sg-color-link, #1f3c88);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.inlineLink:focus-visible {
+  outline: 3px solid var(--sg-color-focus, #1f3c88);
+  outline-offset: 2px;
+}
+
 @media (min-width: 600px) {
   .fact {
     flex-direction: row;

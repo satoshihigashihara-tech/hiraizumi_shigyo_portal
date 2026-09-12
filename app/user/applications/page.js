@@ -1,3 +1,4 @@
+import Link from "next/link";
 import AlertMessage from "@/app/components/AlertMessage";
 import EmptyState from "@/app/components/EmptyState";
 import LinkButton from "@/app/components/LinkButton";
@@ -21,7 +22,7 @@ function usageTypeLabel(value) {
 function ApplicationListItem({ row }) {
   const resubmitted = row.last_submitted_at && row.last_submitted_at !== row.submitted_at;
   return <li className={styles.card}>
-    <h3 className={styles.cardTitle}>{row.camp_name || usageTypeLabel(row.usage_type)}</h3>
+    <h3 className={styles.cardTitle}>{row.camp_name || usageTypeLabel(row.usage_type)}{row.original_application_id && "（継続申請）"}</h3>
     <StatusRow>
       <StatusBadge kind="application" value={row.status} showKind />
       {row.charge && <StatusBadge kind="payment" value={row.charge.payment_status} showKind />}
@@ -29,6 +30,7 @@ function ApplicationListItem({ row }) {
     </StatusRow>
     <dl className={styles.facts}>
       <div className={styles.fact}><dt className={styles.factKey}>利用区分</dt><dd className={styles.factValue}>{usageTypeLabel(row.usage_type)}</dd></div>
+      {row.original_application_id && <div className={styles.fact}><dt className={styles.factKey}>申請区分</dt><dd className={styles.factValue}>継続申請（<Link className={styles.inlineLink} href={`/user/applications/${row.original_application_id}`}>元の申請を見る</Link>）</dd></div>}
       <div className={styles.fact}><dt className={styles.factKey}>利用期間</dt><dd className={styles.factValue}>{row.start_date && row.end_date ? formatPeriod(row.start_date, row.end_date) : "未設定"}{row.status === "revision_requested" && "（修正中の候補日程は詳細で確認できます）"}</dd></div>
       <div className={styles.fact}><dt className={styles.factKey}>受付番号</dt><dd className={styles.factValue}>{row.reception_number || "未発行"}</dd></div>
       {row.submitted_at && <div className={styles.fact}><dt className={styles.factKey}>提出日時</dt><dd className={styles.factValue}>{formatJstDateTime(row.submitted_at)}</dd></div>}

@@ -84,11 +84,12 @@ export function getUserHomeApplications() {
 
 export async function getUserApplicationUsageType(applicationId, returnTo = "/user/applications") {
   const { supabase, user } = await requireActiveUser(returnTo);
-  if (!isUuid(applicationId)) return { error: "not-found", usageType: null };
-  const { data, error } = await supabase.from("applications").select("usage_type")
+  if (!isUuid(applicationId)) return { error: "not-found", usageType: null, originalApplicationId: null };
+  const { data, error } = await supabase.from("applications").select("usage_type,original_application_id")
     .eq("id", applicationId).eq("user_id", user.id).maybeSingle();
-  if (error || !data || !USAGE_TYPES.includes(data.usage_type)) {
-    return { error: "not-found", usageType: null };
+  if (error || !data || !USAGE_TYPES.includes(data.usage_type)
+    || (data.original_application_id !== null && !isUuid(data.original_application_id))) {
+    return { error: "not-found", usageType: null, originalApplicationId: null };
   }
-  return { error: null, usageType: data.usage_type };
+  return { error: null, usageType: data.usage_type, originalApplicationId: data.original_application_id };
 }

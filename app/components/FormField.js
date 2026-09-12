@@ -38,6 +38,8 @@ import styles from "./FormField.module.css";
  * @param {string} [props.autoComplete]
  * @param {string} [props.inputMode]
  * @param {number} [props.maxLength]
+ * @param {string|number} [props.min] 日付・数値入力の最小値
+ * @param {string|number} [props.max] 日付・数値入力の最大値
  * @param {string} [props.accept] type="file" で選択できる形式
  * @param {string} [props.value="true"] as="checkbox" で送信する値
  * @param {boolean} [props.defaultChecked=false] as="checkbox" の初期状態
@@ -59,6 +61,8 @@ export default function FormField({
   autoComplete,
   inputMode,
   maxLength,
+  min,
+  max,
   accept,
   value = "true",
   defaultChecked = false,
@@ -209,6 +213,8 @@ export default function FormField({
           autoComplete={autoComplete}
           inputMode={inputMode}
           maxLength={maxLength}
+          min={min}
+          max={max}
           accept={accept}
         />
       )}

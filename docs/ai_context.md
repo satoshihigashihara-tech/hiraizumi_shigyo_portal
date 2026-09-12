@@ -218,3 +218,7 @@ SQL027と`process-account-cleanup` Edge Functionはmain・Supabaseへ適用済�
 ### T04 キャンプ編集・削除・対象者管理画面（2026年9月12日）
 
 `codex/camp-management-completion`でIssue #86を実装。既存SQL012のキャンプ編集・削除を画面へ接続し、削除確認をServer Actionでも必須にした。SQL029は対象者メール変更・無効化へ職員権限、所属、版、理由、既存申請保護、監査を追加する。対象者画面は有効・無効を区別し、同じメールの一括登録で再有効化できる。全Node359件、lint、production build、差分検査が成功。SQL029はSupabaseへ保存・適用済みで、ROLLBACK付き実DBテスト9件も成功。実職員で一覧・詳細・編集・削除確認・対象者管理フォームを表示確認済み（ブラウザーではデータを変更していない）。commit・pushは未実施。
+
+### T17 地域活動個人の取消・継続申請画面（2026年9月12日）
+
+`codex/community-individual-cancel-extension-ui`でIssue #81を実装中。既存SQL019・020と本人用Server Actionsへ`/user/applications/[applicationId]/cancel`と`/extension`を接続し、詳細にはDBが返す操作可否に応じた導線、一覧には継続申請の表示と元申請リンクを追加する。継続は元申請を変更せず別UUIDの下書きを明示操作で作り、既存継続があればその申請へ案内する。新しいSQL・環境変数・依存関係は追加せず、SupabaseへのSQL保存・適用もない。全Node361件、lint、本番build、差分検査が成功。実利用者で許可済み申請の詳細・取消入力・継続入力を表示確認済みで、状態変更はまだ行っていない。
