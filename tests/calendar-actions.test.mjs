@@ -14,7 +14,7 @@ const FORM = {
   campId: ID, blockedPeriodId: ID, campName: "テストキャンプ",
   startDate: "2028-02-29", endDate: "2028-03-03",
   applicationDeadline: "2028-02-28T23:59", updatedAt: VERSION,
-  internalReason: "清掃", reason: "日程変更",
+  internalReason: "清掃", reason: "日程変更", confirmed: "true",
 };
 const copy = (value) => JSON.parse(JSON.stringify(value));
 const form = (fields = {}) => new Map(Object.entries({ ...FORM, ...fields }));
@@ -138,6 +138,14 @@ test("delete requires a reason; update leaves same-value no-op decision to DB", 
   assert.equal(calls.length, 1);
   await assert.rejects(api.updateStaffBlockedPeriod(form({ reason: "" })), /REDIRECT/);
   assert.equal(calls.find((c) => c[0] === "rpc")[2].change_reason, null);
+});
+
+test("blocked period delete requires explicit confirmation before RPC", async () => {
+  const { api, calls } = await harness("app/actions/staff-calendar.js");
+  const result = await api.deleteStaffBlockedPeriod(form({ confirmed: "" }));
+  assert.equal(result.error, "confirmation-required");
+  assert.equal(result.fieldErrors.confirmed, "confirmation-required");
+  assert.equal(calls.length, 1);
 });
 
 test("DB failures retain fields, map concurrency safely and never auto-retry", async () => {

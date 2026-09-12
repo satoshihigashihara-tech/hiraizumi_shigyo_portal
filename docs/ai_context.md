@@ -208,3 +208,9 @@ SQL027と`process-account-cleanup` Edge Functionはmain・Supabaseへ適用済�
 ### T20 職員の団体審査画面（2026年9月12日）
 
 `codex/staff-community-group-review-ui`でIssue #80を実装中。`/staff/community/groups`に団体名・状態検索とページング、`/staff/community/groups/[groupId]`に目的確認、参加者審査、人数単位の部屋割り、団体許可・不許可、取消確定、許可後減員を接続した。破壊的操作と最終許可は画面・Server Action双方で明示確認を必須にし、部屋割り人数は対象人数と一致するまで保存できない。対象11件、全Node351件、lint、production buildが成功。新しいSQL・環境変数・依存関係はなく、SupabaseへのSQL保存・適用もない。実職員のブラウザー受入確認、commit、push、PR、Issue完了は未実施。
+
+### T09 職員カレンダー・利用停止期間画面（2026年9月12日）
+
+`codex/staff-calendar-ui`でIssue #78を実装中。`/staff/calendar`に職員専用の月表示・日別内訳、`/staff/calendar/blocked-periods`配下に利用停止の一覧・新規・編集・削除を接続した。キャンプ、地域活動個人、団体、利用停止を区別し、内部理由は職員だけに表示する。閲覧だけでは更新しない。削除は理由と明示確認を画面・Server Action双方で必須とする。対象33件、全Node356件、lint、production build、差分検査が成功。新しいSQL・環境変数・依存関係はなく、SupabaseへのSQL保存・適用もない。
+
+実職員のChrome受入では、実データの種別表示と日別詳細、重複作成拒否、通常作成、2画面を使った古い版の更新拒否、削除確認なしの拒否、確認後の削除成功を確認した。テスト用利用停止は削除・一覧消失まで確認済み。390px幅の横スクロールなし、ブラウザー警告・エラー0件。残作業はcommit、push、PR、mainへの反映、Issue完了。

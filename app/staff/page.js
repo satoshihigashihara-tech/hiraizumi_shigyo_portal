@@ -40,6 +40,7 @@ export default async function StaffPage({ searchParams }) {
     <PageShell title="職員ホーム" description="個人申請を検索し、審査や利用状況を確認します。">
       <div className={styles.staffLinks}>
         <LinkButton href="/staff/community/groups" variant="primary" fullWidthOnMobile>団体申請を審査する</LinkButton>
+        <LinkButton href="/staff/calendar" fullWidthOnMobile>職員カレンダーを確認する</LinkButton>
       </div>
       {result.error && <AlertMessage tone="error" title="申請を検索できませんでした"><p>{errorMessage(result.error)}</p></AlertMessage>}
       <section className={styles.panel} aria-labelledby="search-title">
