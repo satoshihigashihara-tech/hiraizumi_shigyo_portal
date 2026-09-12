@@ -6,14 +6,17 @@ import FormField from "@/app/components/FormField";
 import SubmitButton from "@/app/components/SubmitButton";
 import { errorMessage } from "@/app/components/messages";
 import {
+  formatDeadline,
   formatJstDateTime,
   formatPeriod,
 } from "@/app/components/format";
 import { getCampApplicationForEdit } from "@/utils/camp-applications/queries";
 import { getCommunityApplication } from "@/utils/community-applications/queries";
+import { getGroupParticipantApplication } from "@/utils/group-participants/queries";
 import { getUserApplicationUsageType } from "@/utils/user-applications/queries";
 import CampApplicationForm from "./CampApplicationForm";
 import CommunityApplicationForm from "./CommunityApplicationForm";
+import GroupParticipantForm from "./GroupParticipantForm";
 import styles from "./page.module.css";
 
 export const metadata = {
@@ -29,6 +32,46 @@ export default async function CampApplicationEditPage({ params, searchParams }) 
   const { applicationId } = await params;
   const query = (await searchParams) ?? {};
   const kind = await getUserApplicationUsageType(applicationId, `/user/applications/${applicationId}/edit`);
+  if (kind.usageType === "community_group") {
+    const result = await getGroupParticipantApplication(applicationId, "edit");
+    const application = result.application;
+    const download = application?.has_consent ? await createGuardianConsentDownloadUrl(applicationId) : { error: null, url: null };
+    const errorCode = firstQueryValue(query.error);
+    return <PageShell title="団体参加者の申請を入力" description="本人と緊急連絡先の情報を入力し、確認画面へ進んでください。">
+      {firstQueryValue(query.saved) === "1" && <AlertMessage tone="success" title="下書きを保存しました" />}
+      {firstQueryValue(query.uploaded) === "1" && <AlertMessage tone="success" title="保護者同意書を保存しました" />}
+      {errorCode && <AlertMessage tone="error" title="保護者同意書を保存できませんでした"><p>{errorMessage(errorCode)}</p></AlertMessage>}
+      {result.error && <AlertMessage tone="error" title="申請を開けませんでした"><p>{errorMessage(result.error)}</p></AlertMessage>}
+      {application?.status === "revision_requested" && <AlertMessage tone="warning" title="申請内容の修正が必要です">
+        <p>{application.decision_reason || "町からの案内を確認して修正してください。"}</p>
+        {application.active_deadline && <p>再提出の期限：{formatDeadline(application.active_deadline)}</p>}
+      </AlertMessage>}
+      {application && <section className={styles.summary} aria-labelledby="group-participant-summary-heading">
+        <h2 className={styles.summaryTitle} id="group-participant-summary-heading">{application.group_name}</h2>
+        <dl className={styles.summaryFacts}>
+          <div><dt>利用期間</dt><dd>{formatPeriod(application.start_date, application.end_date)}</dd></div>
+          <div><dt>団体の利用内容</dt><dd>代表者が登録済み（変更できません）</dd></div>
+        </dl>
+        <p className={styles.summaryNote}>この画面では、あなた自身の情報だけを入力します。他の参加者の個人情報は表示されません。</p>
+      </section>}
+      {!result.error && application?.can_edit && <>
+        <GroupParticipantForm applicationId={application.id} updatedAt={application.updated_at} initialFields={application.fields} />
+        <section className={styles.consent} aria-labelledby="group-participant-consent-heading">
+          <div className={styles.sectionHeader}><h2 className={styles.sectionTitle} id="group-participant-consent-heading">保護者同意書</h2>
+            <p className={styles.sectionDescription}>該当する場合にPDF・JPEG・PNGのいずれかを添付してください。添付前に上の下書きを保存してください。</p></div>
+          {application.has_consent && <div className={styles.attached}><p className={styles.attachedTitle}>添付済み</p>
+            {download.url ? <LinkButton href={download.url}>添付ファイルを確認</LinkButton> : <p className={styles.downloadError}>{errorMessage(download.error)}</p>}</div>}
+          <form className={styles.uploadForm} action={uploadGuardianConsent}>
+            <input type="hidden" name="applicationId" value={application.id} />
+            <input type="hidden" name="updatedAt" value={application.updated_at} />
+            <FormField id="guardianConsentFile" name="guardianConsentFile" label={application.has_consent ? "差し替えるファイル" : "添付するファイル"} type="file" accept="application/pdf,image/jpeg,image/png" hint="PDF・JPEG・PNG、5MB以下。1申請につき1ファイルです。" />
+            <SubmitButton variant="secondary" pendingLabel="ファイルを保存中…" fullWidthOnMobile>{application.has_consent ? "ファイルを差し替える" : "ファイルを添付する"}</SubmitButton>
+          </form>
+        </section>
+      </>}
+      <div className={styles.backLink}><LinkButton href="/user/applications" fullWidthOnMobile>申請一覧へ戻る</LinkButton></div>
+    </PageShell>;
+  }
   if (kind.usageType === "community_individual") {
     const result = await getCommunityApplication(applicationId, "edit");
     const application = result.application;

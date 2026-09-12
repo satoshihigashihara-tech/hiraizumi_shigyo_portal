@@ -55,8 +55,7 @@ function normalize(row) {
       released_from: allocation.released_from } : null,
     stay: stay ? { status: stay.status, checked_in_at: stay.checked_in_at,
       checked_out_at: stay.checked_out_at } : null,
-    detail_path: ["camp", "community_individual"].includes(row.usage_type)
-      ? `/user/applications/${row.id}` : null,
+    detail_path: `/user/applications/${row.id}`,
   };
 }
 
@@ -88,7 +87,7 @@ export async function getUserApplicationUsageType(applicationId, returnTo = "/us
   if (!isUuid(applicationId)) return { error: "not-found", usageType: null };
   const { data, error } = await supabase.from("applications").select("usage_type")
     .eq("id", applicationId).eq("user_id", user.id).maybeSingle();
-  if (error || !data || !["camp", "community_individual"].includes(data.usage_type)) {
+  if (error || !data || !USAGE_TYPES.includes(data.usage_type)) {
     return { error: "not-found", usageType: null };
   }
   return { error: null, usageType: data.usage_type };

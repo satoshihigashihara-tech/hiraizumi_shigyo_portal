@@ -11,7 +11,8 @@ export async function getGroupParticipantApplication(applicationId, mode = "deta
   if (error) return { error: participantErrorCode(error) === "not-found" ? "not-found" : "load-failed", application: null };
   if (!data || data.id !== applicationId || !data.fields || !isUuid(data.group_id)) return { error: "load-failed", application: null };
   const application = pick(data, ["id", "group_id", "group_name", "group_status", "status", "updated_at", "start_date", "end_date",
-    "usage_place", "purpose", "local_activity", "participant_due_at", "submitted_at", "last_submitted_at", "reception_number", "has_consent", "can_edit"]);
+    "usage_place", "purpose", "local_activity", "participant_due_at", "revision_due_at", "active_deadline", "decision_reason",
+    "submitted_at", "last_submitted_at", "reception_number", "has_consent", "can_edit"]);
   application.fields = pick(data.fields, Object.values(PARTICIPANT_FIELDS));
   if (mode === "complete" && (!data.submitted_at || !data.reception_number)) return { error: "not-submittable", application: null };
   if (["edit", "confirm"].includes(mode) && !data.can_edit) return { error: data.validation_error || "not-editable", application };

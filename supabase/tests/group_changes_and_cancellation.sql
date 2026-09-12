@@ -8,7 +8,7 @@ end; $$;
 
 do $$ declare staff uuid:=gen_random_uuid(); rep uuid:=gen_random_uuid(); u1 uuid:=gen_random_uuid(); u2 uuid:=gen_random_uuid(); u3 uuid:=gen_random_uuid();
   g uuid:=gen_random_uuid(); a1 uuid:=gen_random_uuid(); a2 uuid:=gen_random_uuid(); a3 uuid:=gen_random_uuid();
-  room_value uuid; v timestamptz; r record; invite record; fields jsonb; fiscal integer:=extract(year from current_date)::integer;
+  room_value uuid; v timestamptz; r record; invite record; fields jsonb; participant_view jsonb; fiscal integer:=extract(year from current_date)::integer;
 begin
   insert into auth.users(id,email) values(staff,'t20b-staff@example.invalid'),(rep,'t20b-rep@example.invalid'),
     (u1,'t20b-one@example.invalid'),(u2,'t20b-two@example.invalid'),(u3,'t20b-three@example.invalid');
@@ -36,6 +36,11 @@ begin
     'special_notes','修正済み','requires_guardian_consent',false);
   perform set_config('request.jwt.claims',jsonb_build_object('sub',u1,'email','t20b-one@example.invalid','role','authenticated')::text,true);
   set local role authenticated;
+  participant_view:=public.get_group_participant_application(a1);
+  perform pg_temp.t20b_check(participant_view->>'status'='revision_requested'
+    and (participant_view->>'can_edit')::boolean
+    and participant_view->>'active_deadline' is not null
+    and participant_view->>'decision_reason'='修正してください','participant correction read is editable and public');
   select updated_at into v from public.applications where id=a1;
   perform public.save_group_participant_application(a1,v,fields);
   select updated_at into v from public.applications where id=a1;

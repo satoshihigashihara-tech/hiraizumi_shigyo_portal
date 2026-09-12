@@ -10,7 +10,8 @@ test("user application list uses active-user RLS query and fixed owner filter", 
   assert.match(query, /loadUserApplications\("\/user"\)/);
   assert.match(query, /\.eq\("user_id", user\.id\)/);
   assert.doesNotMatch(query, /service_role|SUPABASE_SECRET_KEY/);
-  assert.match(query, /\["camp", "community_individual"\]\.includes\(row\.usage_type\)/);
+  assert.match(query, /const USAGE_TYPES = \["camp", "community_individual", "community_group"\]/);
+  assert.match(query, /detail_path: `\/user\/applications\/\$\{row\.id\}`/);
 });
 
 test("user home uses the same real owner query without mock data", () => {
@@ -25,12 +26,12 @@ test("user home uses the same real owner query without mock data", () => {
   assert.match(page, /\.slice\(0, 3\)/);
 });
 
-test("user home does not link unsupported application types to camp details", () => {
+test("user home respects the normalized owner-scoped detail path", () => {
   const action = read("app/user/next-action.js");
   const page = read("app/user/page.js");
   assert.match(action, /application\.detail_path === null/);
   assert.match(page, /action\.href \?/);
-  assert.match(page, /この利用区分の詳細画面は準備中です/);
+  assert.match(action, /application\.detail_path \?\?/);
 });
 
 test("user application list removes mock notice and separates three statuses", () => {
