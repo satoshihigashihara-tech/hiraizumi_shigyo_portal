@@ -1,0 +1,99 @@
+.list {
+  display: grid;
+  gap: var(--sg-space-4, 16px);
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sg-space-4, 16px);
+  min-width: 0;
+  padding: var(--sg-space-5, 24px);
+  border: 1px solid var(--sg-color-border, #c9ced4);
+  border-radius: var(--sg-radius, 8px);
+  background: var(--sg-color-surface, #fff);
+}
+
+.card h2 {
+  color: var(--sg-color-text, #1b1d1f);
+  font-size: var(--sg-font-xl, 20px);
+  line-height: 1.4;
+}
+
+.campPeriod,
+.safetyNote {
+  color: var(--sg-color-text-muted, #4d5358);
+  font-size: var(--sg-font-sm, 14px);
+  line-height: 1.6;
+}
+
+.assignment {
+  width: 100%;
+  padding: var(--sg-space-4, 16px);
+  border-left: 4px solid var(--sg-color-focus, #0f5e9c);
+  border-radius: 0 var(--sg-radius, 8px) var(--sg-radius, 8px) 0;
+  background: var(--sg-info-bg, #eaf1fb);
+}
+
+.roomLabel {
+  color: var(--sg-info-text, #14306e);
+  font-size: var(--sg-font-sm, 14px);
+  font-weight: 700;
+}
+
+.roomName {
+  margin-top: var(--sg-space-1, 4px);
+  color: var(--sg-color-text, #1b1d1f);
+  font-size: clamp(1.5rem, 6vw, 2rem);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sg-space-3, 12px);
+  margin-top: var(--sg-space-4, 16px);
+}
+
+.facts div {
+  min-width: 0;
+}
+
+.facts dt {
+  color: var(--sg-color-text-muted, #4d5358);
+  font-size: var(--sg-font-sm, 14px);
+}
+
+.facts dd {
+  margin-top: var(--sg-space-1, 4px);
+  color: var(--sg-color-text, #1b1d1f);
+  font-weight: 600;
+}
+
+.safetyNote {
+  margin-top: var(--sg-space-4, 16px);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sg-space-3, 12px);
+}
+
+@media (max-width: 599px) {
+  .card {
+    padding: var(--sg-space-4, 16px);
+  }
+
+  .facts {
+    grid-template-columns: 1fr;
+  }
+
+  .actions > * {
+    width: 100%;
+  }
+}

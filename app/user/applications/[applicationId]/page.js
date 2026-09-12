@@ -229,6 +229,12 @@ export default async function CampApplicationDetailPage({ params, searchParams }
       <ChargeSection application={application} />
       <StaySection application={application} />
 
+      <section className={styles.panel} aria-labelledby="camp-room-heading">
+        <h2 id="camp-room-heading">新方式の部屋割り</h2>
+        <p className={styles.note}>新方式のキャンプでは、本人に割り当てられた部屋だけを専用画面で確認できます。</p>
+        <LinkButton href="/user/camp-room" fullWidthOnMobile>自分の部屋を確認する</LinkButton>
+      </section>
+
       <section className={styles.panel} aria-labelledby="history-heading">
         <h2 id="history-heading">申請状態の履歴</h2>
         {application.history.length > 0 ? (
