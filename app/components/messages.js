@@ -64,6 +64,15 @@ export const ERROR_MESSAGES = {
   "invalid-camp": "対象のキャンプが見つかりません。申請の入口からやり直してください。",
   "invalid-group": "対象の団体申請が見つかりません。団体申請の一覧からやり直してください。",
   "invalid-participant-count": "予定人数は2人から15人までで入力してください。",
+  "invalid-invite": "招待リンクまたはコードが正しくありません。もう一度ご確認ください。",
+  "invite-not-available": "この団体では現在、招待を利用できません。最新の団体状態をご確認ください。",
+  "invite-expired": "招待の有効期限が切れています。団体代表者へ新しい招待をご確認ください。",
+  "group-full": "予定人数に達しているため、この団体には参加できません。",
+  "duplicate-group-member": "すでにこの団体へ参加しています。申請一覧をご確認ください。",
+  "representative-not-staying": "代表者が宿泊しない設定のため、参加人数の条件をご確認ください。",
+  "group-member-inconsistent": "団体の参加状況を確認できません。町の担当へお問い合わせください。",
+  "participant-deadline-passed": "参加者の提出期限を過ぎています。町の担当へお問い合わせください。",
+  "representative-participant": "団体代表者はこの参加者操作の対象にできません。",
 
   // 同意書・ファイル
   "guardian-consent": "保護者の同意書が必要です。同意書を添付してから提出してください。",
