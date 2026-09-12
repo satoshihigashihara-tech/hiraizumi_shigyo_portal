@@ -76,7 +76,7 @@ export const ERROR_MESSAGES = {
 
   // 同意書・ファイル
   "guardian-consent": "保護者の同意書が必要です。同意書を添付してから提出してください。",
-  "confirmation-required": "申請内容の最終確認に同意してから提出してください。",
+  "confirmation-required": "内容を確認したことに同意してから操作してください。",
   "file-required": "ファイルが選択されていません。",
   "invalid-size": "ファイルの容量が上限を超えています。5MB以下のファイルを選び直してください。",
   "invalid-type":
@@ -214,6 +214,7 @@ export const FIELD_LABELS = {
   // 職員操作（共通部品の取り違え検出用に収録）
   roomId: "部屋",
   reason: "理由",
+  internalReason: "利用停止の内部理由",
   approvalComment: "許可コメント",
   paymentStatus: "納付状態",
   paymentDueDate: "納付期限",

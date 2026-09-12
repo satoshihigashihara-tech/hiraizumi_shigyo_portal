@@ -5,6 +5,7 @@ const ERROR_CODES = new Set([
   "invalid-period", "invalid-month", "invalid-name", "invalid-deadline",
   "invalid-version", "stale-update", "invalid-status", "reason-required", "reason-too-long",
   "not-found", "date-conflict", "camp-has-applications", "calendar-inconsistent", "calendar-unavailable",
+  "confirmation-required",
 ]);
 
 export function getText(formData, name) {
@@ -60,7 +61,7 @@ export function calendarErrorCode(error) {
 }
 
 // Use ONLY after requireStaff. Whitelist diagnostics instead of exposing SQL errors.
-export function calendarFailure(error, fields = {}) {
+export function calendarFailure(error, fields = {}, fieldErrors = {}) {
   const code = typeof error === "string" ? error : calendarErrorCode(error);
   const conflicts = [];
   if (code === "date-conflict" || code === "camp-has-applications") {
@@ -68,7 +69,7 @@ export function calendarFailure(error, fields = {}) {
     try { parsed = JSON.parse(error?.details ?? "[]"); } catch { parsed = []; }
     if (Array.isArray(parsed)) {
       for (const item of parsed.slice(0, 100)) {
-        if (!item || !["camp", "blocked", "application"].includes(item.type) || !isUuid(item.id)
+        if (!item || !["camp", "blocked", "application", "group"].includes(item.type) || !isUuid(item.id)
           || !isDate(item.startDate) || !isDate(item.endDate)) continue;
         conflicts.push({
           type: item.type, id: item.id, campId: isUuid(item.campId) ? item.campId : null,
@@ -80,5 +81,5 @@ export function calendarFailure(error, fields = {}) {
       }
     }
   }
-  return { error: code, fields, conflicts };
+  return { error: code, fields, fieldErrors, conflicts };
 }
