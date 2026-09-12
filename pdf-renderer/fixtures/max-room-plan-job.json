@@ -1,0 +1,38 @@
+{
+  "document_type": "staff_room_plan",
+  "source_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "source_snapshot": {
+    "document_type": "staff_room_plan",
+    "camp_id": "10000000-0000-4000-8000-000000000001",
+    "camp_name": "架空キャンプ最大十五名配置表",
+    "start_date": "2026-10-01",
+    "end_date": "2026-10-15",
+    "roster_version": 15,
+    "roster_label_version": 3,
+    "room_plan_version": 7,
+    "entries": [
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000101","management_name":"架空対象者一","room_name":"架空室一","start_date":"2026-10-01","end_date":"2026-10-15"},
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000102","management_name":"架空対象者二","room_name":"架空室一","start_date":"2026-10-01","end_date":"2026-10-15"},
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000103","management_name":"架空対象者三","room_name":"架空室一","start_date":"2026-10-01","end_date":"2026-10-15"},
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000104","management_name":"架空対象者四","room_name":"架空室二","start_date":"2026-10-01","end_date":"2026-10-15"},
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000105","management_name":"架空対象者五","room_name":"架空室二","start_date":"2026-10-01","end_date":"2026-10-15"},
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000106","management_name":"架空対象者六","room_name":"架空室二","start_date":"2026-10-01","end_date":"2026-10-15"},
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000107","management_name":"架空対象者七","room_name":"架空室三","start_date":"2026-10-01","end_date":"2026-10-15"},
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000108","management_name":"架空対象者八","room_name":"架空室三","start_date":"2026-10-01","end_date":"2026-10-15"},
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000109","management_name":"架空対象者九","room_name":"架空室三","start_date":"2026-10-01","end_date":"2026-10-15"},
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000110","management_name":"架空対象者十","room_name":"架空室四","start_date":"2026-10-01","end_date":"2026-10-15"},
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000111","management_name":"架空対象者十一","room_name":"架空室四","start_date":"2026-10-01","end_date":"2026-10-15"},
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000112","management_name":"架空対象者十二","room_name":"架空室四","start_date":"2026-10-01","end_date":"2026-10-15"},
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000113","management_name":"架空対象者十三","room_name":"架空室五","start_date":"2026-10-01","end_date":"2026-10-15"},
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000114","management_name":"架空対象者十四","room_name":"架空室五","start_date":"2026-10-01","end_date":"2026-10-15"},
+      {"eligible_user_id":"10000000-0000-4000-8000-000000000115","management_name":"架空対象者十五","room_name":"架空室五","start_date":"2026-10-01","end_date":"2026-10-15"}
+    ]
+  },
+  "render_context": {
+    "document_type": "staff_room_plan",
+    "template_hash": "01381635183d96b6cf8345372f94d1fc1a687e19c72fd6b5d88db562af071ecc",
+    "settings_version": 1,
+    "font_version": "NotoSerifJP-2.003+sha256:2c9a12dbd4f2408c4610c7ee84a108b62d7236c3775baed618c64d9cb44b2f04",
+    "converter_image": "camp-pdf-renderer-a8-v1"
+  }
+}

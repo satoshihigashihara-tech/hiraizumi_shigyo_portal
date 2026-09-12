@@ -78,6 +78,7 @@ SQL 033をStorageなしのPostgresに適用しただけでは、このpolicyの�
 | `camp-pdf-delivery` | Supabase内の `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY`。JWTを `auth.getUser(token)` で検証し、そのIDだけを認可RPCへ渡す |
 | `camp-pdf-worker` | 同上＋32文字以上の `CAMP_PDF_WORKER_SECRET`。`x-camp-pdf-worker-secret` を照合 |
 | `camp-pdf-cleanup` | 同上＋別の32文字以上の `CAMP_PDF_CLEANUP_SECRET`。`x-camp-pdf-cleanup-secret` を照合 |
+| `camp-room-plan-pdf-delivery` | A11職員用。deliveryと同じSupabase内管理設定で実JWTを検証し、active職員と最新版配置をDBで二重認可 |
 
 各Functionのentrypointはそれぞれのディレクトリの `index.js`。CLIの既定 `index.ts` を仮定せず、配備時の設定でentrypointを指定する必要がある。
 リポジトリには本番project設定や自動配備を追加していない。SDKは `npm:@supabase/supabase-js@2.116.0` 固定。

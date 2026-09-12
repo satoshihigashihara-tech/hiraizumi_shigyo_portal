@@ -28,3 +28,18 @@ export async function getStaffCampRoomPlan(campId) {
     rooms: data.rooms.map((row) => ({ id: row.id, name: row.name, capacity: row.capacity })),
   } };
 }
+
+export async function getStaffCampRoomPlanPdf(campId) {
+  const { supabase } = await requireStaff('/staff/camps');
+  if (!isRoomPlanId(campId)) return { error: 'not-found', pdf: null };
+  campId = campId.toLowerCase();
+  const { data, error } = await supabase.rpc('get_staff_camp_room_plan_pdf', { target_camp_id: campId });
+  if (error) return { error: ['room-plan-incomplete', 'calendar-inconsistent', 'pdf-prerequisites-unavailable'].includes(error.message) ? error.message : 'load-failed', pdf: null };
+  const rosterVersion = roomPlanVersion(data?.roster_version);
+  const rosterLabelVersion = roomPlanVersion(data?.roster_label_version);
+  const planVersion = roomPlanVersion(data?.room_plan_version);
+  if (!data || data.camp_id !== campId || rosterVersion === null || rosterLabelVersion === null || planVersion === null
+    || (data.version_id !== null && !isRoomPlanId(data.version_id)) || ![null, 'pending', 'ready'].includes(data.state)) return { error: 'load-failed', pdf: null };
+  return { error: null, pdf: { campId, rosterVersion, rosterLabelVersion, roomPlanVersion: planVersion,
+    versionId: data.version_id, state: data.state } };
+}

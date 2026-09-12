@@ -98,6 +98,27 @@ class RendererContractTests(unittest.TestCase):
             else:
                 os.environ["CAMP_PDF_CONVERTER_IMAGE"] = previous
 
+    def test_staff_room_plan_contains_all_fifteen_identities_and_rooms(self):
+        job = json.loads((renderer.ROOT / "fixtures/max-room-plan-job.json").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "room-plan.html"
+            expected = renderer.room_plan_html(job, self.settings, output)
+            document = output.read_text(encoding="utf-8")
+            self.assertEqual(document.count("<tr>"), 16)
+            self.assertEqual(document.count('<div class="page'), 1)
+            self.assertEqual(len(expected), 49)
+            for entry in job["source_snapshot"]["entries"]:
+                self.assertIn(entry["eligible_user_id"], document)
+                self.assertIn(entry["management_name"], document)
+                self.assertIn(entry["room_name"], document)
+
+    def test_staff_room_plan_rejects_duplicate_target_id(self):
+        job = json.loads((renderer.ROOT / "fixtures/max-room-plan-job.json").read_text(encoding="utf-8"))
+        job["source_snapshot"]["entries"][1]["eligible_user_id"] = job["source_snapshot"]["entries"][0]["eligible_user_id"]
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(renderer.RenderError, "invalid-room-plan-entry"):
+                renderer.room_plan_html(job, self.settings, Path(directory) / "room-plan.html")
+
 
 class WorkerContractTests(unittest.TestCase):
     def setUp(self):

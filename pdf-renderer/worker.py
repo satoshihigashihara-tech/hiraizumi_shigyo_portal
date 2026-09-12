@@ -42,7 +42,7 @@ def main() -> int:
             validation = render(job, output, None, root / "qa")
         except Exception:
             try:
-                post(endpoint, secret, {"operation": "fail", "jobId": job["job_id"], "attemptId": job["attempt_id"]})
+                post(endpoint, secret, {"operation": "fail", "jobId": job["job_id"], "attemptId": job["attempt_id"], "documentType": job.get("document_type")})
             except (OSError, urllib.error.URLError):
                 pass
             raise
@@ -53,6 +53,7 @@ def main() -> int:
             "sourceHash": job["source_hash"],
             "pdfBase64": __import__("base64").b64encode(output.read_bytes()).decode("ascii"),
             "validation": validation,
+            "documentType": job.get("document_type"),
         }
         # A lost completion response may mean A7 already committed immutable
         # bytes. Never follow an uncertain completion with `fail`.
