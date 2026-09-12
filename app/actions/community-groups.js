@@ -66,6 +66,7 @@ export async function requestCommunityGroupCancellation(formData) {
   const fields = readGroupFields(formData);
   if (!isUuid(fields.groupId)) return groupFailure("invalid-group", fields);
   if (!isUpdatedAt(fields.updatedAt)) return groupFailure("invalid-version", fields);
+  if (booleanField(fields.confirmed) !== true) return groupFailure("confirmation-required", fields);
   if (!fields.reason.trim()) return groupFailure("reason-required", fields);
   if (Array.from(fields.reason.trim()).length > 2000) return groupFailure("reason-too-long", fields);
   const { data, error } = await supabase.rpc("request_community_group_cancellation", {

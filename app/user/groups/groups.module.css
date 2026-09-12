@@ -164,6 +164,30 @@
   border-bottom: 1px solid var(--sg-color-border, #c9ced4);
 }
 
+.participantOperation {
+  margin-top: var(--sg-space-3, 12px);
+  padding-top: var(--sg-space-3, 12px);
+  border-top: 1px solid var(--sg-color-border, #c9ced4);
+}
+
+.participantOperation summary {
+  width: fit-content;
+  color: var(--sg-danger-border, #b3261e);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.operationForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-4, 16px);
+  margin-top: var(--sg-space-4, 16px);
+}
+
+.dangerPanel {
+  border-color: var(--sg-danger-border, #b3261e);
+}
+
 .participantHeader {
   display: flex;
   flex-wrap: wrap;

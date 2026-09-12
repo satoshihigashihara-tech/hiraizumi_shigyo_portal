@@ -61,9 +61,10 @@ test("group pages show textual state, completion facts and next navigation", asy
 });
 
 test("representative invitation screen uses one-time secrets and a minimal participant list", async () => {
-  const [page, panel, queries] = await Promise.all([
+  const [page, panel, removal, queries] = await Promise.all([
     read("app/user/groups/[groupId]/participants/page.js"),
     read("app/user/groups/[groupId]/participants/InvitePanel.js"),
+    read("app/user/groups/[groupId]/participants/ParticipantRemovalForm.js"),
     read("utils/group-invitations/queries.js"),
   ]);
   assert.match(page, /getCommunityGroupParticipants\(groupId\)/);
@@ -74,7 +75,25 @@ test("representative invitation screen uses one-time secrets and a minimal parti
   assert.match(panel, /invite\?\.groupUpdatedAt/);
   assert.match(panel, /navigator\.clipboard\.writeText/);
   assert.match(panel, /一度だけ表示/);
+  assert.match(page, /ParticipantRemovalForm/);
+  assert.match(removal, /removeCommunityGroupParticipant/);
+  assert.match(removal, /name="reason"/);
+  assert.match(removal, /name="confirmed"/);
+  assert.match(removal, /新しい招待を発行/);
   assert.match(queries, /\["application_id", "name", "application_status", "is_representative", "joined_at"\]/);
+});
+
+test("group detail connects guarded representative cancellation without exposing participant details", async () => {
+  const [detail, cancellation] = await Promise.all([
+    read("app/user/groups/[groupId]/page.js"),
+    read("app/user/groups/[groupId]/GroupCancellationForm.js"),
+  ]);
+  assert.match(detail, /getCommunityGroupCancellation/);
+  assert.match(detail, /cancellationResult\.cancellation\?\.can_request/);
+  assert.match(cancellation, /requestCommunityGroupCancellation/);
+  assert.match(cancellation, /name="reason"/);
+  assert.match(cancellation, /name="confirmed"/);
+  assert.doesNotMatch(`${detail}\n${cancellation}`, /participant\.(address|phone|emergency|guardian)/);
 });
 
 test("group UI follows existing 8px system and collapses at narrow widths", async () => {
