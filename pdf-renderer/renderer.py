@@ -114,6 +114,24 @@ def replace_paragraph(paragraph: ET.Element, text: str, font_name: str, size: in
     text_element.text = text
 
 
+def replace_cell(cell: ET.Element, text: str, font_name: str, size: int, alignment: str = "left") -> None:
+    for paragraph in cell.findall(f"{W}p"):
+        cell.remove(paragraph)
+    tcpr = cell.find(f"{W}tcPr")
+    if tcpr is None:
+        tcpr = ET.Element(f"{W}tcPr")
+        cell.insert(0, tcpr)
+    valign = tcpr.find(f"{W}vAlign")
+    if valign is None:
+        valign = ET.SubElement(tcpr, f"{W}vAlign")
+    valign.set(f"{W}val", "center")
+    paragraph = ET.SubElement(cell, f"{W}p")
+    ppr = ET.SubElement(paragraph, f"{W}pPr")
+    justification = ET.SubElement(ppr, f"{W}jc")
+    justification.set(f"{W}val", alignment)
+    replace_paragraph(paragraph, text, font_name, size)
+
+
 def patch_all_fonts(root: ET.Element, font_name: str) -> None:
     for run in root.findall(f".//{W}r"):
         current = run.find(f"{W}rPr/{W}sz")
@@ -262,17 +280,25 @@ def merge_docx(job: dict, settings: dict, output_path: Path) -> dict[str, str]:
             8: (values["purpose"], 16),
             9: (values["special_notes"], 16),
         }
+        labels = {
+            0: "住　　所",
+            1: "氏　　名",
+            2: "連　絡　先\n（電話番号）",
+            3: "住　　所",
+            4: "氏　　名",
+            5: "連　絡　先\n（電話番号）",
+            6: "使　用　期　間",
+            7: "使　用　箇　所",
+            8: "使　用　目　的\n（変更内容）",
+            9: "特　記　事　項",
+        }
         for row_index, (text, size) in cell_values.items():
             cells = rows[row_index].findall(f"{W}tc")
             if len(cells) < 2:
                 raise RenderError("template-structure-mismatch")
-            target = cells[-1]
-            target_paragraphs = target.findall(f"{W}p")
-            if not target_paragraphs:
-                target_paragraphs = [ET.SubElement(target, f"{W}p")]
-            replace_paragraph(target_paragraphs[0], text, settings["font_family"], size)
-            for extra in target_paragraphs[1:]:
-                target.remove(extra)
+            label_cell = cells[1] if row_index < 6 else cells[0]
+            replace_cell(label_cell, labels[row_index], settings["font_family"], 20, "center")
+            replace_cell(cells[-1], text, settings["font_family"], size)
 
         replacements = {
             "word/document.xml": ET.tostring(document, encoding="utf-8", xml_declaration=True),
@@ -305,9 +331,10 @@ def validate_pdf(pdf_path: Path, expected: list[str], qa_dir: Path, expected_fon
     qa_dir.mkdir(parents=True, exist_ok=True)
     (qa_dir / "extracted.txt").write_text(extracted, encoding="utf-8")
     (qa_dir / "layout.txt").write_text(layout_text, encoding="utf-8")
+    shutil.copyfile(pdf_path, qa_dir / "diagnostic.pdf")
     extracted_normalized = normalized(extracted)
     text_verified = all(normalized(value) in extracted_normalized for value in expected if value)
-    run(["pdftoppm", "-f", "1", "-singlefile", "-png", "-r", "144", str(pdf_path), str(qa_dir / "page-1")])
+    run(["pdftoppm", "-png", "-r", "144", str(pdf_path), str(qa_dir / "page")])
     page_png = qa_dir / "page-1.png"
     layout_verified = page_count == 1 and page_png.is_file() and page_png.stat().st_size > 10000
     return {

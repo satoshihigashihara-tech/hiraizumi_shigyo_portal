@@ -12,10 +12,11 @@ if [ -f /tmp/a8-qa/page-1.png ]; then cp /tmp/a8-qa/page-1.png /tmp/a8-output/pa
 if [ -f /tmp/a8-qa/page-2.png ]; then cp /tmp/a8-qa/page-2.png /tmp/a8-output/page-2.png; fi
 if [ -f /tmp/a8-qa/extracted.txt ]; then cp /tmp/a8-qa/extracted.txt /tmp/a8-output/extracted.txt; fi
 if [ -f /tmp/a8-qa/layout.txt ]; then cp /tmp/a8-qa/layout.txt /tmp/a8-output/layout.txt; fi
+if [ -f /tmp/a8-qa/diagnostic.pdf ]; then cp /tmp/a8-qa/diagnostic.pdf /tmp/a8-output/diagnostic.pdf; fi
 if [ "$renderer_status" -ne 0 ]; then exit "$renderer_status"; fi
 test "$(pdfinfo /tmp/a8-output/max-input.pdf | awk '/^Pages:/ {print $2}')" = 1
 pdffonts /tmp/a8-output/max-input.pdf | awk 'NR > 2 && NF { if ($5 != "yes") exit 1; found=1 } END { exit !found }'
 pdffonts /tmp/a8-output/max-input.pdf | grep -F 'NotoSerifJP'
-pdftotext -layout /tmp/a8-output/max-input.pdf - | grep -F '青木 幸保'
+pdftotext -raw /tmp/a8-output/max-input.pdf - | tr -d '[:space:]' | grep -F '青木幸保'
 pdfinfo /tmp/a8-output/max-input.pdf > /tmp/a8-output/pdfinfo.txt
 pdffonts /tmp/a8-output/max-input.pdf > /tmp/a8-output/pdffonts.txt
