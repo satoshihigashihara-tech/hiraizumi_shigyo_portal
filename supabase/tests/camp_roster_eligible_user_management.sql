@@ -75,6 +75,12 @@ begin
   perform pg_temp.a2_check(r->>'message'='reason-required','linked email change requires reason');
   r:=pg_temp.a2_call(staff,format('select * from public.update_camp_roster_eligible_user(%L,%L,%L,%L,%L,%L)',roster_camp,eligible,'結合済み','a2-linked@example.invalid',version_value,'架空の訂正理由'));
   perform pg_temp.a2_check(r->>'ok'='true' and (select linked_user_id=user_id from public.camp_eligible_users where id=eligible),'linked email change preserves owner UUID');
+  r:=pg_temp.a2_call(staff,format(
+    'select public.end_camp_roster_participation(%L,%L,%L,%L,%L,null,null,%L,%L,true,false)',
+    roster_camp,eligible,(select updated_at from public.camp_eligible_users where id=eligible),
+    (select roster_version from public.camps where id=roster_camp),
+    (select room_plan_version from public.camps where id=roster_camp),'withdraw','架空終了理由'));
+  perform pg_temp.a2_check(r->>'ok'='true','A4 ends participation before Auth cleanup');
   delete from auth.users where id=user_id;
   replacement:=pg_temp.a2_user('a2-user@example.invalid');
   perform pg_temp.a2_check((select linked_user_id=user_id from public.camp_eligible_users where id=eligible),'auth deletion preserves historical binding');

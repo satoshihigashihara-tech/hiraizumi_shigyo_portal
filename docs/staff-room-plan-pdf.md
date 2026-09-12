@@ -27,4 +27,6 @@ SQL037、Function、renderer sourceを配布しても、SQL036のactive設定、
 
 ## 検証
 
+A12で5ptから9ptへ拡大し、用紙幅・罫線・折返しを明示した。15名の通常fixtureは2ページ、camp名200文字・各氏名200文字・各部屋名100文字の最大fixtureは4ページ。両方の全ページをPNGで目視し、行分断・欠落・重なりなしを確認する。変更したrendererを配備するときは新しいOCI digestを検証して設定する（旧digestのまま差し替えない）。
+
 `supabase/tests/staff_camp_room_plan_pdfs.sql` は職員限定、A8ゲート、完全配置、snapshot最小化、不変登録、一般利用者拒否、氏名変更後の失効、直接table権限拒否を検査する。`pdf-renderer/test-room-plan-renderer.sh` は15名の実PDFについてページ、全差込文字、Noto埋込み、PNGを検査する。CIはNode/lint/build、PostgreSQL 17.6/18.4全回帰とA8/A11レンダーartifactを実行する。

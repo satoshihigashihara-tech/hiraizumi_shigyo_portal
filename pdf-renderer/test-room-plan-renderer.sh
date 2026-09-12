@@ -15,3 +15,20 @@ pdftotext -raw /tmp/a11-output/max-room-plan.pdf - | grep -F '10000000-0000-4000
 pdfinfo /tmp/a11-output/max-room-plan.pdf > /tmp/a11-output/pdfinfo.txt
 pdffonts /tmp/a11-output/max-room-plan.pdf > /tmp/a11-output/pdffonts.txt
 cp /tmp/a11-qa/page-*.png /tmp/a11-output/
+
+# Fifteen rows alone do not exercise the accepted field limits. Verify the
+# longest camp name, participant names and room labels with real pagination.
+python3 - <<'PYCODE'
+import json
+from pathlib import Path
+job = json.loads(Path('/app/fixtures/max-room-plan-job.json').read_text())
+snapshot = job['source_snapshot']
+snapshot['camp_name'] = '架空最大入力キャンプ' * 20
+snapshot['camp_name'] = snapshot['camp_name'][:200]
+for entry in snapshot['entries']:
+    entry['management_name'] = '架空氏名' * 50
+    entry['room_name'] = '架空部屋名' * 20
+Path('/tmp/a11-max-fields.json').write_text(json.dumps(job, ensure_ascii=False))
+PYCODE
+python3 /app/renderer.py --job /tmp/a11-max-fields.json \
+  --output-pdf /tmp/a11-output/max-fields.pdf --qa-dir /tmp/a11-output/max-fields-qa >/tmp/a11-output/max-fields-result.json

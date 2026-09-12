@@ -433,12 +433,12 @@ def room_plan_html(job: dict, settings: dict, output_path: Path) -> list[str]:
         raise RenderError("font-hash-mismatch")
     document = f'''<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>
 @page {{ size: A4 landscape; margin: 8mm; }}
-body {{ font-family: "Noto Serif JP"; color:#000; }} table {{ border-collapse:collapse; width:100%; table-layout:fixed; font-size:5pt; }}
-tr {{ page-break-inside:avoid; }} th,td {{ border:0.25mm solid #000; padding:0.4mm; vertical-align:middle; overflow-wrap:anywhere; white-space:nowrap; }}
-td {{ font-size:5pt; line-height:6pt; }} th {{ background:#eee; font-size:6pt; line-height:7pt; }} th:nth-child(1){{width:5%}} th:nth-child(2){{width:22%}} th:nth-child(3){{width:29%}} th:nth-child(4){{width:14%}} th:nth-child(5){{width:30%}}
+body {{ font-family: "Noto Serif JP"; color:#000; }} table {{ border-collapse:collapse; width:100%; table-layout:fixed; font-size:9pt; }}
+tr {{ page-break-inside:avoid; }} th,td {{ border:0.25mm solid #000; padding:0.4mm; vertical-align:middle; overflow-wrap:anywhere; white-space:normal; }}
+td {{ font-size:9pt; line-height:12pt; }} th {{ background:#eee; font-size:9pt; line-height:12pt; }} th:nth-child(1){{width:5%}} th:nth-child(2){{width:22%}} th:nth-child(3){{width:29%}} th:nth-child(4){{width:14%}} th:nth-child(5){{width:30%}}
 .title th {{ background:#fff; border:0; font-size:13pt; line-height:15pt; text-align:center; padding:0 0 2mm; }}
 .meta th {{ background:#fff; border:0; font-size:7.5pt; line-height:9pt; text-align:left; padding:0 0 2mm; }}
-</style></head><body><div class="page"><table><thead>
+</style></head><body><div class="page"><table width="100%" border="1" cellspacing="0" cellpadding="4"><thead>
 <tr class="title"><th colspan="5">職員用配置表</th></tr>
 <tr class="meta"><th colspan="5">キャンプ: {html.escape(camp_name)}　日程: {starts} 〜 {ends}　配置版: {snapshot.get('room_plan_version')}</th></tr>
 <tr><th>No.</th><th>氏名</th><th>対象者ID</th><th>部屋名</th><th>日程</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div></body></html>'''
