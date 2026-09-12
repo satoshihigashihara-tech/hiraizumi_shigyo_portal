@@ -83,6 +83,21 @@ begin
   perform pg_temp.a1_check(r->>'ok'='true' and r#>>'{rows,0,value,eligible_users,0,id}'=eligible_roster::text
     and r#>>'{rows,0,value,eligible_users,0,application_id}'=roster_app::text,'staff roster getter uses stable ids');
 
+  begin
+    delete from auth.users where id=roster_user;
+    raise exception 'expected active participation protection';
+  exception when others then
+    if sqlerrm<>'camp-participation-open' then raise; end if;
+  end;
+  perform pg_temp.a1_check(exists(select 1 from auth.users where id=roster_user),
+    'A12 protects Auth while participation remains open');
+  r:=pg_temp.a1_call(staff_id,format(
+    'select public.end_camp_roster_participation(%L,%L,%L,%L,%L,%L,%L,%L,%L,true,false)',
+    camp_roster,eligible_roster,(select updated_at from public.camp_eligible_users where id=eligible_roster),
+    (select roster_version from public.camps where id=camp_roster),
+    (select room_plan_version from public.camps where id=camp_roster),roster_app,
+    (select updated_at from public.applications where id=roster_app),'withdraw','架空終了理由'));
+  perform pg_temp.a1_check(r->>'ok'='true','participation ends through A4 before Auth deletion');
   delete from auth.users where id=roster_user;
   perform pg_temp.a1_check((select linked_user_id=roster_user from public.camp_eligible_users where id=eligible_roster)
     and (select user_id is null and camp_eligible_user_id=eligible_roster from public.applications where id=roster_app),
