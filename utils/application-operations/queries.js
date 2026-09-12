@@ -89,7 +89,7 @@ export async function searchStaffApplications(searchParams = {}) {
 }
 
 const CAMP_DETAIL_FIELDS = [
-  "id", "camp_id", "usage_type", "status", "start_date", "end_date",
+  "id", "user_id", "camp_id", "usage_type", "status", "start_date", "end_date",
   "user_name", "user_address", "user_phone", "email_snapshot",
   "emergency_name", "emergency_address", "emergency_phone", "usage_place",
   "purpose", "local_activity", "special_notes", "requires_guardian_consent",
@@ -144,11 +144,17 @@ export async function getStaffCampApplicationDetail(campId, applicationId) {
   if (applicationResult.error || !row) {
     return { error: applicationResult.error ? "load-failed" : "not-found", application: null, rooms: [] };
   }
+  const accountResult = isUuid(row.user_id)
+    ? await supabase.from("profiles").select("account_state").eq("id", row.user_id).maybeSingle()
+    : { data: null, error: null };
   const relatedError = payment.error || stay.error || notesResult.error || historyResult.error
     || roomsResult.error || receptionResult.error || campResult.error || consentResult.error;
   const notes = notesResult.data;
-  if (relatedError || !campResult.data || campResult.data.id !== campId
+  if (relatedError || accountResult.error || !campResult.data || campResult.data.id !== campId
     || row.id !== applicationId || row.camp_id !== campId || row.usage_type !== "camp"
+    || (row.user_id !== null && !isUuid(row.user_id))
+    || (accountResult.data !== null
+      && !["active", "cleanup_pending", "disabled"].includes(accountResult.data.account_state))
     || !APPLICATION_STATUSES.includes(row.status) || !isUpdatedAt(row.updated_at)
     || !CAMP_DETAIL_TEXT_FIELDS.every((field) => nullableString(row[field]))
     || (row.requires_guardian_consent !== null && typeof row.requires_guardian_consent !== "boolean")
@@ -173,6 +179,7 @@ export async function getStaffCampApplicationDetail(campId, applicationId) {
     rooms: roomsResult.data.map((room) => pick(room, ["id", "name", "capacity"])),
     application: {
       ...pick(row, CAMP_DETAIL_FIELDS),
+      account_state: accountResult.data?.account_state ?? null,
       camp_name: campResult.data.name,
       reception_number: receptionResult.data?.display_number ?? null,
       has_consent: Boolean(consentResult.data),
@@ -189,7 +196,7 @@ export async function getStaffCampApplicationDetail(campId, applicationId) {
 }
 
 const COMMUNITY_DETAIL_FIELDS = [
-  "id", "camp_id", "usage_type", "original_application_id", "status",
+  "id", "user_id", "camp_id", "usage_type", "original_application_id", "status",
   "start_date", "end_date", "user_name", "user_address", "user_phone",
   "email_snapshot", "emergency_name", "emergency_address", "emergency_phone",
   "usage_place", "purpose", "local_activity", "special_notes",
@@ -265,11 +272,17 @@ export async function getStaffCommunityApplicationDetail(applicationId) {
 
   const notes = notesResult.data;
   const roomContext = roomsResult.data;
+  const accountResult = isUuid(row.user_id)
+    ? await supabase.from("profiles").select("account_state").eq("id", row.user_id).maybeSingle()
+    : { data: null, error: null };
   const relatedError = payment.error || stay.error || notesResult.error
     || historyResult.error || roomsResult.error || receptionResult.error
     || consentResult.error;
-  if (relatedError
+  if (relatedError || accountResult.error
     || row.id !== applicationId
+    || (row.user_id !== null && !isUuid(row.user_id))
+    || (accountResult.data !== null
+      && !["active", "cleanup_pending", "disabled"].includes(accountResult.data.account_state))
     || !APPLICATION_STATUSES.includes(row.status)
     || !isUpdatedAt(row.updated_at)
     || !COMMUNITY_DETAIL_TEXT_FIELDS.every((field) => nullableString(row[field]))
@@ -313,6 +326,7 @@ export async function getStaffCommunityApplicationDetail(applicationId) {
     rooms: roomContext.rooms.map((room) => pick(room, ["id", "name", "capacity"])),
     application: {
       ...pick(row, COMMUNITY_DETAIL_FIELDS),
+      account_state: accountResult.data?.account_state ?? null,
       reception_number: receptionResult.data?.display_number ?? null,
       has_consent: Boolean(consentResult.data),
       charge: payment.application.charge,

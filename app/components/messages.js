@@ -120,6 +120,9 @@ export const ERROR_MESSAGES = {
   "participants-not-approved": "予定人数分の参加者をすべて許可してから団体を許可してください。",
   "reason-required": "理由を入力してください。",
   "reason-too-long": "理由は2,000文字以内で入力してください。",
+  "account-protected": "未完了の申請または団体があるため、アカウントを停止できません。",
+  "manual-disable-not-eligible": "この利用者は職員による停止の対象ではありません。",
+  "staff-protected": "職員アカウントはこの画面から停止できません。",
   // 対象者メールの一括登録（app/actions/staff-camps.js・utils/calendar/validation.js）
   "invalid-emails": "メールアドレスの形式が正しくありません。該当の行をご確認ください。",
   "too-many-emails": "一度に登録できるのは1,000件までです。件数を分けて登録してください。",

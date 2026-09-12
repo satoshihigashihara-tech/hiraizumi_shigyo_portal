@@ -1,8 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
+import AlertMessage, { errorAlertItems } from "@/app/components/AlertMessage";
+import FormField from "@/app/components/FormField";
 import SubmitButton from "@/app/components/SubmitButton";
 import { errorMessage } from "@/app/components/messages";
+import { disableUserAccountState } from "@/app/actions/staff-accounts";
 import { checkInApplicationState, checkOutApplicationState,
   saveApplicationStaffNoteState, updateApplicationPaymentState } from "@/app/actions/staff-application-operations";
 import styles from "./page.module.css";
@@ -48,5 +51,43 @@ export function NoteForm({ applicationId, updatedAt }) {
     <ErrorText state={state} />
     <label>職員メモ<textarea name="body" rows="4" maxLength="2000" required defaultValue={state?.fields?.body ?? ""} /></label>
     <SubmitButton pending={pending} pendingLabel="メモを保存中…">職員メモを追加</SubmitButton>
+  </form>;
+}
+
+export function AccountDisableForm({ applicationId, applicantName }) {
+  const [state, action, pending] = useActionState(disableUserAccountState, null);
+  return <form className={styles.operationForm} action={action}>
+    <input type="hidden" name="applicationId" value={applicationId} />
+    {state?.error && <AlertMessage
+      tone="error"
+      title="アカウントを停止できませんでした"
+      items={errorAlertItems(state.fieldErrors)}
+    ><p>{errorMessage(state.error)}</p></AlertMessage>}
+    <p><strong>{applicantName || "この利用者"}</strong>から停止の依頼を受けたことを確認してから操作してください。</p>
+    <p>停止後、この利用者は保護された画面へ入れなくなります。申請記録は管理記録として残ります。</p>
+    <FormField
+      id="reason"
+      name="reason"
+      label="停止理由（職員記録）"
+      as="textarea"
+      rows={3}
+      maxLength={2000}
+      required
+      defaultValue={state?.fields?.reason ?? ""}
+      error={state?.fieldErrors?.reason}
+      hint="本人の画面には表示されません。"
+    />
+    <FormField
+      id="confirmed"
+      name="confirmed"
+      as="checkbox"
+      required
+      label="本人からの停止依頼と対象者を確認しました"
+      defaultChecked={state?.fields?.confirmed === "true"}
+      error={state?.fieldErrors?.confirmed}
+    />
+    <SubmitButton variant="danger" pending={pending} pendingLabel="停止中…">
+      この利用者のアカウントを停止する
+    </SubmitButton>
   </form>;
 }
