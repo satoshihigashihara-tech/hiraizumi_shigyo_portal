@@ -90,3 +90,7 @@ A7内部Functionは既存のDeno Edge Functionと同じ配置に置き、JavaScr
 ### A4のキャンプ終了処理
 
 新方式の対象者終了をlegacy無効化・旧審査RPCへ転送しない。対象者／camp／申請の期待版、理由、確認を専用RPCへ一括で渡し、Actionから表ごとの更新をしない。入退去の互換RPCはcampモードをDBで判定する。申請なしも期待状態なので、処理直前に最新申請IDを取得して期待値を置換しない。料金やPDFの後始末を同じActionから別処理で呼ばない。[A4接続契約](camp-roster-lifecycle.md)を参照。
+
+### A8のPDF変換
+
+A8の変換は `pdf-renderer/` のLinux imageだけで行う。Word原本・Noto Serif JP・設定版・町長名・OCI manifest digestを固定し、DBのactive設定と実行中imageが一致しなければ拒否する。タグ、ブラウザ入力、環境別の緩和フラグでDBゲートを開かない。文字抽出成功だけを描画成功と扱わず、指定Notoフォントの埋込み、1ページ、PNGレンダー、最大入力の欄内収容を併せて確認する。
