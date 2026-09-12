@@ -687,3 +687,25 @@ T19以降の`group_members / group_invites`、参加者数集計、団体審査�
 ### T21 団体期限処理（SQL 026）
 
 `private.expire_due_community_groups`をSupabase Cronから毎分呼ぶ。期限未達の団体、未終了参加者、招待、部屋、日程枠、履歴、system監査を施設ロック配下で更新する。提出とCronも同じ施設ロックで直列化する。全員提出済みなら審査中へ進め、取消申請中は`status_before_cancellation`の期限を判定する。公開カレンダーのGETでは更新せず、期限切れ枠を読取条件で除外する。
+
+## A3 事前部屋割りの完全保存（SQL032）
+
+対象は `eligible_roster` のみ。SQL001〜031は不変で、既存 `room_allocations` を新方式の配置正本に使わない。対象集合は `disabled_at IS NULL AND participation_status='participating'`。入力人数やメールを配置識別に使わない。
+
+| 保存先 | 契約 |
+|---|---|
+| `camp_room_mapping` | 部屋ID、資料名、階、表示／印字名、割当／印字可否、確認日時・根拠。初期データなし。確認根拠のない有効化をCHECKで拒否。職員向け変更RPCはまだ設けない |
+| `camp_room_assignments` | 対象者との複合FK、camp・対象者の一意制約、1行1人、部屋・期間・割当版・配置版・解放日／理由。物理削除と識別子の変更は禁止 |
+| `camp_room_plan_versions` | camp・配置版の一意制約。保存時点の対象集合、部屋ID、部屋定員、本人割当版、期間を固定保存。UPDATE／DELETEは禁止。解放済み行は以前の配置版と現在行で履歴を保持 |
+
+3表はRLS有効、anon／authenticated／service_roleへの直接権限なし。active職員だけが専用の取得／保存RPCを呼べる。内部関数は固定search_path、完全修飾名、EXECUTE制限を持つ。割当の整合性トリガーはcampモード、対象者、識別子不変、配置スナップショットとの一致を再検査する。
+
+保存RPCは施設（既存の団体期限処理を含む）→操作者profile／staff→camp→部屋・対応→対象者ID順→申請ID順→stay→割当の順にロックする。参照行の待機後に資格・参加状態・期待版・camp開始・stay・対応・定員・claimを検査し、途中の失敗は監査を含め全体取消。`stale-update` はP0001、権限は42501、実際の直列化失敗は40001。40P01を正常な競合として黙認しない。
+
+初回完全保存は配置版・全員の割当・監査・camp版と同時にclaimを作成する。既存claimがあれば一致を検査しIDを維持。対象者追加や表示変更でclaimを解放しない。camp同期トリガーは未確定新方式のINSERT／UPDATEでは新しいclaimを作らない。地域個人・団体の空き判定も未確定新方式だけを予定として扱い、legacyの条件は維持する。
+
+保存ごとに `room_plan_version` を1増やし、`saved_roster_version` を最新対象集合版へ合わせる。同じ部屋・期間の本人 `assignment_version` は維持し、変更本人だけ増やす。`room_plan_committed_at` は初回値を保持。SQL032以降、対象集合の変更は `roster_version`、氏名・メール訂正は `roster_label_version` を更新する。
+
+占有は各割当の保存期間に対して `start_date <= d <= end_date AND (released_from IS NULL OR d < released_from)`。対象集合から外れても、未解放の既存割当は通常保存で消さない。解放済み行の残存占有も各日の部屋・施設定員に含める。空集合保存、15人超過、不完全配置、重複配置、別camp・無効・解放済み対象者を拒否する。
+
+提出済み・審査中・修正依頼・許可等の申請で部屋／期間に差分がある場合は `room-change-review-required`。開始当日以降・滞在開始／完了は `camp-started`。新方式の期間変更・削除と解放済み割当の復活は `roster-lifecycle-required`。旧部屋割当・審査RPCと `room_allocations` への新方式書込みも拒否する。A4/A10の処理ができるまで安全側に閉じ、移行ガードを設定した自動切替は行わない。

@@ -8,6 +8,40 @@
 
 認証、キャンプ申請、地域活動個人申請、団体代表者申請、代表者の招待発行、参加者の招待確認・入力・提出、公開カレンダー、キャンプ・地域活動個人の職員審査画面はmainへ反映済みです。DBのマイグレーションはSQL001〜029がmainにあります。未完了作業はGitHub Issueで管理し、完了したIssueは対応PRのマージと同時に閉じます。
 
+### A3 事前部屋割りの一括保存・定員・競合制御（SQL032・ローカル検証済み）
+
+2026年9月13日、リモートmain `3b66e4b`（PR #101）と同じ起点から `codex/camp-room-plan-bulk-save` で実装。A1・A2の実装、SQL適用、テスト、PRマージ、本番画面確認は今回のユーザー引継ぎに基づき完了として扱う。下記A1/A2節の未実施表記は過去の記録であり、本タスクで本番確認をやり直した意味ではない。
+
+A3の受入条件は、有効かつparticipatingの全員をIDでちょうど1室へ保存、部屋定員・施設15人・確認済み部屋対応・日程競合のDB検査、古い版の拒否、現在配置・不変配置版・監査・版・claimの原子的保存。初回保存時に施設claimを確保し、対象者追加後も既存配置・claim・初回確定日時を保持する。解放行は削除せず、解放日前日まで日別定員に含める。通常保存による解放済み割当の復活は禁止。氏名・メール編集は表示版だけを進める。
+
+SQL032で追加する表は `camp_room_mapping`、`camp_room_assignments`、`camp_room_plan_versions`。新規7ファイルと既存5ファイルの作成・変更・保存をユーザーが一括承認済み。既存SQL001〜031は変更していない。本番用SQL032は将来の適用時にSQL Editorへ保存する対象、検証SQL2本はリポジトリへ保存しSQL Editorには保存しない。
+
+検証結果：
+
+- SQL001〜032の隔離ローカルPostgreSQL18.4適用が成功。
+- A3単体51項目。全員保存、初回claim、追加後保持、版・監査・履歴、入力・定員・対象者・旧RPCの拒否、監査失敗時の全体取消、解放日境界を検証。
+- A3別接続16ケース。同一版保存、対象者追加／無効化／解放、氏名・メール変更、職員停止、部屋対応無効化、REPEATABLE READ、camp／利用停止／地域活動個人／団体の確保との両順序。`pg_stat_activity` と `pg_blocking_pids` で別接続の実Lock待機を確認し、勝者だけの配置・版・claim・監査を検査。
+- 既存回帰を含むDB単体1,668項目、並行107ケース。解放・施設境界の追加後、全体を再実行して成功した。
+- Node全381件、ESLint、webpack本番build成功。テスト用Auth代替と実JWT認証・画面操作は別物として扱う。
+- DBランナーの依存ライブラリによる終了コード0への上書きを修正。意図的な不正テスト指定で終了コード1を確認し、失敗を成功扱いしない。
+- 架空データと専用並行スキーマを削除し、一時DB自体も終了・削除。受付番号カウンターを業務操作で巻き戻していない。
+
+再現（既存のembedded-postgres／pg runtimeを使い、本番へ接続しない）：
+
+```bash
+T10_DB_RUNTIME=/private/tmp/hiraizumi-a1-postgres node scripts/test-community-applications-db.mjs camp_room_plan_bulk_save.sql camp_room_plan_bulk_save_concurrency.sql
+T10_DB_RUNTIME=/private/tmp/hiraizumi-a1-postgres node scripts/test-community-applications-db.mjs
+npm test
+npm run lint
+npm run build -- --webpack
+```
+
+別接続SQLは専用fixture・検証・後片付け関数を定義し、上記Node runnerが2 workerとobserverを操作する。SQL Editorでファイルだけ実行しても競合検証は完了しない。単体SQLは末尾ROLLBACK。途中失敗時もrunnerが一時DBを終了・削除する。初回にはテストの団体人数、疑似JWTメール、後片付け順を修正し、成功ログを確認した。
+
+残る境界：`camp_room_mapping` に実データを入れず、本番割当は無効のまま。新方式camp作成UI・既存camp移行・PDF・配置UIは今回の対象外。提出済み等の部屋変更はA10、参加終了・期間変更・削除はA4/A10の原子的処理が必要。A1で対応済みの本人経路は今回変更せず、旧本人提出等の全経路遮断はA9/A12で扱う。共通入退去の新方式対応もA4に残る。
+
+現在の状態：ファイル保存・ローカルSQL適用済み。コミット、push、PR、マージ、本番SQL032保存／適用、本番画面確認は未実施。R2の本番有効化条件は未解除。
+
 ### A1 対象者ID・管理用氏名・参加状態・既存データ移行基盤（SQL 030・ローカル実装・検証済み）
 
 A1はスパルタキャンプだけを対象に、既存 `camp_eligible_users.id` を安定IDとして使うDB・取得・診断基盤を追加する。SQL 001〜029は変更しない。既存campは `legacy_application`、既存申請の `camp_eligible_user_id` はNULLのままで、一斉リンクとモード切替を行わない。
