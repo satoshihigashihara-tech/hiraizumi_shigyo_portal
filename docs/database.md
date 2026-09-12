@@ -133,6 +133,30 @@ erDiagram
 
 **camp_eligible_users** — `camp_id uuid FK → camps.id`、`email_normalized text` は必須。`disabled_at timestamptz` は任意。UQ `(camp_id, email_normalized)`。メールは前後空白除去・小文字化で統一し、Authのメールと同じ正規化で照合する。別キャンプでは同じメールを登録できる。無効化しても提出済み申請は消さない。
 
+**A1の対象者ID・参加状態基盤（SQL 030・ローカル検証済み／Supabase未適用）**
+
+SQL 030は既存の `camp_eligible_users.id` を対象者の安定IDとして再利用する。IDを作り直さず、既存の `(camp_id,email_normalized)` に加えて複合参照用のUQ `(camp_id,id)` を持つ。既存対象者の管理用氏名はNULLのまま許容し、新規登録時の必須検査はA2の登録RPCで行う。
+
+| 追加先 | 追加列 | 用途 |
+|---|---|---|
+| `camp_eligible_users` | `management_name` | 職員の管理用氏名。既存行はNULL可 |
+| 同上 | `participation_status / released_at / release_reason` | 資格の有効・無効とは別の今回参加状態 `participating / released` と終了根拠 |
+| 同上 | `linked_user_id / linked_at / linked_email_normalized` | 最初の申請作成時に確定する本人結合。AuthへのFKを付けず、Auth削除後も結合済み事実を保持 |
+| `applications` | `camp_eligible_user_id` | `(camp_id,camp_eligible_user_id)` から対象者を複合参照。地域活動では常にNULL |
+| 同上 | `input_version` | 新方式campの本人入力変更を単調増加で識別 |
+| `camps` | `room_assignment_mode` | `legacy_application / eligible_roster`。既存行と現行新規作成経路はlegacy |
+| 同上 | `roster_version / room_plan_version / saved_roster_version / roster_label_version / room_plan_committed_at` | 後続の名簿・部屋案の版整合に使う基盤。A1では部屋案を保存しない |
+
+`applications_one_active_camp_per_eligible_user` は同じcamp・対象者IDについて `status NOT IN ('rejected','cancelled')` を1件に制限する。既存の利用者単位制約も残す。共通の申請状態CHECKは `cancellation_requested` を含む8状態のまま変更しない。
+
+`eligible_roster` の初回下書きだけ、現在の確認済みAuthメールと未結合の有効対象者を照合し、対象者行をロックして `linked_user_id` を確定する。結合後は対象者IDと `applications.user_id` を使い、メール変更では所有者を変更しない。結合済みUUIDは変更不可であり、Auth削除後に同じメールで作られた別UUIDへ自動再結合しない。`legacy_application` の閲覧・下書き・提出は従来のメール照合を維持する。
+
+camp限定の遅延整合性トリガーは、新方式の有効申請に対象者リンクを必須とし、対象者のcamp所属・参加中・非無効・結合所有者と申請所有者を検査する。地域活動個人・団体の行には新しいリンクを許可しない。モード変更はA1では行わず、将来の専用移行RPCがトランザクション内のガードを設定した場合だけ許可する。
+
+`get_staff_camp_roster(uuid)` はactive職員だけに、campのモード・版と安定ID基準の対象者／関連申請を返す読取専用RPCである。`diagnose_camp_roster_migration(uuid)` は既存申請を `auto_link_candidate / conditional_link_candidate / staff_review / legacy_only` に分類し、根拠コードとcamp単位の切替阻害理由を返す。診断は対象者リンク、既存申請、部屋、滞在、モードを更新せず、自動補正もしない。
+
+ローカルPostgreSQL 18.4でSQL 001〜030の連続適用、A1の単体16チェックと並行2ケース、既存DB単体・並行回帰を確認済み。外部Supabaseには適用していない。
+
 **blocked_periods** — `start_date date`、`end_date date`、`internal_reason text` は必須。開始≦終了。`created_by uuid FK → auth.users.id`、`deleted_at timestamptz` は任意。60日制限なし。内部理由を公開カレンダーに渡さない。
 
 ### 5.3 個別申請
