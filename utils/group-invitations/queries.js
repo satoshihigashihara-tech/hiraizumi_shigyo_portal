@@ -5,8 +5,8 @@ import { inviteErrorCode, isUuid, normalizeInvite } from "@/utils/group-invitati
 
 const pick = (row, keys) => Object.fromEntries(keys.map((key) => [key, row[key] ?? null]));
 
-export async function getCommunityGroupInvite(inviteValue, inviteKind) {
-  const { supabase } = await requireActiveUser("/invite");
+export async function getCommunityGroupInvite(inviteValue, inviteKind, returnTo = "/invite") {
+  const { supabase } = await requireActiveUser(returnTo);
   const normalized = normalizeInvite(inviteValue, inviteKind);
   if (!normalized) return { error: "invalid-invite", invite: null };
   const { data, error } = await supabase.rpc("get_community_group_invite", {

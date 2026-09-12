@@ -9,6 +9,7 @@ const ERROR_CODES = new Set([
   "invite-not-available", "invite-expired", "group-full", "duplicate-group-member", "duplicate-stay",
   "representative-not-staying", "group-member-inconsistent", "not-found", "forbidden", "load-failed",
   "reason-required", "reason-too-long", "participant-deadline-passed", "representative-participant",
+  "confirmation-required",
 ]);
 
 export function normalizeInvite(value, kind) {
@@ -24,7 +25,7 @@ export function normalizeInvite(value, kind) {
 }
 
 export function readInviteFields(formData) {
-  return Object.fromEntries(["groupId", "updatedAt", "applicationId", "inviteValue", "inviteKind", "reason"]
+  return Object.fromEntries(["groupId", "updatedAt", "applicationId", "inviteValue", "inviteKind", "reason", "confirmed"]
     .map((name) => [name, getText(formData, name)]));
 }
 
@@ -39,6 +40,6 @@ export function inviteFailure(error, fields = {}) {
   const code = inviteErrorCode(error);
   const field = { "invalid-group": "groupId", "invalid-application": "applicationId",
     "invalid-version": "updatedAt", "invalid-invite": "inviteValue",
-    "reason-required": "reason", "reason-too-long": "reason" }[code];
+    "reason-required": "reason", "reason-too-long": "reason", "confirmation-required": "confirmed" }[code];
   return { error: code, fields, fieldErrors: field ? { [field]: code } : {} };
 }

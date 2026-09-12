@@ -16,7 +16,8 @@ const ISSUED = [{ result_group_id: GROUP, result_updated_at: VERSION, invite_tok
 const JOINED = [{ result_group_id: GROUP, result_application_id: APP, result_group_updated_at: VERSION }];
 const copy = (value) => JSON.parse(JSON.stringify(value));
 const form = (fields = {}) => new Map(Object.entries({ groupId: GROUP, updatedAt: VERSION,
-  applicationId: APP, inviteValue: TOKEN, inviteKind: "token", reason: "架空の参加者変更", ...fields }));
+  applicationId: APP, inviteValue: TOKEN, inviteKind: "token", reason: "架空の参加者変更",
+  confirmed: "true", ...fields }));
 
 async function harness(path, { response = { data: ISSUED, error: null }, denied = false } = {}) {
   const calls = [];
@@ -94,6 +95,7 @@ test("invalid IDs, versions, token kinds and values fail before RPC", async () =
     ["issueCommunityGroupInvite", { groupId: "bad" }, "invalid-group"],
     ["issueCommunityGroupInvite", { updatedAt: "bad" }, "invalid-version"],
     ["joinCommunityGroup", { applicationId: "bad" }, "invalid-application"],
+    ["joinCommunityGroup", { confirmed: "false" }, "confirmation-required"],
     ["joinCommunityGroup", { inviteKind: "token", inviteValue: "short" }, "invalid-invite"],
     ["joinCommunityGroup", { inviteKind: "other" }, "invalid-invite"],
   ]) {
@@ -124,6 +126,29 @@ test("invite context requires auth and strips representative/contact/internal fi
   const result = copy(await api.getCommunityGroupInvite(TOKEN, "token"));
   assert.equal(calls[0][0], "auth"); assert.equal(result.error, null);
   assert.ok(!JSON.stringify(result).includes("PRIVATE"));
+});
+
+test("invite context preserves a validated invitation path through login", async () => {
+  const data = { group_id: GROUP, group_name: "架空団体", start_date: "2026-10-01", end_date: "2026-10-03",
+    purpose: "架空調査", local_activity: "架空活動", planned_participants: 4, participant_due_at: VERSION,
+    joined_participants: 1, already_joined_application_id: null, can_join: true };
+  const { api, calls } = await harness("utils/group-invitations/queries.js", { response: { data, error: null } });
+  await api.getCommunityGroupInvite(TOKEN, "token", `/invite/${TOKEN}`);
+  assert.deepEqual(calls[0], ["auth", `/invite/${TOKEN}`]);
+});
+
+test("invite pages never render representative contact fields or the secret value as text", async () => {
+  const detail = await readFile(new URL("app/invite/[token]/page.js", ROOT), "utf8");
+  const entry = await readFile(new URL("app/invite/page.js", ROOT), "utf8");
+  const formSource = await readFile(new URL("app/invite/[token]/JoinGroupForm.js", ROOT), "utf8");
+  assert.match(entry, /normalizeInvite\(enteredCode, "code"\)/);
+  assert.match(detail, /getCommunityGroupInvite\(inviteValue, inviteKind, returnTo\)/);
+  assert.match(detail, /crypto\.randomUUID\(\)/);
+  assert.match(formSource, /useActionState/);
+  assert.match(formSource, /disabled=!\{confirmed\}|disabled=\{!confirmed\}/);
+  for (const source of [detail, entry, formSource]) {
+    assert.doesNotMatch(source, /representative_(?:name|address|phone)/);
+  }
 });
 
 test("representative participant list exposes only names and workflow state", async () => {
