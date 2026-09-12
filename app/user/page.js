@@ -1,5 +1,4 @@
 import AlertMessage from "@/app/components/AlertMessage";
-import ComingSoon from "@/app/components/ComingSoon";
 import EmptyState from "@/app/components/EmptyState";
 import LinkButton from "@/app/components/LinkButton";
 import PageShell from "@/app/components/PageShell";
@@ -188,10 +187,13 @@ export default async function UserHomePage() {
         </div>
       </section>
 
-      <ComingSoon
-        title="団体での申請・招待リンクからの参加"
-        description="現在は準備中です。団体での利用をご検討の場合は、町の担当へお問い合わせください。"
-      />
+      <section className={styles.section} aria-labelledby="groups-heading">
+        <h2 className={styles.sectionTitle} id="groups-heading">団体での申請</h2>
+        <p className={styles.note}>代表者として団体申請を作成し、現在の状態を確認できます。</p>
+        <div className={styles.sectionLink}>
+          <LinkButton href="/user/groups" fullWidthOnMobile>団体申請の一覧を見る</LinkButton>
+        </div>
+      </section>
     </PageShell>
   );
 }
