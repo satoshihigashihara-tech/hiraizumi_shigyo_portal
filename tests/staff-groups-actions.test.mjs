@@ -9,7 +9,7 @@ const APP = "10000000-0000-4000-8000-000000000002";
 const ROOM = "10000000-0000-4000-8000-000000000003";
 const VERSION = "2026-09-11T08:00:00.123456+00:00";
 const form = (extra = {}) => new Map(Object.entries({ groupId: GROUP, applicationId: APP, updatedAt: VERSION,
-  reason: "架空の理由", revisionDeadline: "2026-10-01T23:59", roomPlan: JSON.stringify([{ roomId: ROOM, peopleCount: 2 }]), ...extra }));
+  reason: "架空の理由", revisionDeadline: "2026-10-01T23:59", roomPlan: JSON.stringify([{ roomId: ROOM, peopleCount: 2 }]), confirmed: "true", ...extra }));
 
 async function harness(response, denied = false) {
   const calls = []; const authError = new Error("AUTH");
@@ -64,8 +64,19 @@ test("participant review validates IDs and maps approved database errors", async
   assert.equal(h.calls.filter((x) => x[0] === "rpc").length, 0);
   h = await harness({ data: null, error: { code: "P0001", message: "purpose-review-required", details: "PRIVATE" } });
   const result = await h.api.approveCommunityGroupParticipant(form());
-  assert.deepEqual(JSON.parse(JSON.stringify(result)), { error: "purpose-review-required", fields: Object.fromEntries(form()) });
+  assert.deepEqual(JSON.parse(JSON.stringify(result)), { error: "purpose-review-required", fields: Object.fromEntries(form()), fieldErrors: {} });
   assert.ok(!JSON.stringify(result).includes("PRIVATE"));
+});
+
+test("irreversible group operations require explicit confirmation before RPC", async () => {
+  for (const name of ["rejectCommunityGroup", "approveCommunityGroup", "rejectCommunityGroupParticipant",
+    "confirmCommunityGroupCancellation", "cancelApprovedCommunityGroupParticipant"]) {
+    const h = await harness({ data: null, error: null });
+    const result = await h.api[name](form({ confirmed: "" }));
+    assert.equal(result.error, "confirmation-required", name);
+    assert.equal(result.fieldErrors.confirmed, "confirmation-required", name);
+    assert.equal(h.calls.filter((call) => call[0] === "rpc").length, 0, name);
+  }
 });
 
 test("malformed room plans and success payloads fail closed", async () => {

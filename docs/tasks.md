@@ -11,8 +11,8 @@
 | 優先 | Issue | 残作業 | 完了の目安 |
 |---|---:|---|---|
 | 完了 | [#87](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/87) | 団体参加者の個人情報入力・確認・提出 | PR #91でmainへ反映。SQL028はSupabaseへ適用済み |
-| P03 | [#77](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/77) | 代表者の参加者削除・交代・取消 | ローカル画面接続済み。実データで削除・再招待・取消を受入確認する |
-| P04 | [#80](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/80) | 職員の団体審査・部屋割り・許可・取消 | 審査順序、人数、定員を実データで確認する |
+| 完了 | [#77](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/77) | 代表者の参加者削除・交代・取消 | PR #92でmainへ反映。実データで参加者削除と再招待可能状態を確認済み |
+| P04 | [#80](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/80) | 職員の団体審査・部屋割り・許可・取消 | ローカル画面接続済み。実職員で主要状態遷移を受入確認する |
 | P05 | [#78](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/78) | 職員カレンダー・利用停止期間 | 内部情報を守りながら停止期間を管理できる |
 | P06 | [#86](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/86) | キャンプ編集・削除・対象者変更 | 既存申請を壊さず管理操作を完了できる |
 | P07 | [#81](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/81) | 個人申請の取消・継続申請 | 状態・期間制約を守って実データで完了できる |
@@ -115,7 +115,7 @@ SQL 009は初回提出と修正再提出の期限を分け、ロック取得後�
 |---|---|---|---|---|---|
 | T18 | 画面接続済み・受入継続 | SQL021と代表者向け団体一覧・新規・編集・確認・完了・詳細をmainへ反映。実団体作成と公開カレンダーの専有枠を確認済み | 共同 | 残る団体E2Eで代表者非宿泊を含む全状態を確認する | Issue #83で総合確認する |
 | T19 | 受入準備中 | SQL022・023、代表者の参加者一覧・招待、参加者の招待確認・個別入力・確認・提出・完了・詳細をmainへ反映。SQL028もSupabase適用済み | 共同 | 実アカウントで初回提出・差し戻し再提出・全員提出時の団体審査中遷移を確認する | 認証前は団体情報を見せず、他参加者の個人情報を取得しない |
-| T20 | バックエンド完了 | SQL024・025はmain／Supabase反映済み。実DBは7項目・12項目成功。画面接続待ち | バックエンド→フロント | 画面接続後に実ログインで受入確認する。期限切れ自動処理はT21 | `/user/groups/[groupId]`・`/participants`・`/cancel`と`/staff/community/groups/[groupId]`へSQL024・025の取得／Actionを接続する |
+| T20 | 画面接続済み・受入待ち | SQL024・025はmain／Supabase反映済み。代表者の変更・取消画面はmain反映・実データ確認済み。職員の団体一覧・審査・部屋割り・許可・取消画面はローカル接続済み | 共同 | 実職員で目的確認、参加者審査、人数一致の部屋割り、団体許可・不許可・取消を受入確認する。期限切れ自動処理はT21 | `/staff/community/groups`と`/staff/community/groups/[groupId]`を既存SQL024・025へ接続済み。新しいSQLはない |
 | T21 | バックエンド適用済み・受入継続 | SQL026をmain・Supabaseへ反映し、期限切れ処理、Cron登録、提出との競合、保存しない回帰SQLの成功を確認済み | 共同 | Issue #89・#83で画面表示と実時間境界を含む異常系・団体E2Eを確認する | 締切・期限切れ表示と問い合わせ案内を渡す。通常のページ閲覧で更新を実行しない。個人申請に同じ自動取消を適用しない |
 | T22 | バックエンド適用済み・有効化待ち | 利用終了後のアカウント初期化・職員による停止 | バックエンド→フロント | SQL027とEdge Functionを適用し、実DB20項目成功。Vault未設定のため自動削除は無効。案内画面と職員停止操作の接続後に有効化する | `/forbidden?reason=account-unavailable`の案内と`disableUserAccount`を接続する。ジョブ・秘密値は画面へ出さない |
 | T23 | 完了 | 利用者画面の375px／PC幅、ラベル、Tab操作とフォーカス、文字付き状態、入力保持、エラーリンク、送信中、空表示を確認。共通`loading.js`・`error.js`・`not-found.js`を追加。Chromeで公開4画面を375px実測し、52〜233ms・横はみ出しなし。認証後画面は共通CSSと自動テストで確認。Safariでトップと404、Edgeでトップを表示確認 | フロント（確認は共同） | スマホ／PCで主要操作ができ、ラベル・キーボード操作・文字による状態説明・入力保持・エラー位置への移動・送信中表示を備える。主要画面おおむね3秒を目標に確認する | Chrome・Safari・Edgeの確認結果をIssue #25のPRへ記録。実データを使う認証後の操作時間はT24の受入確認でも再確認する |
@@ -641,3 +641,9 @@ SQL025はその後mainへマージし、Supabaseへ保存・適用済み。保�
 期限を過ぎても条件未達の団体を、未終了参加者・招待・部屋・日程枠・履歴・system監査と同じトランザクションで終了する。全員提出済みなら取消せず審査中へ進める。Supabase Cronは毎分DB関数を直接呼び、Edge Function・公開Route・秘密鍵を追加しない。施設更新前にも期限処理し、公開カレンダーはGETで更新せず期限切れ枠を除外する。
 
 本番用`supabase/migrations/202609110026_group_deadline_expiration.sql`はSupabase適用時に**保存する**。検証用`supabase/tests/group_deadline_expiration.sql`は末尾ROLLBACKのため**保存しない**。対象DB10項目、全DB単一接続1,560項目、Node 281件、lint、本番buildが成功。Cronと提出の別接続では実待機後に提出を維持し、誤取消しなく審査中へ進むことを確認。Supabase適用、commit、push、画面は未実施。
+
+### T20 職員の団体審査・部屋割り・許可・取消画面（2026年9月12日）
+
+Issue #80として、`/staff/community/groups`に団体名・状態検索と50件ページング、`/staff/community/groups/[groupId]`に目的確認、参加者ごとの審査開始・修正依頼・許可・不許可、人数単位の部屋割り、団体許可・不許可、取消確定、許可後減員を接続した。目的確認、最終許可、不許可、取消、減員は画面とServer Actionの両方で明示確認を必須にする。部屋割りは保存前に対象人数との一致を検査し、参加者名を部屋へ保持しない。
+
+ローカルでは対象11件、全Node351件、lint、production buildが成功した。新しいSQL、環境変数、依存パッケージは追加せず、SupabaseへのSQL保存・適用もない。実職員による主要状態遷移、PC幅・スマートフォン幅、ブラウザー警告の受入確認は未実施であり、完了扱いにしない。

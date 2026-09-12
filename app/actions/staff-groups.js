@@ -7,7 +7,7 @@ import {
   parseRoomPlan, readGroupReviewFields, reviewFailure, revisionDeadline,
   validateReason, validateReviewIdentity,
 } from "@/utils/community-groups/review";
-import { isUpdatedAt } from "@/utils/community-groups/validation";
+import { booleanField, isUpdatedAt } from "@/utils/community-groups/validation";
 
 function refresh(groupId) {
   for (const path of ["/staff", "/staff/community", "/staff/community/groups", `/staff/community/groups/${groupId}`,
@@ -19,6 +19,9 @@ async function groupAction(formData, action) {
   const fields = readGroupReviewFields(formData);
   const invalid = validateReviewIdentity(fields);
   if (invalid) return reviewFailure(invalid, fields);
+  if (["reject", "approve"].includes(action) && booleanField(fields.confirmed) !== true) {
+    return reviewFailure("confirmation-required", fields);
+  }
   const reasonError = validateReason(fields.reason, action === "reject");
   if (reasonError) return reviewFailure(reasonError, fields);
   const { data, error } = await supabase.rpc("review_group_application", {
@@ -36,6 +39,10 @@ export async function confirmCommunityGroupPurpose(formData) { return groupActio
 export async function rejectCommunityGroup(formData) { return groupAction(formData, "reject"); }
 export async function approveCommunityGroup(formData) { return groupAction(formData, "approve"); }
 
+export async function confirmCommunityGroupPurposeState(_previousState, formData) { return confirmCommunityGroupPurpose(formData); }
+export async function rejectCommunityGroupState(_previousState, formData) { return rejectCommunityGroup(formData); }
+export async function approveCommunityGroupState(_previousState, formData) { return approveCommunityGroup(formData); }
+
 export async function setCommunityGroupRooms(formData) {
   const { supabase } = await requireStaff("/staff/community/groups");
   const fields = readGroupReviewFields(formData); const invalid = validateReviewIdentity(fields);
@@ -51,10 +58,15 @@ export async function setCommunityGroupRooms(formData) {
   refresh(fields.groupId); redirect(`/staff/community/groups/${fields.groupId}?updated=rooms`);
 }
 
+export async function setCommunityGroupRoomsState(_previousState, formData) { return setCommunityGroupRooms(formData); }
+
 async function participantAction(formData, action) {
   const { supabase } = await requireStaff("/staff/community/groups");
   const fields = readGroupReviewFields(formData); const invalid = validateReviewIdentity(fields, true);
   if (invalid) return reviewFailure(invalid, fields);
+  if (action === "approve" && booleanField(fields.confirmed) !== true) {
+    return reviewFailure("confirmation-required", fields);
+  }
   const reasonError = validateReason(fields.reason, action === "request_revision");
   if (reasonError) return reviewFailure(reasonError, fields);
   const deadline = action === "request_revision" ? revisionDeadline(fields.revisionDeadline) : null;
@@ -74,10 +86,15 @@ export async function startCommunityGroupParticipantReview(formData) { return pa
 export async function requestCommunityGroupParticipantRevision(formData) { return participantAction(formData, "request_revision"); }
 export async function approveCommunityGroupParticipant(formData) { return participantAction(formData, "approve"); }
 
+export async function startCommunityGroupParticipantReviewState(_previousState, formData) { return startCommunityGroupParticipantReview(formData); }
+export async function requestCommunityGroupParticipantRevisionState(_previousState, formData) { return requestCommunityGroupParticipantRevision(formData); }
+export async function approveCommunityGroupParticipantState(_previousState, formData) { return approveCommunityGroupParticipant(formData); }
+
 export async function rejectCommunityGroupParticipant(formData) {
   const { supabase } = await requireStaff("/staff/community/groups");
   const fields = readGroupReviewFields(formData); const invalid = validateReviewIdentity(fields, true);
   if (invalid) return reviewFailure(invalid, fields);
+  if (booleanField(fields.confirmed) !== true) return reviewFailure("confirmation-required", fields);
   const reasonError = validateReason(fields.reason, true); if (reasonError) return reviewFailure(reasonError, fields);
   const deadline = revisionDeadline(fields.revisionDeadline);
   if (!deadline) return reviewFailure("invalid-deadline", fields);
@@ -93,10 +110,13 @@ export async function rejectCommunityGroupParticipant(formData) {
   refresh(fields.groupId); redirect(`/staff/community/groups/${fields.groupId}?updated=participant-rejected`);
 }
 
+export async function rejectCommunityGroupParticipantState(_previousState, formData) { return rejectCommunityGroupParticipant(formData); }
+
 export async function confirmCommunityGroupCancellation(formData) {
   const { supabase } = await requireStaff("/staff/community/groups");
   const fields = readGroupReviewFields(formData); const invalid = validateReviewIdentity(fields);
   if (invalid) return reviewFailure(invalid, fields);
+  if (booleanField(fields.confirmed) !== true) return reviewFailure("confirmation-required", fields);
   const reasonError = validateReason(fields.reason, true); if (reasonError) return reviewFailure(reasonError, fields);
   const { data, error } = await supabase.rpc("confirm_community_group_cancellation", { target_group_id: fields.groupId,
     expected_updated_at: fields.updatedAt, confirmation_reason: fields.reason });
@@ -107,10 +127,13 @@ export async function confirmCommunityGroupCancellation(formData) {
   refresh(fields.groupId); redirect(`/staff/community/groups/${fields.groupId}?updated=cancelled`);
 }
 
+export async function confirmCommunityGroupCancellationState(_previousState, formData) { return confirmCommunityGroupCancellation(formData); }
+
 export async function cancelApprovedCommunityGroupParticipant(formData) {
   const { supabase } = await requireStaff("/staff/community/groups");
   const fields = readGroupReviewFields(formData); const invalid = validateReviewIdentity(fields, true);
   if (invalid) return reviewFailure(invalid, fields);
+  if (booleanField(fields.confirmed) !== true) return reviewFailure("confirmation-required", fields);
   const reasonError = validateReason(fields.reason, true); if (reasonError) return reviewFailure(reasonError, fields);
   const roomPlan = parseRoomPlan(fields.roomPlan, true); if (!roomPlan) return reviewFailure("invalid-room-plan", fields);
   const { data, error } = await supabase.rpc("cancel_approved_group_participant", { target_group_id: fields.groupId,
@@ -122,4 +145,9 @@ export async function cancelApprovedCommunityGroupParticipant(formData) {
     || result?.result_application_status !== "cancelled" || !Number.isInteger(result?.remaining_participants)
     || !isUpdatedAt(result?.result_updated_at)) return reviewFailure("update-failed", fields);
   refresh(fields.groupId); redirect(`/staff/community/groups/${fields.groupId}?updated=participant-cancelled`);
+}
+
+
+export async function cancelApprovedCommunityGroupParticipantState(_previousState, formData) {
+  return cancelApprovedCommunityGroupParticipant(formData);
 }

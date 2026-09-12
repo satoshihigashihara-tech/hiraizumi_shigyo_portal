@@ -1,4 +1,5 @@
 .panel,.results,.applicationCard{display:flex;flex-direction:column;gap:var(--sg-space-4,16px)}
+.staffLinks{display:flex;flex-wrap:wrap;gap:var(--sg-space-3,12px)}
 .panel,.applicationCard{padding:var(--sg-space-5,24px);border:1px solid var(--sg-color-border,#c9ced4);border-radius:var(--sg-radius,8px);background:var(--sg-color-surface,#fff)}
 .panel h2,.results h2{font-size:var(--sg-font-xl,20px)}
 .filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sg-space-4,16px)}
@@ -13,4 +14,4 @@
 .facts dd{margin-top:var(--sg-space-1,4px);overflow-wrap:anywhere}
 .overdue{color:var(--sg-danger-text,#8c1d18);font-size:var(--sg-font-sm,14px)}
 .pagination{justify-content:center}
-@media(max-width:599px){.panel,.applicationCard{padding:var(--sg-space-4,16px)}.filters,.applicationList,.facts{grid-template-columns:1fr}.filterActions>*,.pagination>a{width:100%}}
+@media(max-width:599px){.panel,.applicationCard{padding:var(--sg-space-4,16px)}.filters,.applicationList,.facts{grid-template-columns:1fr}.filterActions>*,.pagination>a,.staffLinks>*{width:100%}}

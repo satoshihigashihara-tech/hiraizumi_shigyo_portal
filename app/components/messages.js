@@ -111,6 +111,11 @@ export const ERROR_MESSAGES = {
   // 部屋・理由（職員操作。本人画面でも誤配線検出のため収録する）
   "room-required": "許可する前に部屋を割り当ててください。",
   "invalid-room": "部屋を選び直してください。",
+  "invalid-room-plan": "部屋別人数の入力を確認してください。",
+  "duplicate-room": "同じ部屋が重複しています。部屋別人数を確認してください。",
+  "allocation-count-mismatch": "部屋別人数の合計を参加者数と一致させてください。",
+  "purpose-review-required": "先に団体の利用目的を確認してください。",
+  "participants-not-approved": "予定人数分の参加者をすべて許可してから団体を許可してください。",
   "reason-required": "理由を入力してください。",
   "reason-too-long": "理由は2,000文字以内で入力してください。",
   // 対象者メールの一括登録（app/actions/staff-camps.js・utils/calendar/validation.js）

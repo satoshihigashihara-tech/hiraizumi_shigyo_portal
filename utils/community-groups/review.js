@@ -4,7 +4,7 @@ import { getText, toTokyoDeadline } from "@/utils/calendar/validation";
 import { groupErrorCode, isUpdatedAt, isUuid } from "@/utils/community-groups/validation";
 
 export function readGroupReviewFields(formData) {
-  return Object.fromEntries(["groupId", "applicationId", "updatedAt", "reason", "revisionDeadline", "roomPlan"]
+  return Object.fromEntries(["groupId", "applicationId", "updatedAt", "reason", "revisionDeadline", "roomPlan", "confirmed"]
     .map((key) => [key, getText(formData, key)]));
 }
 
@@ -26,7 +26,19 @@ export function parseRoomPlan(value, allowEmpty = false) {
 }
 
 export function reviewFailure(error, fields = {}) {
-  return { error: groupErrorCode(error), fields };
+  const code = groupErrorCode(error);
+  const field = {
+    "reason-required": "reason",
+    "reason-too-long": "reason",
+    "invalid-deadline": "revisionDeadline",
+    "invalid-room-plan": "roomPlan",
+    "duplicate-room": "roomPlan",
+    "room-required": "roomPlan",
+    "room-capacity-full": "roomPlan",
+    "allocation-count-mismatch": "roomPlan",
+    "confirmation-required": "confirmed",
+  }[code];
+  return { error: code, fields, fieldErrors: field ? { [field]: code } : {} };
 }
 
 export function validateReviewIdentity(fields, participant = false) {
