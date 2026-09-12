@@ -9,6 +9,7 @@ import { errorMessage } from "@/app/components/messages";
 import { USAGE_TYPE_LABELS } from "@/app/components/status-labels";
 import { getUserApplications } from "@/utils/user-applications/queries";
 import styles from "./page.module.css";
+import { modeFromSearchParams } from "@/utils/navigation/mode";
 
 export const metadata = {
   title: "申請一覧｜ひらいずみ志業ポータル",
@@ -47,9 +48,10 @@ function ApplicationListItem({ row }) {
   </li>;
 }
 
-export default async function UserApplicationsPage() {
-  const result = await getUserApplications();
-  return <PageShell title="申請一覧" description="提出した申請と、提出前の下書きを表示します。">
+export default async function UserApplicationsPage({ searchParams }) {
+  const mode = modeFromSearchParams((await searchParams) ?? {});
+  const result = await getUserApplications(mode);
+  return <PageShell audienceMode={mode} title="申請一覧" description="提出した申請と、提出前の下書きを表示します。">
     <div className={styles.actions}><LinkButton href="/user/applications/new" variant="primary" fullWidthOnMobile>新しく申請する</LinkButton><LinkButton href="/user" fullWidthOnMobile>利用者ホームへ戻る</LinkButton></div>
     {result.error ? <AlertMessage tone="error" title="申請を読み込めませんでした"><p>{errorMessage(result.error)}</p></AlertMessage>
       : result.applications.length === 0 ? <EmptyState title="申請はまだありません" description="新しく申請すると、提出前の下書きもこの画面に表示されます。" />

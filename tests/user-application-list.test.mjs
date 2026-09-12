@@ -6,8 +6,8 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 
 test("user application list uses active-user RLS query and fixed owner filter", () => {
   const query = read("utils/user-applications/queries.js");
-  assert.match(query, /loadUserApplications\("\/user\/applications"\)/);
-  assert.match(query, /loadUserApplications\("\/user"\)/);
+  assert.match(query, /loadUserApplications\(withModePath\("\/user\/applications", mode\), mode\)/);
+  assert.match(query, /loadUserApplications\(withModePath\("\/user", mode\), mode\)/);
   assert.match(query, /\.eq\("user_id", user\.id\)/);
   assert.doesNotMatch(query, /service_role|SUPABASE_SECRET_KEY/);
   assert.match(query, /const USAGE_TYPES = \["camp", "community_individual", "community_group"\]/);
@@ -17,7 +17,8 @@ test("user application list uses active-user RLS query and fixed owner filter", 
 test("user home uses the same real owner query without mock data", () => {
   const page = read("app/user/page.js");
   assert.match(page, /getUserHomeApplications/);
-  assert.doesNotMatch(page, /MockDataNotice|MOCK_APPLICATIONS|mock-data|searchParams/);
+  assert.doesNotMatch(page, /MockDataNotice|MOCK_APPLICATIONS|mock-data/);
+  assert.match(page, /modeFromSearchParams/);
   assert.match(page, /kind="application"/);
   assert.match(page, /kind="payment"/);
   assert.match(page, /kind="stay"/);

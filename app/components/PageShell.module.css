@@ -32,10 +32,10 @@
 
   /* 基本色（本文コントラスト4.5:1以上） */
   --sg-color-surface: #ffffff;
-  --sg-color-text: #1b1d1f;
-  --sg-color-text-muted: #4d5358;
-  --sg-color-border: #c9ced4;
-  --sg-color-focus: #1f3c88;
+  --sg-color-text: #1f2937;
+  --sg-color-text-muted: #4b5563;
+  --sg-color-border: #d1d5db;
+  --sg-color-focus: #0f5e9c;
 
   /* 5トーン（AlertMessage と StatusBadge が共有） */
   --sg-neutral-bg: #f1f3f5;
@@ -110,40 +110,5 @@
 
   .title {
     font-size: var(--sg-font-xl);
-  }
-}
-
-/*
- * app/globals.css が prefers-color-scheme: dark で body を暗色にし
- * color-scheme: dark を設定しているため、トークンを暗色側へ差し替える。
- * 共通部品は background と color を必ずセットで指定し、継承任せにしない。
- */
-@media (prefers-color-scheme: dark) {
-  .shell {
-    --sg-color-surface: #14171a;
-    --sg-color-text: #ececec;
-    --sg-color-text-muted: #b6bcc2;
-    --sg-color-border: #3a4046;
-    --sg-color-focus: #9db8ff;
-
-    --sg-neutral-bg: #22262a;
-    --sg-neutral-border: #9aa3ab;
-    --sg-neutral-text: #e3e6e8;
-
-    --sg-info-bg: #16233d;
-    --sg-info-border: #7ea6f0;
-    --sg-info-text: #cfe0ff;
-
-    --sg-success-bg: #12291d;
-    --sg-success-border: #6ec08f;
-    --sg-success-text: #c6ead4;
-
-    --sg-warning-bg: #2e2311;
-    --sg-warning-border: #d9a440;
-    --sg-warning-text: #f3dcae;
-
-    --sg-danger-bg: #331917;
-    --sg-danger-border: #f08a82;
-    --sg-danger-text: #f8d3d0;
   }
 }

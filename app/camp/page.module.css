@@ -1,0 +1,10 @@
+.page { width: 100%; max-width: 760px; margin-inline: auto; }
+.section { display: flex; flex-direction: column; gap: 12px; }
+.section h2 { font-size: 20px; line-height: 1.4; }
+.section ul { padding-left: 24px; }
+.section li + li { margin-top: 8px; }
+.fee { padding: 16px; border: 1px solid #d1d5db; border-radius: 8px; background: #f6f8fa; }
+.fee p { margin-top: 8px; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; }
+@media (min-width: 768px) { .page { padding-block: 32px; } }
+

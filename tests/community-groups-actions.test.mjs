@@ -78,7 +78,7 @@ for (const [action, rpc, data] of [
   test(`${action} cannot parse inputs or call the DB when authorization fails`, async () => {
     const { api, calls, authError } = await harness("app/actions/community-groups.js", { denied: true });
     await assert.rejects(api[action](null), (error) => error === authError);
-    assert.deepEqual(calls, [["auth", "/user/groups/new"]]);
+    assert.deepEqual(calls, [["auth", "/user/groups/new?mode=fieldwork"]]);
   });
 }
 
@@ -110,7 +110,7 @@ test("start trusts saved DB state and sends only concurrency/idempotency fields"
   assert.deepEqual(calls.find((call) => call[0] === "rpc")[2], {
     target_group_id: ID, expected_updated_at: VERSION, submission_key: KEY, confirmed: true,
   });
-  assert.equal(calls.at(-1)[1], `/user/groups/${ID}/complete`);
+  assert.equal(calls.at(-1)[1], `/user/groups/${ID}/complete?mode=fieldwork`);
 });
 
 test("representative cancellation requires a reason and calls the group cancellation RPC", async () => {

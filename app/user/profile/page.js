@@ -3,6 +3,7 @@ import LinkButton from "@/app/components/LinkButton";
 import PageShell from "@/app/components/PageShell";
 import { errorMessage } from "@/app/components/messages";
 import { getUserProfile } from "@/utils/profile/queries";
+import { modeFromSearchParams, withMode } from "@/utils/navigation/mode";
 import ProfileForm from "./ProfileForm";
 import styles from "./page.module.css";
 
@@ -17,11 +18,12 @@ function first(value) {
 
 export default async function UserProfilePage({ searchParams }) {
   const query = (await searchParams) ?? {};
-  const result = await getUserProfile();
+  const mode = modeFromSearchParams(query);
+  const result = await getUserProfile(withMode("/user/profile", mode));
   const saved = first(query.saved) === "1";
 
   return (
-    <PageShell title="プロフィール" description="申請で使用する本人情報と緊急連絡先を登録できます。">
+    <PageShell audienceMode={mode} title="プロフィール" description="申請で使用する本人情報と緊急連絡先を登録できます。">
       {saved && (
         <AlertMessage tone="success" title="プロフィールを保存しました">
           <p>次回の申請でも、この情報を確認して使用できます。</p>
@@ -32,7 +34,7 @@ export default async function UserProfilePage({ searchParams }) {
           <p>{errorMessage(result.error)}</p>
         </AlertMessage>
       ) : (
-        <ProfileForm profile={result.profile} />
+        <ProfileForm mode={mode} profile={result.profile} />
       )}
       <div className={styles.actions}>
         <LinkButton href="/user" fullWidthOnMobile>利用者ホームへ戻る</LinkButton>

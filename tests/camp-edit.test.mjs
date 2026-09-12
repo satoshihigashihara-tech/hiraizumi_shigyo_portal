@@ -140,7 +140,7 @@ test("camp edit authorizes before reading input and saves the exact RPC allowlis
       requested_room_preference: "shared_ok",
     },
   ]);
-  assert.equal(calls.at(-1)[1], `/user/applications/${APPLICATION_ID}/edit?saved=1`);
+  assert.equal(calls.at(-1)[1], `/user/applications/${APPLICATION_ID}/edit?saved=1&mode=camp`);
 });
 
 test("camp edit blocks unauthenticated input before parsing or database access", async () => {
@@ -149,7 +149,7 @@ test("camp edit blocks unauthenticated input before parsing or database access",
     api.saveCampApplicationDraft(null, null),
     (error) => error === authError,
   );
-  assert.deepEqual(calls, [["auth", "/user/applications"]]);
+  assert.deepEqual(calls, [["auth", "/user/applications?mode=camp"]]);
 });
 
 test("confirm reports required and phone errors beside fields without losing input", async () => {
@@ -223,13 +223,13 @@ test("camp submission requires the explicit confirmation and never trusts URL re
     api.submitCampApplication(form({ confirmed: "" })),
     (error) =>
       error.url ===
-      `/user/applications/${APPLICATION_ID}/confirm?error=confirmation-required`,
+      `/user/applications/${APPLICATION_ID}/confirm?error=confirmation-required&mode=camp`,
   );
   assert.equal(calls[0][0], "auth");
   assert.ok(!calls.some((call) => call[0] === "rpc"));
 });
 
-test("camp submission validates the database result and opens a query-free completion URL", async () => {
+test("camp submission validates the database result and preserves camp mode", async () => {
   const { api, calls } = await loadAction({
     rpcData: [
       {
@@ -242,10 +242,10 @@ test("camp submission validates the database result and opens a query-free compl
   await assert.rejects(
     api.submitCampApplication(form({ confirmed: "true" })),
     (error) =>
-      error.url === `/user/applications/${APPLICATION_ID}/complete`,
+      error.url === `/user/applications/${APPLICATION_ID}/complete?mode=camp`,
   );
   assert.ok(calls.some((call) => call[0] === "rpc"));
-  assert.ok(!calls.at(-1)[1].includes("?"));
+  assert.ok(calls.at(-1)[1].endsWith("?mode=camp"));
 });
 
 test("camp submission authenticates before reading untrusted form input", async () => {
@@ -254,7 +254,7 @@ test("camp submission authenticates before reading untrusted form input", async 
     api.submitCampApplication(null),
     (error) => error === authError,
   );
-  assert.deepEqual(calls, [["auth", "/user/applications"]]);
+  assert.deepEqual(calls, [["auth", "/user/applications?mode=camp"]]);
 });
 
 async function loadQuery(responses, rpcResponses = {}) {

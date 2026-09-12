@@ -17,8 +17,8 @@
 }
 
 .primary {
-  background: var(--sg-color-focus, #1f3c88);
-  border-color: var(--sg-color-focus, #1f3c88);
+  background: var(--sg-color-focus, #0f5e9c);
+  border-color: var(--sg-color-focus, #0f5e9c);
   color: #ffffff;
 }
 
@@ -52,8 +52,8 @@
 /* タッチ端末でホバー状態が貼り付くのを避ける（app/page.module.css と同じ書き方） */
 @media (hover: hover) and (pointer: fine) {
   .primary:hover:not(:disabled) {
-    background: #16295e;
-    border-color: #16295e;
+    background: #0b4a7a;
+    border-color: #0b4a7a;
   }
 
   .secondary:hover:not(:disabled) {

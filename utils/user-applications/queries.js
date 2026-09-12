@@ -2,6 +2,7 @@ import "server-only";
 
 import { requireActiveUser } from "@/utils/auth/guards";
 import { isPaymentOverdue, isUpdatedAt, isUuid } from "@/utils/application-operations/validation";
+import { usageTypeForMode } from "@/utils/navigation/mode";
 
 const STATUSES = ["draft", "submitted", "under_review", "revision_requested", "approved", "rejected", "cancellation_requested", "cancelled"];
 const USAGE_TYPES = ["camp", "community_individual", "community_group"];
@@ -59,28 +60,33 @@ function normalize(row) {
   };
 }
 
-async function loadUserApplications(returnTo) {
+async function loadUserApplications(returnTo, mode = null) {
   const { supabase, user } = await requireActiveUser(returnTo);
-  const { data, error } = await supabase.from("applications").select(`
+  let request = supabase.from("applications").select(`
     id,usage_type,original_application_id,status,start_date,end_date,updated_at,submitted_at,
     last_submitted_at,revision_due_at,decision_reason,camps(name),reception_numbers(display_number),
     application_charges(total_amount,payment_status,payment_due_date,paid_at),
     room_allocations(room_id,people_count,start_date,end_date,released_from,rooms(name)),
     stays(status,checked_in_at,checked_out_at)
-  `).eq("user_id", user.id).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(100);
+  `).eq("user_id", user.id);
+  const usageType = usageTypeForMode(mode);
+  if (usageType) request = request.eq("usage_type", usageType);
+  const { data, error } = await request.order("created_at", { ascending: false }).order("id", { ascending: false }).limit(100);
   if (error || !Array.isArray(data)) return { error: "load-failed", applications: [] };
   const applications = data.map(normalize);
   if (applications.some((row) => row === null)) return { error: "load-failed", applications: [] };
   return { error: null, applications };
 }
 
-export function getUserApplications() {
-  return loadUserApplications("/user/applications");
+export function getUserApplications(mode = null) {
+  return loadUserApplications(withModePath("/user/applications", mode), mode);
 }
 
-export function getUserHomeApplications() {
-  return loadUserApplications("/user");
+export function getUserHomeApplications(mode = null) {
+  return loadUserApplications(withModePath("/user", mode), mode);
 }
+
+function withModePath(path, mode) { return mode ? `${path}?mode=${mode}` : path; }
 
 export async function getUserApplicationUsageType(applicationId, returnTo = "/user/applications") {
   const { supabase, user } = await requireActiveUser(returnTo);

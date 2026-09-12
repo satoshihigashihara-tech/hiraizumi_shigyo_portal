@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireActiveUser } from "@/utils/auth/guards";
+import { withMode } from "@/utils/navigation/mode";
 import {
   campBoolean,
   campDraftFailure,
   readCampDraftFields,
   validateCampDraftFields,
 } from "@/utils/camp-applications/validation";
-import { createClient } from "@/utils/supabase/server";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -57,29 +57,15 @@ function databaseErrorCode(error) {
   return "unexpected";
 }
 
-async function getAuthenticatedClient(returnTo) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user) {
-    redirect(withQuery("/login", { returnTo }));
-  }
-
-  return supabase;
-}
-
 export async function createCampApplicationDraft(formData) {
-  const entryPath = "/user/applications/new/camp";
+  const entryPath = withMode("/user/applications/new/camp", "camp");
+  const { supabase } = await requireActiveUser(entryPath);
   const campId = getRequiredUuid(formData, "campId");
 
   if (!campId) {
     redirect(withQuery(entryPath, { error: "invalid-camp" }));
   }
 
-  const supabase = await getAuthenticatedClient(entryPath);
   const { data: applicationId, error } = await supabase.rpc(
     "create_camp_application_draft",
     { target_camp_id: campId },
@@ -94,11 +80,11 @@ export async function createCampApplicationDraft(formData) {
   }
 
   revalidatePath("/user");
-  redirect(`/user/applications/${applicationId}/edit`);
+  redirect(withMode(`/user/applications/${applicationId}/edit`, "camp"));
 }
 
 export async function saveCampApplicationDraft(previousState, formData) {
-  const { supabase } = await requireActiveUser("/user/applications");
+  const { supabase } = await requireActiveUser(withMode("/user/applications", "camp"));
   const applicationId = getRequiredUuid(formData, "applicationId");
   const fields = readCampDraftFields(formData);
   const intent = getText(formData, "intent");
@@ -168,14 +154,14 @@ export async function saveCampApplicationDraft(previousState, formData) {
   revalidatePath("/user");
 
   if (intent === "confirm") {
-    redirect(confirmPath);
+    redirect(withMode(confirmPath, "camp"));
   }
 
-  redirect(withQuery(editPath, { saved: "1" }));
+  redirect(withMode(withQuery(editPath, { saved: "1" }), "camp"));
 }
 
 export async function submitCampApplication(formData) {
-  const { supabase } = await requireActiveUser("/user/applications");
+  const { supabase } = await requireActiveUser(withMode("/user/applications", "camp"));
   const applicationId = getRequiredUuid(formData, "applicationId");
 
   if (!applicationId) {
@@ -188,7 +174,7 @@ export async function submitCampApplication(formData) {
   const completePath = `${applicationPath}/complete`;
 
   if (getText(formData, "confirmed") !== "true") {
-    redirect(withQuery(confirmPath, { error: "confirmation-required" }));
+    redirect(withMode(withQuery(confirmPath, { error: "confirmation-required" }), "camp"));
   }
 
   const { data, error } = await supabase.rpc("submit_camp_application", {
@@ -197,9 +183,9 @@ export async function submitCampApplication(formData) {
 
   if (error) {
     redirect(
-      withQuery(editPath, {
+      withMode(withQuery(editPath, {
         error: databaseErrorCode(error),
-      }),
+      }), "camp"),
     );
   }
 
@@ -211,7 +197,7 @@ export async function submitCampApplication(formData) {
     !/^SG-\d{4}-\d+$/.test(result?.reception_number ?? "") ||
     !Number.isFinite(Date.parse(result?.submission_time ?? ""))
   ) {
-    redirect(withQuery(editPath, { error: "unexpected" }));
+    redirect(withMode(withQuery(editPath, { error: "unexpected" }), "camp"));
   }
 
   revalidatePath("/staff/calendar");
@@ -221,5 +207,5 @@ export async function submitCampApplication(formData) {
 
   revalidatePath(applicationPath);
   revalidatePath("/user");
-  redirect(completePath);
+  redirect(withMode(completePath, "camp"));
 }

@@ -26,12 +26,14 @@ test("root loading, error and not-found boundaries provide meaningful recovery U
 });
 
 test("shared form and navigation foundations retain labels, pending text and visible focus", async () => {
-  const [field, submit, pageShellStyles, userLayout, userLayoutStyles] =
+  const [field, submit, pageShellStyles, rootLayout, siteHeader, siteStyles, userLayoutStyles] =
     await Promise.all([
       read("app/components/FormField.js"),
       read("app/components/SubmitButton.js"),
       read("app/components/PageShell.module.css"),
-      read("app/user/layout.js"),
+      read("app/layout.js"),
+      read("app/components/SiteHeader.js"),
+      read("app/components/SiteChrome.module.css"),
       read("app/user/layout.module.css"),
     ]);
 
@@ -44,10 +46,12 @@ test("shared form and navigation foundations retain labels, pending text and vis
   assert.match(submit, /aria-busy=\{isPending\}/);
   assert.match(pageShellStyles, /:focus-visible/);
   assert.match(pageShellStyles, /outline: 3px solid/);
-  assert.match(userLayout, /href="#user-main"/);
-  assert.match(userLayout, /<nav[^>]+aria-label="利用者メニュー"/);
-  assert.match(userLayoutStyles, /:focus-visible/);
-  assert.match(userLayoutStyles, /flex-wrap: wrap/);
+  assert.match(rootLayout, /id="main-content"/);
+  assert.match(siteHeader, /href="#main-content"/);
+  assert.match(siteHeader, /<nav[^>]+aria-label="共通メニュー"/);
+  assert.match(siteStyles, /:focus-visible/);
+  assert.match(siteStyles, /flex-wrap: wrap/);
+  assert.match(userLayoutStyles, /overflow-wrap: anywhere/);
 });
 
 test("all user route CSS uses shared narrow-screen containment", async () => {

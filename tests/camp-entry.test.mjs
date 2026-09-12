@@ -120,7 +120,7 @@ test("camp entry pages include required copy and never create a draft during ren
 
 test("camp draft creation errors return to the camp selection page", async () => {
   const action = await readFile(new URL("../app/actions/camp-applications.js", import.meta.url), "utf8");
-  assert.match(action, /const entryPath = "\/user\/applications\/new\/camp"/);
-  assert.match(action, /getAuthenticatedClient\(entryPath\)/);
+  assert.match(action, /const entryPath = withMode\("\/user\/applications\/new\/camp", "camp"\)/);
+  assert.match(action, /requireActiveUser\(entryPath\)/);
   assert.match(action, /withQuery\(entryPath, \{\s*error: databaseErrorCode\(error\)/);
 });

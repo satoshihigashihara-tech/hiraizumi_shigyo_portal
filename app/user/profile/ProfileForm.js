@@ -8,7 +8,7 @@ import SubmitButton from "@/app/components/SubmitButton";
 import { errorMessage } from "@/app/components/messages";
 import styles from "./page.module.css";
 
-export default function ProfileForm({ profile }) {
+export default function ProfileForm({ mode, profile }) {
   const [state, action, pending] = useActionState(saveProfileState, {
     error: null,
     fieldErrors: {},
@@ -19,6 +19,7 @@ export default function ProfileForm({ profile }) {
 
   return (
     <form className={styles.form} action={action}>
+      {mode && <input type="hidden" name="mode" value={mode} />}
       {state?.error && (
         <AlertMessage tone="error" title="プロフィールを保存できませんでした">
           <p>{errorMessage(state.error)}</p>

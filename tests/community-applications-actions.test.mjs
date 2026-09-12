@@ -51,7 +51,11 @@ async function harness(path, { response = { data: SAVED, error: null }, denied =
         order(...args) { calls.push(["order", ...args]); return this; },
         range(...args) { calls.push(["range", ...args]); return this; },
         then(resolve, reject) { return Promise.resolve(readResponse).then(resolve, reject); },
-        async maybeSingle() { return readResponse; },
+        async maybeSingle() {
+          if (table === "profiles") return { data: { account_state: "active" }, error: null };
+          if (table === "staff_roles") return { data: null, error: null };
+          return readResponse;
+        },
       };
     },
   };
@@ -355,12 +359,12 @@ test("missing community version and non-owner application cannot reach Storage",
 test("signup and login retain community dates and reject external redirects", async () => {
  const target = "/user/applications/new/community-activity?start=2028-02-29&end=2028-03-01";
  for (const action of ["signUp", "login"]) {
-  for (const [returnTo, destination] of [[target, target], ["https://example.invalid/steal", "/user"], ["//example.invalid", "/user"], ["/staff", "/forbidden"]]) {
+  for (const [returnTo, destination] of [[target, target], ["https://example.invalid/steal", "/user"], ["//example.invalid", "/user"], ["/staff", "/forbidden?reason=staff-only"]]) {
    const { api } = await harness("app/actions/auth.js", { readResponse: { data: null } });
    await assert.rejects(api[action](new Map(Object.entries({ email: "fictional@example.invalid", password: "fictional-password", returnTo }))), e => e.url === destination);
   }
  }
- const { api } = await harness("app/actions/auth.js", { authResponse: { data: { session: null } } });
+ const { api } = await harness("app/actions/auth.js", { authResponse: { data: { session: null, user: { id: USER } } } });
  await assert.rejects(api.signUp(new Map(Object.entries({ email: "fictional@example.invalid", password: "fictional-password", returnTo: target }))), e => {
   const url = new URL(e.url, "http://local");
   return url.pathname === "/signup" && url.searchParams.get("notice") === "confirm" && url.searchParams.get("returnTo") === target;
@@ -372,6 +376,14 @@ test("signup validation stays on signup and logout returns to the public top", a
  await assert.rejects(api.signUp(new Map(Object.entries({ email: "fictional@example.invalid", password: "12345" }))), e => e.url === "/signup?error=short");
  await assert.rejects(api.logout(), e => e.url === "/");
  assert.ok(calls.some(c => c[0] === "logout"));
+});
+test("auth actions validate the raw returnTo before trimming controls", async () => {
+ for (const action of ["signUp", "login"]) {
+  const { api } = await harness("app/actions/auth.js");
+  await assert.rejects(api[action](new Map(Object.entries({
+   email: "fictional@example.invalid", password: "fictional-password", returnTo: "\t/staff\n",
+  }))), e => e.url === "/user");
+ }
 });
 test("profile update invalidates community creation defaults", async () => {
  const { api, calls } = await harness("app/actions/profile.js", { readResponse: {} });

@@ -3,12 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireActiveUser } from "@/utils/auth/guards";
+import { withMode } from "@/utils/navigation/mode";
 import {
   GROUP_FIELD_NAMES, booleanField, groupFailure, isUpdatedAt, isUuid, readGroupFields,
   toGroupDatabaseFields, validateGroupFields,
 } from "@/utils/community-groups/validation";
 
-const START_PATH = "/user/groups/new";
+const START_PATH = withMode("/user/groups/new", "fieldwork");
 
 function refresh(groupId) {
   for (const path of ["/user", "/user/groups", "/calendar", "/staff", "/staff/calendar",
@@ -33,7 +34,7 @@ async function save(formData, creating) {
   const result = Array.isArray(data) ? data[0] : null;
   if (result?.result_id !== fields.groupId || !isUpdatedAt(result?.result_updated_at)) return groupFailure("update-failed", fields);
   refresh(fields.groupId);
-  redirect(`/user/groups/${fields.groupId}/${fields.intent === "confirm" ? "confirm" : "edit?saved=1"}`);
+  redirect(withMode(`/user/groups/${fields.groupId}/${fields.intent === "confirm" ? "confirm" : "edit?saved=1"}`, "fieldwork"));
 }
 
 export async function createCommunityGroupDraft(formData) { return save(formData, true); }
@@ -58,11 +59,11 @@ export async function startCommunityGroupApplication(formData) {
     return groupFailure("update-failed", fields);
   }
   refresh(fields.groupId);
-  redirect(`/user/groups/${fields.groupId}/complete`);
+  redirect(withMode(`/user/groups/${fields.groupId}/complete`, "fieldwork"));
 }
 
 export async function requestCommunityGroupCancellation(formData) {
-  const { supabase } = await requireActiveUser("/user/groups");
+  const { supabase } = await requireActiveUser(withMode("/user/groups", "fieldwork"));
   const fields = readGroupFields(formData);
   if (!isUuid(fields.groupId)) return groupFailure("invalid-group", fields);
   if (!isUpdatedAt(fields.updatedAt)) return groupFailure("invalid-version", fields);
@@ -77,5 +78,5 @@ export async function requestCommunityGroupCancellation(formData) {
   if (result?.result_id !== fields.groupId || result?.result_status !== "cancellation_requested"
     || !isUpdatedAt(result?.result_updated_at)) return groupFailure("update-failed", fields);
   refresh(fields.groupId);
-  redirect(`/user/groups/${fields.groupId}?updated=cancellation-requested`);
+  redirect(withMode(`/user/groups/${fields.groupId}?updated=cancellation-requested`, "fieldwork"));
 }

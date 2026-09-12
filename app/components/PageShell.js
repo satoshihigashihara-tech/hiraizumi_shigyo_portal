@@ -1,8 +1,9 @@
 import styles from "./PageShell.module.css";
+import { AudienceSetter } from "./SiteHeader";
 
 /**
  * 利用者画面の外枠。各画面はこれで包むだけで、余白・最大幅・文字サイズ・
- * ダークモード対応・375px対策とCSS基準値（デザイントークン）を受け取る。
+ * 固定ライトテーマ・375px対策とCSS基準値（デザイントークン）を受け取る。
  *
  * Server Component（docs/routes.md 9.1）。"use client" を付けない。
  * 共通部品は var(--sg-*) を参照するため、原則としてこの内側で使う。
@@ -12,9 +13,10 @@ import styles from "./PageShell.module.css";
  * @param {string} [props.description] 見出しの下の補足文
  * @param {React.ReactNode} props.children 本文（縦並び・24px間隔）
  */
-export default function PageShell({ title, description, children }) {
+export default function PageShell({ title, description, audienceMode, children }) {
   return (
     <div className={styles.shell}>
+      {audienceMode && <AudienceSetter mode={audienceMode} />}
       {(title || description) && (
         <div className={styles.header}>
           {title && <h1 className={styles.title}>{title}</h1>}

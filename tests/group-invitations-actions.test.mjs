@@ -68,7 +68,7 @@ test("join normalizes a manual code, uses caller UUID and redirects after refres
   assert.deepEqual(calls.find((call) => call[0] === "rpc").slice(1), ["join_community_group", {
     invite_value: CODE, invite_kind: "code", target_application_id: APP,
   }]);
-  assert.equal(calls.at(-1)[1], `/user/applications/${APP}/edit?joined=group`);
+  assert.equal(calls.at(-1)[1], `/user/applications/${APP}/edit?joined=group&mode=fieldwork`);
 });
 
 test("representative removes a participant with fixed identifiers and reason", async () => {
