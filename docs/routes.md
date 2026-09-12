@@ -708,6 +708,8 @@ MVPのSQL018は現在存在する2区分だけを対象とする。団体テー�
 
 主なエラーは`required-fields / invalid-participant-count / invalid-duration / start-too-soon / end-too-late / calendar-unavailable / calendar-inconsistent / stale-update / not-editable / confirmation-required / forbidden / update-failed`。画面は内部SQL詳細を表示せず、エラー時は入力を保持する。公開カレンダーから団体名・人数・状態を取得しない。
 
+2026年9月12日、代表者向けの一覧、新規、編集、確認、受付完了、詳細を上記契約へ接続した。初回表示では下書きを作成せず、明示操作で保存する。実Supabaseでは架空団体`SG-2026-0133`を申請中にし、完了・詳細・一覧と公開カレンダーの専有枠反映をChromeで確認した。招待・参加者・職員画面はこの変更に含めない。
+
 ### T19 団体招待・参加者下書き接続契約（前半、SQL 022）
 
 代表者の招待発行／再発行は`issueCommunityGroupInvite(formData)`を使い、入力は`groupId / updatedAt`だけ。成功時の`invite.token / invite.code / invite.expiresAt / invite.groupUpdatedAt`はこの応答でだけ受け取り、URL・ログ・監査へ平文を保存しない。再発行後は返された`groupUpdatedAt`へ画面の版を更新する。想定画面は`/user/groups/[groupId]/participants`。

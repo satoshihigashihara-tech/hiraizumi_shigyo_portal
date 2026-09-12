@@ -62,6 +62,8 @@ export const ERROR_MESSAGES = {
   "camp-dates-changed":
     "キャンプの期間が変更されています。最新の期間と申請内容を確認してください。",
   "invalid-camp": "対象のキャンプが見つかりません。申請の入口からやり直してください。",
+  "invalid-group": "対象の団体申請が見つかりません。団体申請の一覧からやり直してください。",
+  "invalid-participant-count": "予定人数は2人から15人までで入力してください。",
 
   // 同意書・ファイル
   "guardian-consent": "保護者の同意書が必要です。同意書を添付してから提出してください。",
@@ -174,6 +176,14 @@ export const FIELD_LABELS = {
   guardianConsentFile: "保護者同意書",
   requestedRoomPreference: "相部屋希望",
   confirmed: "提出前の最終確認",
+
+  // 団体申請
+  groupName: "団体名",
+  representativeName: "代表者氏名",
+  representativeAddress: "代表者住所",
+  representativePhone: "代表者電話番号",
+  plannedParticipants: "予定人数",
+  representativeStays: "代表者本人の宿泊",
 
   // 認証
   email: "メールアドレス",

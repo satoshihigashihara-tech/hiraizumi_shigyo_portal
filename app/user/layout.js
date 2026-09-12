@@ -29,12 +29,12 @@ import styles from "./layout.module.css";
  * 作成するため、現時点ではリンク先が未作成（404）のものがある。
  * イシュー #18 の対象は「導線があること」なので、押せるリンクとして置く。
  *
- * 団体（/user/groups）と招待はこの段階の対象外のため、ここには置かない
- * （ホーム側で ComingSoon として案内する）。
+ * 団体代表者画面は /user/groups にまとめる。招待参加は後続で接続する。
  */
 const NAV_ITEMS = [
   { href: "/user", label: "ホーム" },
   { href: "/user/applications", label: "申請一覧" },
+  { href: "/user/groups", label: "団体申請" },
 ];
 
 export const metadata = {
