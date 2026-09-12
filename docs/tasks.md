@@ -1,12 +1,36 @@
 # ひらいずみ志業ポータル 作業一覧
 
-確認日：2026年9月11日／作業ブランチ：`codex/community-individual-room-approval`
+確認日：2026年9月12日／基準ブランチ：`main`
+
+## 0. 現在の正本：MVP完成・公開・発表までのロードマップ
+
+この章が2026年9月12日時点の進行判断の正本です。第2章以降には実装途中の時点で書いた検証記録も残しているため、「ローカル作成中」「未適用」「画面なし」などの過去形の記述は、ここおよび各節末尾の新しい実績記録より優先しません。
+
+認証、キャンプ申請、地域活動個人申請、団体代表者申請、代表者の招待発行、参加者の招待確認、公開カレンダー、キャンプ・地域活動個人の職員審査画面はmainへ反映済みです。DBのマイグレーションはSQL001〜027がmainにあります。未完了作業はGitHub Issueで管理し、完了したIssueは対応PRのマージと同時に閉じます。
+
+| 優先 | Issue | 残作業 | 完了の目安 |
+|---|---:|---|---|
+| P02 | [#87](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/87) | 団体参加者の個人情報入力・確認・提出 | 招待参加後から個別申請の完了・詳細までつながる |
+| P03 | [#77](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/77) | 代表者の参加者削除・交代・取消 | 個人情報を漏らさず、競合も安全に拒否する |
+| P04 | [#80](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/80) | 職員の団体審査・部屋割り・許可・取消 | 審査順序、人数、定員を実データで確認する |
+| P05 | [#78](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/78) | 職員カレンダー・利用停止期間 | 内部情報を守りながら停止期間を管理できる |
+| P06 | [#86](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/86) | キャンプ編集・削除・対象者変更 | 既存申請を壊さず管理操作を完了できる |
+| P07 | [#81](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/81) | 個人申請の取消・継続申請 | 状態・期間制約を守って実データで完了できる |
+| P08 | [#84](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/84) | アカウント停止・初期化案内 | 停止後の拒否と再利用手順が一致する |
+| P09 | [#82](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/82) | 保護者同意書の実Storage受入 | 本人・職員だけが実ファイルを扱える |
+| P10 | [#89](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/89) | 権限・期限・二重操作などの異常系 | 部分更新や秘密情報の露出なく拒否できる |
+| P11 | [#83](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/83) | 団体申請E2E受入 | 代表者・参加者・職員の一連操作が完了する |
+| P12 | [#85](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/85) | Vercel本番公開 | 本番URLで認証と主要正常系が動く |
+| P13 | [#88](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/88) | 発表スライド・デモ・通信障害時の代替資料 | 通信断でも30秒以内に代替へ移れる |
+| P14 | [#79](https://github.com/satoshihigashihara-tech/hiraizumi_shigyo_portal/issues/79) | 最終総合確認・発表練習 | 重大不具合なく時間内に発表できる |
+
+進行順はP02からP14です。前倒しできる独立作業はあっても、公開前にP10・P11、発表前にP12・P13を完了させます。公開障害やデモ失敗へ対応できる余裕を残し、残トークンを理由に実装品質、確認、説明を省略しません。
 
 ## 1. 最初に読むこと
 
-現在は、認証・キャンプ申請・地域活動個人申請・カレンダー・保護者同意書の**サーバー処理とデータベース定義がある段階**です。画面は `app/page.js` のNext.js初期テンプレートだけで、利用者・職員の業務画面はありません。申請から入退去まで使える完成状態ではありません。
+現在は主要なバックエンドと一部の利用者・職員画面がmainへ反映され、残る画面接続、実Storage受入、異常系、団体E2E、本番公開、発表準備を進める段階です。完成状態ではありませんが、Next.js初期テンプレートだけの段階ではありません。
 
-この一覧は、[要件定義](requirements.md)、[画面・URL設計](routes.md)、[データベース設計](database.md)と、現在のソースを照合したものです。SQL `001`〜`008` のSupabaseへの適用、非公開Storageバケットの設定、`npm run lint` と `npm run build` の成功は2026年9月10日に確認しました。デモ用の職員・キャンプ利用者アカウントと対象キャンプも登録済みです。ただし、利用者・職員画面が未作成のため、ブラウザからの一連の操作とVercel公開は未確認です。
+この一覧は、[要件定義](requirements.md)、[画面・URL設計](routes.md)、[データベース設計](database.md)、現在のソース、マージ済みPRを照合したものです。詳細なSQL適用・DBテスト・ブラウザー受入の履歴は後半に残します。Vercel公開と全役割の総合E2Eは未完了です。
 
 | 表記 | 意味 |
 |---|---|
@@ -89,10 +113,10 @@ SQL 009は初回提出と修正再提出の期限を分け、ロック取得後�
 
 | ID | 状態 | 作業・現在地 | 担当 | 完了条件 | フロント担当への引き渡し |
 |---|---|---|---|---|---|
-| T18 | 未着手 | 団体作成・共通情報・団体採番・専有枠 | バックエンド→フロント | 団体テーブルを追加し、新規2〜15人、代表者非宿泊を扱う。下書きでは枠を取らず、申請開始時に施設全体を確保し個人と別の受付番号を発行する | `/user/groups` 配下の新規・編集・確認・完了・詳細。T09の枠管理完成後に引き渡す |
-| T19 | 作業中 | SQL022・023はmain／Supabase反映済み。代表者の参加者一覧・招待発行画面を接続し、実団体で発行確認済み。参加者側画面は未接続 | バックエンド→フロント | 招待・参加、本人フォーム保存・提出、全員提出時の団体審査中遷移まで実装。参加者削除・交代はT20 | `/invite`、`/invite/[token]`、共通個別申請へ接続。認証前は団体情報を見せない |
+| T18 | 画面接続済み・受入継続 | SQL021と代表者向け団体一覧・新規・編集・確認・完了・詳細をmainへ反映。実団体作成と公開カレンダーの専有枠を確認済み | 共同 | 残る団体E2Eで代表者非宿泊を含む全状態を確認する | Issue #83で総合確認する |
+| T19 | 作業中 | SQL022・023、代表者の参加者一覧・招待発行、参加者のコード入力・ログイン後招待確認・参加Action接続をmainへ反映。参加者の個別入力・確認・提出・詳細は未接続 | 共同 | Issue #87で個別申請を接続し、全員提出時の団体審査中遷移まで確認する | 認証前は団体情報を見せず、他参加者の個人情報を取得しない |
 | T20 | バックエンド完了 | SQL024・025はmain／Supabase反映済み。実DBは7項目・12項目成功。画面接続待ち | バックエンド→フロント | 画面接続後に実ログインで受入確認する。期限切れ自動処理はT21 | `/user/groups/[groupId]`・`/participants`・`/cancel`と`/staff/community/groups/[groupId]`へSQL024・025の取得／Actionを接続する |
-| T21 | バックエンド実装済み | SQL026で団体の提出／修正期限切れ処理と毎分Cronを実装。対象DB10項目・全単一接続1,560項目・Cron対提出の別接続競合が成功 | バックエンド→フロント | Supabase適用・Cron登録確認と画面接続を残す | 締切・期限切れ表示と問い合わせ案内を渡す。通常のページ閲覧で更新を実行しない。個人申請に同じ自動取消を適用しない |
+| T21 | バックエンド適用済み・受入継続 | SQL026をmain・Supabaseへ反映し、期限切れ処理、Cron登録、提出との競合、保存しない回帰SQLの成功を確認済み | 共同 | Issue #89・#83で画面表示と実時間境界を含む異常系・団体E2Eを確認する | 締切・期限切れ表示と問い合わせ案内を渡す。通常のページ閲覧で更新を実行しない。個人申請に同じ自動取消を適用しない |
 | T22 | バックエンド適用済み・有効化待ち | 利用終了後のアカウント初期化・職員による停止 | バックエンド→フロント | SQL027とEdge Functionを適用し、実DB20項目成功。Vault未設定のため自動削除は無効。案内画面と職員停止操作の接続後に有効化する | `/forbidden?reason=account-unavailable`の案内と`disableUserAccount`を接続する。ジョブ・秘密値は画面へ出さない |
 | T23 | 完了 | 利用者画面の375px／PC幅、ラベル、Tab操作とフォーカス、文字付き状態、入力保持、エラーリンク、送信中、空表示を確認。共通`loading.js`・`error.js`・`not-found.js`を追加。Chromeで公開4画面を375px実測し、52〜233ms・横はみ出しなし。認証後画面は共通CSSと自動テストで確認。Safariでトップと404、Edgeでトップを表示確認 | フロント（確認は共同） | スマホ／PCで主要操作ができ、ラベル・キーボード操作・文字による状態説明・入力保持・エラー位置への移動・送信中表示を備える。主要画面おおむね3秒を目標に確認する | Chrome・Safari・Edgeの確認結果をIssue #25のPRへ記録。実データを使う認証後の操作時間はT24の受入確認でも再確認する |
 | T24 | 受入準備中 | 総合受入確認・デモデータ・README・公開確認 | 共同 | README、総合確認表、5役割デモ手順、緊急対応を作成。画面完成後に実ログイン・Storage・Vercelの確認結果を記録する | `docs/mvp-acceptance.md`を共同で更新し、未確認項目を完成扱いにしない |
