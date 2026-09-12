@@ -12,7 +12,7 @@ SQL 033、Edge Function、Next.js配信経路は保存済み。本番SQL未適�
 地域活動個人・団体、legacy camp、料金・納付・stay・状態遷移は変更しない。
 
 R0の不変文書版、R1の日本語フォント消失・最大入力時のページ超過、R2のConditional Goを前提とする。
-A3の実配置・配置履歴・印字許可・施設枠を接続済み。A8の `private.camp_pdf_render_settings(uuid)` は必ず `pdf-prerequisites-unavailable` を返す。
+A3の実配置・配置履歴・印字許可・施設枠を接続済み。SQL036でA8の版付き設定ゲートを実装したが、migrationはactive設定を作らないため、外部配備とdigest登録までは `private.camp_pdf_render_settings(uuid)` が必ず `pdf-prerequisites-unavailable` を返す。
 従って通常の生成要求はDBで拒否され、実PDF生成・確認提出を有効化しない。
 テストだけがA8設定関数を架空データ用に置き換え、rollbackまたは後片付けで元に戻す。A3の配置はテストでも実際の `save_camp_room_plan` で保存する。
 
@@ -83,7 +83,7 @@ SQL 033をStorageなしのPostgresに適用しただけでは、このpolicyの�
 リポジトリには本番project設定や自動配備を追加していない。SDKは `npm:@supabase/supabase-js@2.116.0` 固定。
 利用者JWTを渡すdeliveryはgateway JWT検査を有効にする。worker/cleanupは利用者JWTではなく専用secretで呼び出すため、gateway検査を外す場合もFunction内のsecret検査を必須とする。
 secret値・JWT・PDF本文・原本・住所・氏名はログに出さない。worker用secretは信頼されたA8の変換サービスだけに渡し、ブラウザ・Vercelには置かない。
-A8の変換場所はR2の認証必須Linuxコンテナ案に従う。A7はコンテナを作成・配備しない。
+A8の変換場所はR2の認証必須Linuxコンテナ案に従う。ソースとCIは `pdf-renderer/`、配備・digest登録は [A8変換設定](camp-pdf-renderer-setup.md) に従う。A7/A8のPRでは外部コンテナを配備しない。
 
 ## A3接続済み契約とA8への引き継ぎ
 

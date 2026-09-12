@@ -18,7 +18,13 @@
 
 [入力・取得・状態・料金/PDF影響・適用手順](camp-roster-lifecycle.md)。コードのpush・PR・CI・マージの状態はGitHubのA4 PRを正とする。この節より下のA1〜A7の未実施表記は当時の履歴である。
 
-確認日：2026年9月13日／A7基準main：`90695de`（PR #102・#103）
+確認日：2026年9月13日／A8基準main：`da4493d`（A4 PR #109・SQL035まで）
+
+## A8 Word差込・日本語PDF変換（2026年9月13日）
+
+`codex/camp-pdf-renderer-a8` でユーザー提供原本、Noto Serif JP 2.003、和暦、町長名、A3印字部屋名、最大入力上限を固定した。認証されたLinux imageはA7 workerからsnapshotをclaimし、DOCX差込、LibreOffice変換、Popplerによる日本語抽出・指定フォント埋込み・1ページ・PNG検証に成功した結果だけをcompleteする。complete応答喪失後にfailを送らず、A7の不変結果契約を維持する。
+
+SQL036は不変設定版とactiveポインタを追加する。migration適用だけではactive版を作らず、外部imageをpush・配備してmanifest digestと最大入力成果物を確認した後だけ管理トランザクションで有効化する。本番SQL、GHCR push、外部コンテナ配備、active設定登録、A3実部屋有効化、A9 UIは未実施。手順は [A8変換設定](camp-pdf-renderer-setup.md)。
 
 ## A7 PDF版・非公開Storage・認証配信（2026年9月13日）
 

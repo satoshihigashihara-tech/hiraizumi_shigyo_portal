@@ -1,0 +1,22 @@
+{
+  "settings_version": 1,
+  "template_path": "assets/02-02.使用許可申請書（様式第１号）.docx",
+  "template_hash": "39d3621b02fd4559fa227f263f541ccc92dbd0d1b19a663891d0783407c33bfe",
+  "font_path": "assets/fonts/NotoSerifJP-Regular.otf",
+  "font_family": "Noto Serif JP",
+  "font_version": "NotoSerifJP-2.003+sha256:2c9a12dbd4f2408c4610c7ee84a108b62d7236c3775baed618c64d9cb44b2f04",
+  "font_hash": "2c9a12dbd4f2408c4610c7ee84a108b62d7236c3775baed618c64d9cb44b2f04",
+  "converter_image": "camp-pdf-renderer-a8-v1",
+  "mayor_name": "青木 幸保",
+  "field_limits": {
+    "user_name": 40,
+    "user_address": 80,
+    "user_phone": 20,
+    "emergency_name": 40,
+    "emergency_address": 80,
+    "emergency_phone": 20,
+    "purpose": 120,
+    "special_notes": 180,
+    "room_name": 40
+  }
+}
