@@ -115,6 +115,11 @@ begin
  r:=a4_lifecycle_test.act();
  r:=a4_lifecycle_test.call_as(x.owner,format('select public.create_camp_application_draft(%L)',x.camp));
  perform pg_temp.a4_check(r->>'ok'='false','ended participant cannot create another application');
+ r:=a4_lifecycle_test.call_as(x.owner,'select public.get_my_camp_room_assignments()');
+ perform pg_temp.a4_check(r->'rows'->0->'get_my_camp_room_assignments'->0->>'placement_state'='ended'
+   and r->'rows'->0->'get_my_camp_room_assignments'->0->'room_name'='null'::jsonb,'A6 shows ended without former room');
+ r:=a4_lifecycle_test.call_as(x.staff,'select public.get_my_camp_room_assignments()');
+ perform pg_temp.a4_check(r->'rows'->0->'get_my_camp_room_assignments'='[]'::jsonb,'A6 never exposes another participant to staff personal route');
  r:=a4_lifecycle_test.call_as(x.staff,format('select public.save_camp_room_plan(%L,3,2,%L::jsonb)',x.camp,
    jsonb_build_array(jsonb_build_object('eligible_user_id',x.eligible,'room_id',x.room),jsonb_build_object('eligible_user_id',x.other_eligible,'room_id',x.room))));
  perform pg_temp.a4_check(r->>'message'='invalid-roster','ordinary save cannot revive released participant');

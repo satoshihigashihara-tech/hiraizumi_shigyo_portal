@@ -74,6 +74,8 @@ test("A4 submits one atomic RPC with exact allowlist and explicit booleans", asy
   "expected_room_plan_version","expected_application_id","expected_application_updated_at","end_action","change_reason","confirmed","checkout_confirmed"].sort());
  assert.equal(rpc[2].expected_application_id,null); assert.equal(rpc[2].checkout_confirmed,false);
  assert.ok(h.calls.some(x=>x[1]===`/staff/camps/${CAMP}/eligible-users`));
+ assert.ok(h.calls.some(x=>x[1]===`/staff/camps/${CAMP}/room-plan`));
+ assert.ok(h.calls.some(x=>x[1]==="/user/camp-room"));
 });
 test("A4 bigint values remain decimal strings", async () => {
  const h=await harness({data:{...saved,roster_version:"9007199254740993",room_plan_version:"9007199254740994"}});

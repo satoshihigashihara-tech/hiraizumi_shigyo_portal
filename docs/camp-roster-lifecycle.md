@@ -63,7 +63,7 @@ RPCは同じ順序の期待値を `expected_*` として受け、確認はboolea
 
 主なエラー：`staff-required`、`not-found`、`eligible-roster-required`、`invalid-version`、`stale-update`、`invalid-action`、`reason-required`、`reason-too-long`、`confirmation-required`、`checkout-confirmation-required`、`invalid-status`、`invalid-stay`、`invalid-allocation`、`calendar-inconsistent`。未分類は `save-failed`／`load-failed`。40001/40P01は再読込を求める `stale-update`。
 
-新方式の終了UIはA5へ渡す。このActionは利用者向け取消や旧キャンプの無効化Actionへ接続しない。料金・滞在・提出PDFの既存取得との互換性は維持する。
+A5の配置画面とA6の本人部屋画面も成功時に再検証する。A6は終了者をended・部屋名非表示で返す。新方式の終了UIはフロント担当へ渡す。このActionは利用者向け取消や旧キャンプの無効化Actionへ接続しない。料金・滞在・提出PDFの既存取得との互換性は維持する。
 
 ## 適用と検証
 

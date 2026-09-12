@@ -24,8 +24,8 @@ export async function endCampRosterParticipationState(_previousState, formData) 
     return { error: "save-failed", fields };
   }
   const base = `/staff/camps/${data.camp_id}`;
-  for (const route of ["/staff", "/staff/camps", base, `${base}/eligible-users`, `${base}/applications`,
-    "/staff/calendar", "/calendar", "/user", "/user/camps", "/user/applications"]) revalidatePath(route);
+  for (const route of ["/staff", "/staff/camps", base, `${base}/eligible-users`, `${base}/room-plan`, `${base}/applications`,
+    "/staff/calendar", "/calendar", "/user", "/user/camps", "/user/camp-room", "/user/applications"]) revalidatePath(route);
   if (data.application_id) {
     revalidatePath(`${base}/applications/${data.application_id}`);
     for (const suffix of ["", "/edit", "/confirm", "/complete"]) revalidatePath(`/user/applications/${data.application_id}${suffix}`);
