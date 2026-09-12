@@ -806,3 +806,7 @@ DBの `save_camp_room_plan(target_camp_id,expected_roster_version,expected_room_
 ## A11 職員用配置表PDF
 
 `/staff/camps/[campId]/room-plan` はA3の `complete=true` のときだけ `get_staff_camp_room_plan_pdf` を読み、氏名等のPDF本文は画面データとして取得しない。作成Actionはcamp ID、対象集合版、氏名表示版、配置版だけを `begin_staff_camp_room_plan_pdf` へ渡す。ready版は `/api/staff/camps/room-plan-pdfs/[versionId]` のGET/HEADで取得する。各入口は毎回職員認証を行い、DBもactive職員と最新版完全配置を再検査する。詳細は [A11契約](staff-room-plan-pdf.md)。
+
+## A9 新方式キャンプ本人のPDF確認提出
+
+`/user/applications/[applicationId]/edit`は新方式だけ`roomAssignmentMode / inputVersion`を送り、部屋希望を表示しない。`/confirm`は`begin_camp_application_pdf`で生成を要求し、readyになった同じversion IDを`/api/camp/application-pdfs/[versionId]`で認証表示する。1ページ確認チェック後だけ`submit_camp_application_with_pdf`へapplication ID、PDF version ID、input version、submission keyを送る。氏名同期内容を提出前に明示する。legacy campとcommunityは既存画面・Actionを維持する。詳細は [A9契約](camp-pdf-confirm-submit.md)。

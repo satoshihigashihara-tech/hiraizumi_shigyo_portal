@@ -27,6 +27,17 @@ const FIELD_LIMITS = {
   notes: 2000,
 };
 
+export const ELIGIBLE_ROSTER_PDF_LIMITS = {
+  applicantName: 20,
+  applicantAddress: 30,
+  applicantPhone: 20,
+  emergencyContactName: 20,
+  emergencyContactAddress: 30,
+  emergencyContactPhone: 20,
+  usagePurpose: 60,
+  notes: 48,
+};
+
 const REQUIRED_FOR_CONFIRM = [
   "applicantName",
   "applicantAddress",
@@ -59,10 +70,14 @@ export function readCampDraftFields(formData) {
   );
 }
 
-export function validateCampDraftFields(fields, intent) {
+export function validateCampDraftFields(fields, intent, options = {}) {
   const errors = {};
 
-  for (const [name, limit] of Object.entries(FIELD_LIMITS)) {
+  const limits = options.eligibleRoster
+    ? ELIGIBLE_ROSTER_PDF_LIMITS
+    : FIELD_LIMITS;
+
+  for (const [name, limit] of Object.entries(limits)) {
     if ((fields[name] ?? "").length > limit) {
       errors[name] = "field-too-long";
     }
@@ -96,6 +111,7 @@ export function validateCampDraftFields(fields, intent) {
 
   if (intent === "confirm") {
     for (const name of REQUIRED_FOR_CONFIRM) {
+      if (options.eligibleRoster && name === "requestedRoomPreference") continue;
       if (!fields[name]) errors[name] = "required-fields";
     }
   }

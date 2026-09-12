@@ -10,6 +10,7 @@ import FormField from "@/app/components/FormField";
 import LinkButton from "@/app/components/LinkButton";
 import SubmitButton from "@/app/components/SubmitButton";
 import { errorMessage } from "@/app/components/messages";
+import { ELIGIBLE_ROSTER_PDF_LIMITS } from "@/utils/camp-applications/validation";
 import styles from "./page.module.css";
 
 const FILE_ERROR_CODES = new Set([
@@ -40,6 +41,9 @@ export default function CampApplicationForm({
   consent,
   download,
   uploadErrorCode,
+  roomAssignmentMode,
+  inputVersion,
+  nameContext,
 }) {
   const [state, formAction, pending] = useActionState(
     saveCampApplicationDraft,
@@ -47,6 +51,19 @@ export default function CampApplicationForm({
   );
   const summaryRef = useRef(null);
   const fields = state?.fields ?? initialFields;
+  const eligibleRoster = roomAssignmentMode === "eligible_roster";
+  const limits = eligibleRoster
+    ? ELIGIBLE_ROSTER_PDF_LIMITS
+    : {
+        applicantName: 100,
+        applicantAddress: 500,
+        applicantPhone: 20,
+        emergencyContactName: 100,
+        emergencyContactAddress: 500,
+        emergencyContactPhone: 20,
+        usagePurpose: 2000,
+        notes: 2000,
+      };
 
   useEffect(() => {
     if (!state?.error) return;
@@ -59,6 +76,8 @@ export default function CampApplicationForm({
     <>
       <form className={styles.form} action={formAction} noValidate>
       <input type="hidden" name="applicationId" value={applicationId} />
+      <input type="hidden" name="roomAssignmentMode" value={roomAssignmentMode} />
+      {eligibleRoster && <input type="hidden" name="inputVersion" value={inputVersion} />}
 
       {state?.error && (
         <div ref={summaryRef} tabIndex={-1} className={styles.focusTarget}>
@@ -77,13 +96,23 @@ export default function CampApplicationForm({
         <p className={styles.groupDescription}>
           申請者本人の情報を入力してください。プロフィールの登録内容を初期表示しています。メールアドレスはログイン中のアカウント情報を使用します。
         </p>
+        {eligibleRoster && (
+          <div className={styles.nameSyncNotice}>
+            <p><strong>この申請で使用する正式な氏名</strong></p>
+            <p>PDFを確認して提出した時点で、入力した氏名をプロフィール氏名と町の管理用氏名へ同時に反映します。</p>
+            <dl>
+              <div><dt>現在のプロフィール氏名</dt><dd>{nameContext.profileName || "未登録"}</dd></div>
+              <div><dt>現在の管理用氏名</dt><dd>{nameContext.managementName || "未登録"}</dd></div>
+            </dl>
+          </div>
+        )}
         <div className={styles.fields}>
           <FormField
             id="applicantName"
             name="applicantName"
             label="氏名"
             required
-            maxLength={100}
+            maxLength={limits.applicantName}
             autoComplete="name"
             defaultValue={fields.applicantName}
             error={state?.fieldErrors?.applicantName}
@@ -93,7 +122,7 @@ export default function CampApplicationForm({
             name="applicantAddress"
             label="住所"
             required
-            maxLength={500}
+            maxLength={limits.applicantAddress}
             autoComplete="street-address"
             defaultValue={fields.applicantAddress}
             error={state?.fieldErrors?.applicantAddress}
@@ -103,7 +132,7 @@ export default function CampApplicationForm({
             name="applicantPhone"
             label="電話番号"
             required
-            maxLength={20}
+            maxLength={limits.applicantPhone}
             type="tel"
             inputMode="tel"
             autoComplete="tel"
@@ -125,7 +154,7 @@ export default function CampApplicationForm({
             name="emergencyContactName"
             label="緊急連絡先の氏名"
             required
-            maxLength={100}
+            maxLength={limits.emergencyContactName}
             defaultValue={fields.emergencyContactName}
             error={state?.fieldErrors?.emergencyContactName}
           />
@@ -134,7 +163,7 @@ export default function CampApplicationForm({
             name="emergencyContactAddress"
             label="緊急連絡先の住所"
             required
-            maxLength={500}
+            maxLength={limits.emergencyContactAddress}
             defaultValue={fields.emergencyContactAddress}
             error={state?.fieldErrors?.emergencyContactAddress}
           />
@@ -143,7 +172,7 @@ export default function CampApplicationForm({
             name="emergencyContactPhone"
             label="緊急連絡先の電話番号"
             required
-            maxLength={20}
+            maxLength={limits.emergencyContactPhone}
             type="tel"
             inputMode="tel"
             hint="数字、ハイフン、丸括弧を使用できます。"
@@ -178,7 +207,7 @@ export default function CampApplicationForm({
             label="使用目的"
             required
             rows={5}
-            maxLength={2000}
+            maxLength={limits.usagePurpose}
             hint="キャンプ参加中のシェアハウス利用目的を入力してください。"
             defaultValue={fields.usagePurpose}
             error={state?.fieldErrors?.usagePurpose}
@@ -189,7 +218,7 @@ export default function CampApplicationForm({
             name="notes"
             label="特記事項"
             rows={4}
-            maxLength={2000}
+            maxLength={limits.notes}
             hint="町へ伝えておきたいことがある場合に入力してください。"
             defaultValue={fields.notes}
             error={state?.fieldErrors?.notes}
@@ -214,20 +243,24 @@ export default function CampApplicationForm({
             defaultValue={fields.guardianConsentRequired}
             error={state?.fieldErrors?.guardianConsentRequired}
           />
-          <FormField
-            as="radio"
-            id="requestedRoomPreference"
-            name="requestedRoomPreference"
-            label="部屋の希望"
-            required
-            hint="希望は部屋割りの参考情報です。個室を保証するものではありません。"
-            options={[
-              { value: "shared_ok", label: "相部屋可" },
-              { value: "private_requested", label: "個室希望" },
-            ]}
-            defaultValue={fields.requestedRoomPreference}
-            error={state?.fieldErrors?.requestedRoomPreference}
-          />
+          {eligibleRoster ? (
+            <p className={styles.groupDescription}>部屋は町が事前に割り当てた内容を確認用PDFへ印字します。この画面から部屋の希望や割当は変更できません。</p>
+          ) : (
+            <FormField
+              as="radio"
+              id="requestedRoomPreference"
+              name="requestedRoomPreference"
+              label="部屋の希望"
+              required
+              hint="希望は部屋割りの参考情報です。個室を保証するものではありません。"
+              options={[
+                { value: "shared_ok", label: "相部屋可" },
+                { value: "private_requested", label: "個室希望" },
+              ]}
+              defaultValue={fields.requestedRoomPreference}
+              error={state?.fieldErrors?.requestedRoomPreference}
+            />
+          )}
         </div>
       </fieldset>
 

@@ -24,6 +24,11 @@ function getRequiredUuid(formData, name) {
   return UUID_PATTERN.test(value) ? value : null;
 }
 
+function getPositiveBigint(formData, name) {
+  const value = getText(formData, name);
+  return /^[1-9]\d*$/.test(value) ? value : null;
+}
+
 function withQuery(path, values) {
   const searchParams = new URLSearchParams();
 
@@ -42,6 +47,21 @@ function databaseErrorCode(error) {
 
   if (error?.code === "40001" || error?.code === "40P01") return "stale-update";
   if (message === "calendar-unavailable" || message === "calendar-inconsistent") return "calendar-unavailable";
+  if (["stale-update", "invalid-version"].includes(message)) return "stale-update";
+  if (message === "eligible-roster-required" || message === "eligible-roster-form-required") return "eligible-roster-required";
+  if (message === "pdf-confirmation-required") return "pdf-confirmation-required";
+  if (message === "pdf-prerequisites-unavailable") return "pdf-prerequisites-unavailable";
+  if (message === "pdf-content-too-long") return "pdf-content-too-long";
+  if (["pdf-assignment-unavailable", "pdf-room-not-printable", "pdf-calendar-unavailable"].includes(message)) return "pdf-unavailable";
+  if (["pdf-not-ready", "job-unavailable"].includes(message)) return "pdf-not-ready";
+  if (message === "required-fields") return "required-fields";
+  if (message === "invalid-phone") return "invalid-phone";
+  if (message === "guardian-consent") return "guardian-consent";
+  if (message === "not-editable") return "not-editable";
+  if (message === "not-submittable") return "not-submittable";
+  if (message === "confirmation-required") return "confirmation-required";
+  if (message === "field-too-long") return "field-too-long";
+  if (message === "application-inconsistent" || message === "submitted-pdf-inconsistent") return "application-inconsistent";
 
   if (message.includes("ログイン")) return "login-required";
   if (message.includes("期限")) return "deadline-passed";
@@ -88,6 +108,9 @@ export async function saveCampApplicationDraft(previousState, formData) {
   const applicationId = getRequiredUuid(formData, "applicationId");
   const fields = readCampDraftFields(formData);
   const intent = getText(formData, "intent");
+  const roomAssignmentMode = getText(formData, "roomAssignmentMode");
+  const eligibleRoster = roomAssignmentMode === "eligible_roster";
+  const inputVersion = getPositiveBigint(formData, "inputVersion");
 
   if (!applicationId) {
     return campDraftFailure("invalid-application", fields);
@@ -101,7 +124,11 @@ export async function saveCampApplicationDraft(previousState, formData) {
     return campDraftFailure("invalid-action", fields);
   }
 
-  const fieldErrors = validateCampDraftFields(fields, intent);
+  if (eligibleRoster && !inputVersion) {
+    return campDraftFailure("stale-update", fields);
+  }
+
+  const fieldErrors = validateCampDraftFields(fields, intent, { eligibleRoster });
   if (Object.keys(fieldErrors).length > 0) {
     return campDraftFailure(
       Object.values(fieldErrors)[0],
@@ -110,7 +137,24 @@ export async function saveCampApplicationDraft(previousState, formData) {
     );
   }
 
-  const { error } = await supabase.rpc("save_camp_application_draft", {
+  const rpcName = eligibleRoster
+    ? "save_camp_roster_application_draft"
+    : "save_camp_application_draft";
+  const rpcArguments = eligibleRoster
+    ? {
+        target_application_id: applicationId,
+        expected_input_version: inputVersion,
+        applicant_name: fields.applicantName,
+        applicant_address: fields.applicantAddress,
+        applicant_phone: fields.applicantPhone,
+        emergency_contact_name: fields.emergencyContactName,
+        emergency_contact_address: fields.emergencyContactAddress,
+        emergency_contact_phone: fields.emergencyContactPhone,
+        usage_purpose: fields.usagePurpose,
+        notes: fields.notes,
+        guardian_consent_required: campBoolean(fields.guardianConsentRequired),
+      }
+    : {
     target_application_id: applicationId,
     applicant_name: fields.applicantName,
     applicant_address: fields.applicantAddress,
@@ -124,7 +168,8 @@ export async function saveCampApplicationDraft(previousState, formData) {
       fields.guardianConsentRequired,
     ),
     requested_room_preference: fields.requestedRoomPreference || null,
-  });
+      };
+  const { error } = await supabase.rpc(rpcName, rpcArguments);
 
   if (error) {
     return campDraftFailure(databaseErrorCode(error), fields);
@@ -160,9 +205,33 @@ export async function saveCampApplicationDraft(previousState, formData) {
   redirect(withMode(withQuery(editPath, { saved: "1" }), "camp"));
 }
 
+export async function requestCampApplicationPdf(formData) {
+  const { supabase } = await requireActiveUser(withMode("/user/applications", "camp"));
+  const applicationId = getRequiredUuid(formData, "applicationId");
+  const inputVersion = getPositiveBigint(formData, "inputVersion");
+  const requestKey = getRequiredUuid(formData, "requestKey");
+  if (!applicationId || !inputVersion || !requestKey) {
+    redirect(withMode(withQuery("/user/applications", { error: "invalid-application" }), "camp"));
+  }
+  const confirmPath = `/user/applications/${applicationId}/confirm`;
+  const { data, error } = await supabase.rpc("begin_camp_application_pdf", {
+    target_application_id: applicationId,
+    expected_input_version: inputVersion,
+    request_key_value: requestKey,
+  });
+  if (error || !UUID_PATTERN.test(data ?? "")) {
+    redirect(withMode(withQuery(confirmPath, { error: databaseErrorCode(error) }), "camp"));
+  }
+  revalidatePath(confirmPath);
+  redirect(withMode(withQuery(confirmPath, { pdf: "requested" }), "camp"));
+}
+
 export async function submitCampApplication(formData) {
   const { supabase } = await requireActiveUser(withMode("/user/applications", "camp"));
   const applicationId = getRequiredUuid(formData, "applicationId");
+  const pdfVersionId = getRequiredUuid(formData, "pdfVersionId");
+  const inputVersion = getPositiveBigint(formData, "inputVersion");
+  const submissionKey = getRequiredUuid(formData, "submissionKey");
 
   if (!applicationId) {
     redirect(withQuery("/user", { error: "invalid-application" }));
@@ -177,9 +246,18 @@ export async function submitCampApplication(formData) {
     redirect(withMode(withQuery(confirmPath, { error: "confirmation-required" }), "camp"));
   }
 
-  const { data, error } = await supabase.rpc("submit_camp_application", {
-    target_application_id: applicationId,
-  });
+  const usePdfSubmission = Boolean(pdfVersionId || inputVersion || submissionKey);
+  const { data, error } = usePdfSubmission
+    ? await supabase.rpc("submit_camp_application_with_pdf", {
+        target_application_id: applicationId,
+        target_version_id: pdfVersionId,
+        expected_input_version: inputVersion,
+        submission_key_value: submissionKey,
+        confirmed: true,
+      })
+    : await supabase.rpc("submit_camp_application", {
+        target_application_id: applicationId,
+      });
 
   if (error) {
     redirect(
@@ -195,7 +273,8 @@ export async function submitCampApplication(formData) {
     data.length !== 1 ||
     result?.submitted_application_id !== applicationId ||
     !/^SG-\d{4}-\d+$/.test(result?.reception_number ?? "") ||
-    !Number.isFinite(Date.parse(result?.submission_time ?? ""))
+    !Number.isFinite(Date.parse(result?.submission_time ?? "")) ||
+    (usePdfSubmission && result?.submitted_version_id !== pdfVersionId)
   ) {
     redirect(withMode(withQuery(editPath, { error: "unexpected" }), "camp"));
   }

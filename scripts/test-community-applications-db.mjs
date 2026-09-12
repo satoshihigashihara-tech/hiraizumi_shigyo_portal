@@ -713,9 +713,9 @@ async function pdfConcurrency(c) {
     await client.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:actor,role})]);
     await client.query(`set role ${role}`);
   }
-  async function beginVersion(key=randomUUID(),client=c) {
+  async function beginVersion(key=randomUUID(),client=c,inputVersion=1) {
     await client.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:f.owner_id,role:'authenticated'})]);
-    return (await client.query('select public.begin_camp_application_pdf($1,1,$2) id',[f.app_id,key])).rows[0].id;
+    return (await client.query('select public.begin_camp_application_pdf($1,$2,$3) id',[f.app_id,inputVersion,key])).rows[0].id;
   }
   async function job() {
     const version=await beginVersion();
@@ -751,7 +751,7 @@ async function pdfConcurrency(c) {
     let result=await waiting(pending);assert.ifError(result.error);await b.query('commit');assert.equal(result.value.rows[0].ok,true);
     assert.equal((await c.query("select count(*)::integer n from public.audit_logs where entity_id=$1 and action='pdf_ready'",[j.version_id])).rows[0].n,1);cases++;
     await c.query('begin');await c.query("select set_config('private.camp_pdf_submission','allowed',true)");
-    await c.query("update public.camp_application_versions set state='submitted',confirmed_at=clock_timestamp(),submitted_at=clock_timestamp() where id=$1",[j.version_id]);await c.query('commit');
+    await c.query("update public.camp_application_versions set state='submitted',confirmed_at=clock_timestamp(),submitted_at=clock_timestamp(),submission_key=gen_random_uuid() where id=$1",[j.version_id]);await c.query('commit');
     await session(a,'postgres');await session(b);await a.query('begin');await b.query('begin');
     await a.query('select private.lock_calendar_facility()');await a.query('delete from public.staff_roles where user_id=$1',[f.staff_id]);
     pending=b.query("select public.authorize_camp_pdf_delivery($1,$2,'HEAD') permit",[j.version_id,f.staff_id]).then(value=>({value}),error=>({error}));
@@ -788,9 +788,30 @@ async function pdfConcurrency(c) {
     await beginVersion(randomUUID(),a);
     pending=beginVersion(randomUUID(),b).then(value=>({value}),error=>({error}));result=await waiting(pending);
     assert.equal(result.error?.code,'40001');await b.query('rollback');cases++;
+
+    // A9 same-key submissions serialize and replay the one committed receipt/PDF.
+    await c.query('reset role');
+    const currentInput=(await c.query('select input_version from public.applications where id=$1',[f.app_id])).rows[0].input_version;
+    await c.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:f.owner_id,role:'authenticated'})]);
+    await c.query('set role authenticated');
+    const saved=(await c.query(`select * from public.save_camp_roster_application_draft(
+      $1,$2,'A9同時提出氏名','架空住所','0191-46-2111','架空連絡先','架空住所','090-0000-0000','架空目的',null,false)`,[f.app_id,currentInput])).rows[0];
+    await c.query('reset role');
+    const submitVersion=await beginVersion(randomUUID(),c,saved.result_input_version);
+    const submitJob=(await c.query('select id from public.camp_pdf_jobs where version_id=$1',[submitVersion])).rows[0].id;
+    const claimed=(await c.query('select public.claim_camp_pdf_job($1) job',[submitJob])).rows[0].job;
+    assert.equal((await complete(c,claimed)).rows[0].ok,true);
+    const submitKey=randomUUID();
+    await session(a,'authenticated');await session(b,'authenticated');await a.query('begin');await b.query('begin');
+    const firstSubmit=await a.query('select * from public.submit_camp_application_with_pdf($1,$2,$3,$4,true)',[f.app_id,submitVersion,saved.result_input_version,submitKey]);
+    pending=b.query('select * from public.submit_camp_application_with_pdf($1,$2,$3,$4,true)',[f.app_id,submitVersion,saved.result_input_version,submitKey]).then(value=>({value}),error=>({error}));
+    result=await waiting(pending);assert.ifError(result.error);await b.query('commit');
+    assert.equal(result.value.rows[0].reception_number,firstSubmit.rows[0].reception_number);
+    assert.equal((await c.query('select count(*)::integer n from public.reception_numbers where application_id=$1',[f.app_id])).rows[0].n,1);
+    assert.equal((await c.query("select count(*)::integer n from public.audit_logs where entity_id=$1 and action='pdf_confirmed_and_submitted'",[submitVersion])).rows[0].n,1);cases++;
     console.log('PASS camp_pdf_versions_concurrency.sql',{checked_cases:cases,all_passed:true});
   } finally {
-    await a.query('rollback');await b.query('rollback');await c.query('reset role');
+    await a.query('rollback');await b.query('rollback');await c.query('rollback');await c.query('reset role');
     await c.query('begin; select a7_pdf_concurrency_test.cleanup(); drop schema a7_pdf_concurrency_test cascade; commit');
     assert.equal((await c.query("select count(*)::integer n from public.camp_application_versions where application_id=$1",[f.app_id])).rows[0].n,0);
     console.log('PASS cleanup a7_pdf_concurrency_test; original fail-closed adapter restored');
@@ -931,7 +952,7 @@ try {
   if (requested.includes('--audit-notes-only')) await c.query("select set_config('test.operations_phase','audit-notes',false)");
   if (requested.includes('--staff-search-only')) await c.query("select set_config('test.operations_phase','staff-search',false)");
   if (requested.includes('--stays-only')) await c.query("select set_config('test.operations_phase','stays',false)");
-  const single = ['staff_camp_room_plan_pdfs.sql', 'camp_roster_lifecycle.sql', 'camp_pdf_versions.sql', 'camp_pdf_renderer_settings.sql', 'camp_room_plan_bulk_save.sql', 'application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql', 'community_groups.sql', 'group_invitations.sql', 'group_participant_submissions.sql', 'group_review_and_approval.sql', 'group_changes_and_cancellation.sql', 'group_deadline_expiration.sql', 'account_cleanup.sql', 'camp_roster_identity_foundation.sql', 'camp_roster_eligible_user_management.sql'];
+  const single = ['staff_camp_room_plan_pdfs.sql', 'camp_roster_lifecycle.sql', 'camp_pdf_versions.sql', 'camp_pdf_renderer_settings.sql', 'camp_pdf_confirm_submit.sql', 'camp_room_plan_bulk_save.sql', 'application_operations.sql', 'camp_room_allocations_and_approval.sql', 'calendar_and_blocked_periods.sql', 'community_individual_applications.sql', 'community_individual_room_allocations_and_approval.sql', 'community_groups.sql', 'group_invitations.sql', 'group_participant_submissions.sql', 'group_review_and_approval.sql', 'group_changes_and_cancellation.sql', 'group_deadline_expiration.sql', 'account_cleanup.sql', 'camp_roster_identity_foundation.sql', 'camp_roster_eligible_user_management.sql'];
   const concurrent = ['camp_roster_lifecycle_concurrency.sql', 'camp_pdf_versions_concurrency.sql', 'camp_room_plan_bulk_save_concurrency.sql', 'camp_room_allocations_concurrency.sql', 'calendar_concurrency.sql', 'community_individual_applications_concurrency.sql', 'community_individual_room_allocations_concurrency.sql', 'camp_roster_identity_concurrency.sql', 'camp_roster_eligible_user_management_concurrency.sql'];
   const selected = requested.includes('--migrate-only') ? [] : requested.includes('--single-only') ? single : requested.includes('--stays-only') ? ['application_operations.sql', ...(requested.includes('--stays-concurrency') ? ['--stays-concurrency'] : [])] : requested.includes('--audit-notes-only') ? ['application_operations.sql', ...(requested.includes('--audit-notes-concurrency') ? ['--audit-notes-concurrency'] : [])] : requested.includes('--staff-search-only') ? ['application_operations.sql'] : requested.length ? requested : [...single, ...concurrent, '--payments-concurrency', '--stays-concurrency', '--audit-notes-concurrency', '--groups-concurrency', '--group-invitations-concurrency', '--group-expiration-concurrency'];
   for (const file of selected) {

@@ -14,8 +14,8 @@ begin
  when 'check_in' then return format('select * from public.update_application_stay(%L,%L,%L)',x.app,x.app_version,'check_in');
  when 'check_out' then return format('select * from public.update_application_stay(%L,%L,%L)',x.app,x.app_version,'check_out');
  when 'create' then return format('select public.create_camp_application_draft(%L)',x.camp);
- when 'draft' then return format('select public.save_camp_application_draft(%L,%L,%L,%L,%L,%L,%L,%L,null,false,%L)',
-   x.app,'架空本人','架空住所','0000000000','架空連絡先','架空住所','0000000000','架空目的','shared_ok');
+ when 'draft' then return format('select * from public.save_camp_roster_application_draft(%L,%s,%L,%L,%L,%L,%L,%L,%L,null,false)',
+   x.app,(select input_version from public.applications where id=x.app),'架空本人','架空住所','0000000000','架空連絡先','架空住所','0000000000','架空目的');
  when 'camp' then return format('select public.create_staff_camp(%L,%L,%L,%L)','架空競合',
    (select start_date from public.camps where id=x.camp),(select end_date from public.camps where id=x.camp),clock_timestamp()+interval '1 day');
  when 'blocked' then return format('select * from public.save_staff_blocked_period(null,%L,%L,%L)',

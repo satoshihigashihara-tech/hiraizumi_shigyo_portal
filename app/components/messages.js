@@ -85,6 +85,11 @@ export const ERROR_MESSAGES = {
   // 同意書・ファイル
   "guardian-consent": "保護者の同意書が必要です。同意書を添付してから提出してください。",
   "confirmation-required": "内容を確認したことに同意してから操作してください。",
+  "pdf-confirmation-required": "表示されたPDFを確認したことに同意してから提出してください。",
+  "pdf-prerequisites-unavailable": "確認用PDFの生成設定を利用できません。町の担当へお問い合わせください。",
+  "pdf-content-too-long": "PDFへ印字できる文字数を超えています。入力内容を短くしてください。",
+  "pdf-unavailable": "現在の入力または部屋割りから確認用PDFを生成できません。最新の内容をご確認ください。",
+  "pdf-not-ready": "確認用PDFの生成が完了していません。生成状況を更新してから、もう一度お試しください。",
   "file-required": "ファイルが選択されていません。",
   "invalid-size": "ファイルの容量が上限を超えています。5MB以下のファイルを選び直してください。",
   "invalid-type":

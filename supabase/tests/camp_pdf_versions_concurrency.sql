@@ -32,6 +32,7 @@ declare f a7_pdf_concurrency_test.context%rowtype;
 begin
   select * into f from a7_pdf_concurrency_test.context;
   execute f.adapter_definition;
+  update public.applications set latest_submitted_camp_pdf_version_id=null where id=f.app_id;
   delete from public.audit_logs where entity_id in(select id from public.camp_application_versions where application_id=f.app_id);
   delete from public.camp_pdf_jobs where version_id in(select id from public.camp_application_versions where application_id=f.app_id);
   -- Test teardown only. Runtime roles cannot disable the retention trigger.

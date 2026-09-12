@@ -192,6 +192,12 @@ export default async function CampApplicationEditPage({ params, searchParams }) 
           consent={application.consent}
           download={download}
           uploadErrorCode={errorCode}
+          roomAssignmentMode={application.roomAssignmentMode}
+          inputVersion={application.inputVersion}
+          nameContext={{
+            profileName: application.pdfContext?.profileName ?? "",
+            managementName: application.pdfContext?.managementName ?? "",
+          }}
         />
       )}
 

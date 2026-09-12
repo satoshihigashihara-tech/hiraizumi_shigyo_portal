@@ -170,6 +170,40 @@
   background: var(--sg-neutral-bg, #f1f3f5);
 }
 
+.pdfFrame {
+  width: 100%;
+  min-height: 70vh;
+  border: 1px solid var(--sg-color-border, #c9ced4);
+  border-radius: var(--sg-radius, 8px);
+  background: var(--sg-neutral-bg, #f1f3f5);
+}
+
+.nameSyncSummary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-2, 8px);
+  padding: var(--sg-space-4, 16px);
+  border-left: 4px solid var(--sg-info-border, #1f3c88);
+  border-radius: 0 var(--sg-radius, 8px) var(--sg-radius, 8px) 0;
+  color: var(--sg-info-text, #14306e);
+  background: var(--sg-info-bg, #eaf1fb);
+}
+
+.nameSyncSummary dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sg-space-3, 12px);
+}
+
+.nameSyncSummary dt {
+  font-size: var(--sg-font-sm, 14px);
+}
+
+.nameSyncSummary dd {
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
 .loadingLine {
   width: 72%;
 }
@@ -188,6 +222,14 @@
 
   .reviewGrid,
   .chargeBreakdown {
+    grid-template-columns: 1fr;
+  }
+
+  .pdfFrame {
+    min-height: 62vh;
+  }
+
+  .nameSyncSummary dl {
     grid-template-columns: 1fr;
   }
 

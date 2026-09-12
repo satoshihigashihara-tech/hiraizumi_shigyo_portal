@@ -281,3 +281,7 @@ Issue #84では、キャンプと地域活動個人の申請詳細へ職員の�
 ### T17 地域活動個人の取消・継続申請画面（2026年9月12日）
 
 `codex/community-individual-cancel-extension-ui`でIssue #81を実装中。既存SQL019・020と本人用Server Actionsへ`/user/applications/[applicationId]/cancel`と`/extension`を接続し、詳細にはDBが返す操作可否に応じた導線、一覧には継続申請の表示と元申請リンクを追加する。継続は元申請を変更せず別UUIDの下書きを明示操作で作り、既存継続があればその申請へ案内する。新しいSQL・環境変数・依存関係は追加せず、SupabaseへのSQL保存・適用もない。全Node361件、lint、本番build、差分検査が成功。実利用者で許可済み申請の詳細・取消入力・継続入力を表示確認済みで、状態変更はまだ行っていない。
+
+### A9 キャンプPDF確認提出（2026年9月13日）
+
+`codex/camp-pdf-confirm-submit`でSQL038と本人UIを実装中。eligible-roster本人の版付き保存、A3/A7/A8の確認PDF、認証表示、同一版の明示確認提出、プロフィール・管理用氏名同期を1トランザクションへ閉じる。旧保存／提出経路、新旧版、期限・資格・所有権、二重提出を拒否し、legacy/communityは維持する。新しいVercel秘密は不要。本番適用はしない。A11を先にmainへ統合し、その後にrebase・全検証・PRを行う。
