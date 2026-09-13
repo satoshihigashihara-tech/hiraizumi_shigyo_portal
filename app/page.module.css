@@ -93,13 +93,6 @@
 .primaryAction:active,
 .secondaryAction:active { transform: translateY(1px); }
 
-.heroVisual { position: relative; min-height: 100%; overflow: hidden; background: #dbe8ec; }
-.heroVisual img {
-  object-fit: cover;
-  object-position: 56% center;
-  animation: hero-image-settle 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
 .prototypeNotice {
   width: min(1120px, calc(100% - 32px));
   margin: 18px auto 0;
@@ -211,7 +204,6 @@
   .hero { grid-template-columns: 1fr; min-height: 0; margin-top: 12px; }
   .heroCopy { padding: 40px 24px; }
   .hero h1 { font-size: clamp(36px, 11vw, 50px); }
-  .heroVisual { min-height: 330px; }
   .heroActions { width: 100%; }
   .primaryAction,
   .secondaryAction { width: 100%; }
@@ -236,12 +228,10 @@
   .journey,
   .availability,
   .assurance { width: calc(100% - 24px); }
-  .heroVisual { min-height: 270px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .heroCopy > *,
-  .heroVisual img {
+  .heroCopy > * {
     opacity: 1;
     transform: none;
     animation: none;
@@ -254,16 +244,5 @@
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@keyframes hero-image-settle {
-  from {
-    opacity: 0;
-    transform: scale(1.045);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
   }
 }

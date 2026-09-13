@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import ShareHouseHero from "./components/ShareHouseHero";
 import styles from "./page.module.css";
 
 export const metadata = {
@@ -19,15 +20,7 @@ export default function Home() {
           <Link className={styles.secondaryAction} href="/calendar">空き状況を見る</Link>
         </div>
       </div>
-      <figure className={styles.heroVisual}>
-        <Image
-          src="/landing/hiraizumi-arrival.jpg"
-          alt="緑の山里にある木造の建物を訪れる学生たちのイメージ"
-          fill
-          priority
-          sizes="(max-width: 767px) 100vw, 52vw"
-        />
-      </figure>
+      <ShareHouseHero />
     </section>
 
     <p className={styles.prototypeNotice}>このサイトは自主制作の試作版です。平泉町の公式運営サービスではありません。</p>
