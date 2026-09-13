@@ -8,6 +8,7 @@ const ERROR_CODES = new Set([
   "confirmation-required",
   "invalid-email", "eligible-email-exists", "eligible-has-application",
   "eligible-roster-required", "invalid-management-name",
+  "eligible-users-required", "too-many-eligible-users", "duplicate-eligible-email",
 ]);
 
 export function getText(formData, name) {

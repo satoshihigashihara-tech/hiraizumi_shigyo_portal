@@ -15,9 +15,16 @@ const FORM = {
   startDate: "2028-02-29", endDate: "2028-03-03",
   applicationDeadline: "2028-02-28T23:59", updatedAt: VERSION,
   internalReason: "清掃", reason: "日程変更", confirmed: "true",
+  eligibleName: ["架空 太郎", "架空 花子"],
+  eligibleEmail: ["TARO@example.invalid", "hanako@example.invalid"],
 };
 const copy = (value) => JSON.parse(JSON.stringify(value));
-const form = (fields = {}) => new Map(Object.entries({ ...FORM, ...fields }));
+const form = (fields = {}) => {
+  const values = { ...FORM, ...fields };
+  const result = new Map(Object.entries(values));
+  result.getAll = (name) => Array.isArray(values[name]) ? values[name] : values[name] === undefined ? [] : [values[name]];
+  return result;
+};
 
 async function harness(path, { response = { data: SAVED, error: null }, denied = false } = {}) {
   const calls = [];
@@ -67,7 +74,7 @@ async function harness(path, { response = { data: SAVED, error: null }, denied =
 }
 
 const ACTIONS = [
-  ["app/actions/staff-camps.js", "createStaffCamp", "create_staff_camp", ID],
+  ["app/actions/staff-camps.js", "createStaffCamp", "create_staff_camp_with_roster", ID],
   ["app/actions/staff-camps.js", "updateStaffCamp", "update_staff_camp", SAVED],
   ["app/actions/staff-camps.js", "deleteStaffCamp", "delete_staff_camp", SAVED],
   ["app/actions/staff-calendar.js", "createStaffBlockedPeriod", "save_staff_blocked_period", SAVED],
@@ -89,6 +96,10 @@ for (const [file, action, rpc, data] of ACTIONS) {
       assert.equal(args.change_reason, FORM.reason);
     }
     if (args.camp_application_deadline) assert.equal(args.camp_application_deadline, "2028-02-28T15:00:00.000Z");
+    if (action === "createStaffCamp") assert.deepEqual(args.eligible_users, [
+      { management_name: "架空 太郎", email: "taro@example.invalid" },
+      { management_name: "架空 花子", email: "hanako@example.invalid" },
+    ]);
     assert.ok(calls.some((c) => c[0] === "revalidate" && c[1] === "/calendar"));
     assert.ok(calls.some((c) => c[0] === "revalidate" && c[1] === "/staff/calendar"));
     assert.equal(calls.at(-1)[0], "redirect");
@@ -108,6 +119,22 @@ test("updates reject missing/malformed versions without requesting fresh values 
       assert.equal((await action(form({ updatedAt }))).error, "invalid-version");
       assert.equal(calls.length, 1);
     }
+  }
+});
+
+test("camp creation validates paired names, email syntax, duplicate emails and roster capacity before RPC", async () => {
+  for (const [fields, error, field] of [
+    [{ eligibleName: [], eligibleEmail: [] }, "eligible-users-required", null],
+    [{ eligibleName: [""], eligibleEmail: ["one@example.invalid"] }, "invalid-fields", "eligibleName-0"],
+    [{ eligibleName: ["架空"], eligibleEmail: ["invalid"] }, "invalid-fields", "eligibleEmail-0"],
+    [{ eligibleName: ["架空一", "架空二"], eligibleEmail: ["Same@example.invalid", "same@example.invalid"] }, "invalid-fields", "eligibleEmail-1"],
+    [{ eligibleName: Array(16).fill("架空"), eligibleEmail: Array.from({ length: 16 }, (_, i) => `a${i}@example.invalid`) }, "too-many-eligible-users", null],
+  ]) {
+    const { api, calls } = await harness("app/actions/staff-camps.js");
+    const result = copy(await api.createStaffCamp(form(fields)));
+    assert.equal(result.error, error);
+    if (field) assert.ok(result.fieldErrors[field]);
+    assert.equal(calls.filter((call) => call[0] === "rpc").length, 0);
   }
 });
 
