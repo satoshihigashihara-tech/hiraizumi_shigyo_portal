@@ -15,7 +15,7 @@ function HeaderFallback() {
     <a className={chromeStyles.skipLink} href="#main-content">本文へ移動する</a>
     <header className={chromeStyles.header}><div className={chromeStyles.headerInner}>
       <Link className={chromeStyles.brand} href="/">ひらいずみ志業ポータル</Link>
-      <p className={chromeStyles.audience}>利用する方へ</p>
+      <p className={chromeStyles.audience} aria-hidden="true" />
       <div className={chromeStyles.account}><Link href="/login">ログイン</Link></div>
       <nav className={chromeStyles.nav} aria-label="共通メニュー"><ul>
         <li><Link href="/">サービス紹介</Link></li>

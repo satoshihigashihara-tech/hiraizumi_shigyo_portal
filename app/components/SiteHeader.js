@@ -41,11 +41,12 @@ export function useSiteAudience() {
   return { pathname, mode, area };
 }
 
-function audienceLabel(area, mode) {
+function audienceLabel(area, mode, pathname) {
   if (area === "staff") return "職員の方へ";
   if (mode === "camp") return "スパルタキャンプ参加者の方へ";
   if (mode === "fieldwork") return "フィールドワークを行う方へ";
   if (area === "user") return "一般利用者の方へ";
+  if (pathname === "/") return null;
   return "利用する方へ";
 }
 
@@ -59,6 +60,7 @@ export function SiteAccount({ area }) {
 
 export default function SiteHeader() {
   const { pathname, mode, area } = useSiteAudience();
+  const audience = audienceLabel(area, mode, pathname);
   const nav = area === "staff"
     ? [["/staff", "職員ホーム"], ["/staff/camps", "キャンプ管理"], ["/staff/community/groups", "団体審査"], ["/staff/calendar", "職員カレンダー"]]
     : area === "user"
@@ -72,7 +74,7 @@ export default function SiteHeader() {
     <header className={styles.header}>
       <div className={styles.headerInner}>
         <Link className={styles.brand} href="/">ひらいずみ志業ポータル</Link>
-        <p className={styles.audience}>{audienceLabel(area, mode)}</p>
+        <p className={styles.audience} aria-hidden={!audience}>{audience}</p>
         <div className={styles.account}><SiteAccount area={area} /></div>
         <nav className={styles.nav} aria-label="共通メニュー"><ul>
           {nav.map(([href, label]) => <li key={href}><Link aria-current={pathname === href ? "page" : undefined} href={withMode(href, area === "user" ? mode : null)}>{label}</Link></li>)}
