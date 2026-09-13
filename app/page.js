@@ -1,25 +1,87 @@
-import LinkButton from "@/app/components/LinkButton";
-import PageShell from "@/app/components/PageShell";
+import Image from "next/image";
+import Link from "next/link";
 import styles from "./page.module.css";
 
-export const metadata = { description: "平泉町志業シェアハウスの利用目的に合う入口を選びます。" };
+export const metadata = {
+  title: "ひらいずみ志業ポータル｜申請から利用までをひとつに",
+  description: "平泉町志業シェアハウスの利用申請、審査状況、部屋、料金を確認できるポータルです。",
+};
 
 export default function Home() {
-  return <div className={styles.page}><PageShell
-    title="平泉町志業シェアハウスの利用区分を選ぶ"
-    description="利用目的に合う入口を選んでください。申請した時点では利用は確定しません。"
-  >
-    <div className={styles.choices}>
-      <section className={styles.choice} aria-labelledby="camp-choice"><div>
-        <h2 id="camp-choice">スパルタキャンプに参加する方</h2>
-        <p>スパルタキャンプ参加者としての利用申請、申請状況の確認を行います。</p>
-      </div><LinkButton href="/camp" variant="primary" fullWidthOnMobile>キャンプ利用へ進む</LinkButton></section>
-      <section className={styles.choice} aria-labelledby="fieldwork-choice"><div>
-        <h2 id="fieldwork-choice">大学・学生団体でフィールドワークを行う方</h2>
-        <p>団体での利用内容、利用期間、予定人数を登録し、参加者を招待する方はこちらです。</p>
-      </div><LinkButton href="/user?mode=fieldwork" variant="primary" fullWidthOnMobile>団体での利用へ進む</LinkButton></section>
-    </div>
-    <p className={styles.help}>職員から案内された利用者情報でログインしてください。ログイン済みの方も、利用目的に合う入口から進んでください。</p>
-    <div className={styles.calendar}><LinkButton href="/calendar" fullWidthOnMobile>利用状況カレンダーを見る</LinkButton></div>
-  </PageShell></div>;
+  return <div className={styles.page}>
+    <section className={styles.hero} aria-labelledby="hero-title">
+      <div className={styles.heroCopy}>
+        <p className={styles.eyebrow}>ひらいずみ志業ポータル</p>
+        <h1 id="hero-title">平泉で始める、その一歩を。<span>手続きで止めない。</span></h1>
+        <p className={styles.lead}>志業シェアハウスの申請から審査、部屋、料金の確認までを、ひとつの画面で。</p>
+        <div className={styles.heroActions}>
+          <Link className={styles.primaryAction} href="/welcome-user">申請を始める</Link>
+          <Link className={styles.secondaryAction} href="/calendar">空き状況を見る</Link>
+        </div>
+      </div>
+      <figure className={styles.heroVisual}>
+        <Image
+          src="/landing/hiraizumi-arrival.jpg"
+          alt="緑の山里にある木造の建物を訪れる学生たちのイメージ"
+          fill
+          priority
+          sizes="(max-width: 767px) 100vw, 52vw"
+        />
+      </figure>
+    </section>
+
+    <p className={styles.prototypeNotice}>このサイトは自主制作の試作版です。平泉町の公式運営サービスではありません。</p>
+
+    <section className={styles.introduction} aria-labelledby="intro-title">
+      <div className={styles.introCopy}>
+        <h2 id="intro-title">参加のかたちに合う入口から</h2>
+        <p>スパルタキャンプ参加者と、大学・学生団体のフィールドワーク。それぞれに必要な手続きへ迷わず進めます。</p>
+      </div>
+      <div className={styles.screenFrame}>
+        <Image
+          src="/landing/application-choices.png"
+          alt="スパルタキャンプとフィールドワークの利用入口を選ぶ画面"
+          width={1280}
+          height={720}
+          sizes="(max-width: 767px) 100vw, 58vw"
+        />
+      </div>
+    </section>
+
+    <section className={styles.journey} aria-labelledby="journey-title">
+      <h2 id="journey-title">申請から利用まで</h2>
+      <ol>
+        <li><h3>申請する</h3><p>利用目的と日程を入力し、内容を確認して提出します。</p></li>
+        <li><h3>審査を待つ</h3><p>提出後の状態と、修正が必要な場合の案内を確認します。</p></li>
+        <li><h3>準備を確認する</h3><p>許可後の部屋、料金、納付状況を本人の画面で確認します。</p></li>
+        <li><h3>利用する</h3><p>職員と同じ申請情報をもとに、入退去まで記録します。</p></li>
+      </ol>
+    </section>
+
+    <section className={styles.availability} aria-labelledby="availability-title">
+      <div className={styles.calendarFrame}>
+        <Image
+          src="/landing/availability-calendar.png"
+          alt="申請可能、利用不可、受付開始前を示す利用状況カレンダー"
+          width={1280}
+          height={720}
+          sizes="(max-width: 767px) 100vw, 54vw"
+        />
+      </div>
+      <div className={styles.availabilityCopy}>
+        <h2 id="availability-title">空き状況は、ログイン前に</h2>
+        <p>公開カレンダーには個人情報を表示せず、申請できる日と利用できない日だけを示します。</p>
+        <Link className={styles.textLink} href="/calendar">利用状況カレンダーを見る</Link>
+      </div>
+    </section>
+
+    <section className={styles.assurance} aria-labelledby="assurance-title">
+      <h2 id="assurance-title">見える情報を、必要な人だけに</h2>
+      <div className={styles.assuranceGrid}>
+        <div><h3>利用する方</h3><p>自分の申請、料金、部屋、手続きの状態を確認できます。</p></div>
+        <div><h3>職員</h3><p>権限を確認したうえで、審査から利用管理までを進めます。</p></div>
+      </div>
+    </section>
+
+  </div>;
 }

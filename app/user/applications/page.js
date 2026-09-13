@@ -54,7 +54,7 @@ export default async function UserApplicationsPage({ searchParams }) {
   if (mode === "camp") redirect("/user?mode=camp");
   const result = await getUserApplications(mode);
   return <PageShell audienceMode={mode} title="申請一覧" description="提出した申請と、提出前の下書きを表示します。">
-    <div className={styles.actions}><LinkButton href="/user/applications/new" variant="primary" fullWidthOnMobile>新しく申請する</LinkButton><LinkButton href="/user" fullWidthOnMobile>利用者ホームへ戻る</LinkButton></div>
+    <div className={styles.actions}><LinkButton href="/user/applications/new" variant="primary" fullWidthOnMobile>新しく申請する</LinkButton><LinkButton href="/welcome-user" fullWidthOnMobile>利用区分を選ぶ</LinkButton></div>
     {result.error ? <AlertMessage tone="error" title="申請を読み込めませんでした"><p>{errorMessage(result.error)}</p></AlertMessage>
       : result.applications.length === 0 ? <EmptyState title="申請はまだありません" description="新しく申請すると、提出前の下書きもこの画面に表示されます。" />
         : <section className={styles.section} aria-labelledby="applications-heading"><h2 className={styles.sectionTitle} id="applications-heading">申請の一覧</h2>

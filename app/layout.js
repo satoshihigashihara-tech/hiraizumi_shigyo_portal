@@ -18,7 +18,8 @@ function HeaderFallback() {
       <p className={chromeStyles.audience}>利用する方へ</p>
       <div className={chromeStyles.account}><Link href="/login">ログイン</Link></div>
       <nav className={chromeStyles.nav} aria-label="共通メニュー"><ul>
-        <li><Link href="/">利用区分</Link></li>
+        <li><Link href="/">サービス紹介</Link></li>
+        <li><Link href="/welcome-user">申請を始める</Link></li>
         <li><Link href="/calendar">利用状況カレンダー</Link></li>
       </ul></nav>
     </div></header>
@@ -28,7 +29,8 @@ function HeaderFallback() {
 function FooterFallback() {
   return <footer className={chromeStyles.footer}><div className={chromeStyles.footerInner}>
     <nav aria-label="サイトマップ"><h2>サイトマップ</h2><ul>
-      <li><Link href="/">利用区分を選ぶ</Link></li>
+      <li><Link href="/">サービス紹介</Link></li>
+      <li><Link href="/welcome-user">申請を始める</Link></li>
       <li><Link href="/camp">キャンプ利用</Link></li>
       <li><Link href="/calendar">利用状況カレンダー</Link></li>
     </ul></nav>

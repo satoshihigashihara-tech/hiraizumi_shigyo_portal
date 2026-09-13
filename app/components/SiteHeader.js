@@ -65,7 +65,7 @@ export default function SiteHeader() {
       ? mode === "fieldwork"
         ? [["/user", "ホーム"], ["/user/applications", "参加者申請"], ["/user/profile", "プロフィール"]]
         : [["/user", "ホーム"], ["/user/profile", "プロフィール"]]
-      : [["/", "利用区分"], ["/calendar", "利用状況カレンダー"]];
+      : [["/", "サービス紹介"], ["/welcome-user", "申請を始める"], ["/calendar", "利用状況カレンダー"]];
 
   return <>
     <a className={styles.skipLink} href="#main-content">本文へ移動する</a>

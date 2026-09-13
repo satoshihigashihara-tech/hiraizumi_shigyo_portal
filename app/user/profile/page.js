@@ -38,7 +38,7 @@ export default async function UserProfilePage({ searchParams }) {
       )}
       <div className={styles.actions}>
         {mode === "camp" && <LinkButton href="/user/camp-room" variant="primary" fullWidthOnMobile>キャンプの部屋を確認する</LinkButton>}
-        <LinkButton href="/user" fullWidthOnMobile>利用者ホームへ戻る</LinkButton>
+        <LinkButton href="/welcome-user" fullWidthOnMobile>利用区分を選ぶ</LinkButton>
       </div>
     </PageShell>
   );

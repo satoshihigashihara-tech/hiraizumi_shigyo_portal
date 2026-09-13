@@ -13,7 +13,7 @@ export default function SiteFooter() {
       ? mode === "fieldwork"
         ? [["/user", "団体利用者ホーム"], ["/user/applications", "参加者申請"], ["/user/profile", "プロフィール"]]
         : [["/user", "利用者ホーム"], ["/user/profile", "プロフィール"]]
-      : [["/", "利用区分を選ぶ"], ["/camp", "キャンプ利用"], ["/calendar", "利用状況カレンダー"]];
+      : [["/", "サービス紹介"], ["/welcome-user", "申請を始める"], ["/camp", "キャンプ利用"], ["/calendar", "利用状況カレンダー"]];
   return <footer className={styles.footer}>
     <div className={styles.footerInner}>
       <nav aria-label="サイトマップ"><h2>サイトマップ</h2><ul>
