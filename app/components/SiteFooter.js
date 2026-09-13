@@ -16,7 +16,7 @@ export default function SiteFooter() {
       : [["/", "サービス紹介"], ["/welcome-user", "申請を始める"], ["/camp", "キャンプ利用"], ["/calendar", "利用状況カレンダー"]];
   return <footer className={styles.footer}>
     <div className={styles.footerInner}>
-      <nav aria-label="サイトマップ"><h2>サイトマップ</h2><ul>
+      <nav aria-label="フッターメニュー"><ul>
         {links.map(([href, label]) => <li key={href}><Link href={withMode(href, area === "user" ? mode : null)}>{label}</Link></li>)}
       </ul></nav>
       <div className={styles.footerAccount}><SiteAccount area={area} /></div>

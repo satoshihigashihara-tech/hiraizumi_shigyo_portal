@@ -28,7 +28,7 @@ function HeaderFallback() {
 
 function FooterFallback() {
   return <footer className={chromeStyles.footer}><div className={chromeStyles.footerInner}>
-    <nav aria-label="サイトマップ"><h2>サイトマップ</h2><ul>
+    <nav aria-label="フッターメニュー"><ul>
       <li><Link href="/">サービス紹介</Link></li>
       <li><Link href="/welcome-user">申請を始める</Link></li>
       <li><Link href="/camp">キャンプ利用</Link></li>
