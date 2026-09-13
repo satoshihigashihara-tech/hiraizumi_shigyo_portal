@@ -12,7 +12,7 @@ export default function Home() {
     <section className={styles.hero} aria-labelledby="hero-title">
       <div className={styles.heroCopy}>
         <p className={styles.eyebrow}>ひらいずみ志業ポータル</p>
-        <h1 id="hero-title">平泉で始める、その一歩を。<span>手続きで止めない。</span></h1>
+        <h1 id="hero-title"><span>平泉で始める、</span><span>その一歩を。</span><span className={styles.heroEmphasis}>手続きで止めない。</span></h1>
         <p className={styles.lead}>志業シェアハウスの申請から審査、部屋、料金の確認までを、ひとつの画面で。</p>
         <div className={styles.heroActions}>
           <Link className={styles.primaryAction} href="/welcome-user">申請を始める</Link>
@@ -43,6 +43,7 @@ export default function Home() {
           alt="スパルタキャンプとフィールドワークの利用入口を選ぶ画面"
           width={1280}
           height={720}
+          loading="eager"
           sizes="(max-width: 767px) 100vw, 58vw"
         />
       </div>

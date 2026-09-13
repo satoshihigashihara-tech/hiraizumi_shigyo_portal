@@ -68,12 +68,6 @@
   font-weight: 700;
 }
 
-.dayStatus {
-  font-size: var(--sg-font-xs, 12px);
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-
 .available {
   color: var(--sg-success-text, #0b3d26);
   background: var(--sg-success-bg, #e7f4ec);
@@ -115,11 +109,6 @@
 
   .dayNumber {
     font-size: var(--sg-font-sm, 14px);
-  }
-
-  .dayStatus {
-    font-size: 10px;
-    overflow-wrap: anywhere;
   }
 
   .monthNavigation > * {

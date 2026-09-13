@@ -12,7 +12,7 @@
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   width: min(1240px, calc(100% - 32px));
   min-height: 560px;
   margin: 24px auto 0;
@@ -26,7 +26,7 @@
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
-  padding: 56px clamp(32px, 5vw, 72px);
+  padding: 56px clamp(32px, 4vw, 56px);
 }
 
 .heroCopy > * {
@@ -49,12 +49,14 @@
 
 .hero h1 {
   max-width: 13em;
-  font-size: clamp(40px, 4.6vw, 68px);
+  font-size: clamp(40px, 3.8vw, 52px);
   line-height: 1.16;
   letter-spacing: -0.045em;
 }
 
-.hero h1 span { display: block; color: var(--lp-accent); }
+.hero h1 span { display: block; }
+.hero h1 span { white-space: nowrap; }
+.hero h1 .heroEmphasis { color: var(--lp-accent); }
 
 .lead {
   max-width: 31em;
@@ -200,7 +202,7 @@
 }
 
 @media (max-width: 900px) {
-  .hero { grid-template-columns: minmax(0, 1fr) minmax(0, 0.86fr); }
+  .hero { grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr); }
   .heroCopy { padding: 44px 32px; }
   .journey ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -227,6 +229,7 @@
 }
 
 @media (max-width: 420px) {
+  .hero h1 { font-size: clamp(28px, 8vw, 34px); }
   .hero,
   .prototypeNotice,
   .introduction,

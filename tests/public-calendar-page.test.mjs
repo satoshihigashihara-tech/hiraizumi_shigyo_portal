@@ -26,6 +26,8 @@ test("public calendar uses text statuses and has loading and error states", () =
   const page = read("app/calendar/page.js");
   const loading = read("app/calendar/loading.js");
   for (const label of ["申請可能", "利用不可", "受付開始前"]) assert.match(page, new RegExp(label));
+  assert.doesNotMatch(page, /className=\{styles\.dayStatus\}/);
+  assert.match(page, /aria-label=\{`\$\{Number\(day\.date\.slice\(-2\)\)\}日、\$\{availability\.label\}`\}/);
   assert.match(page, /カレンダーを読み込めませんでした/);
   assert.match(loading, /カレンダーを読み込んでいます/);
   assert.match(read("app/page.js"), /href="\/calendar"/);
