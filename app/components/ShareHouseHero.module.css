@@ -23,7 +23,7 @@
   line-height: 1.6;
 }
 
-/* Morning hold → daylight hold → original night, once only. */
+/* Three generated, aligned frames: morning → daylight → night, once only. */
 @keyframes morning-to-night {
   0%, 50% { opacity: 1; }
   85%, 100% { opacity: 0; }

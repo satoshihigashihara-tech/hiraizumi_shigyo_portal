@@ -36,6 +36,6 @@ export default function ShareHouseHero() {
       <Image className={styles.day} src="/landing/share-house-day.webp"
         alt="" aria-hidden="true" fill unoptimized loading="eager" />
     </div>
-    <figcaption>朝・昼は実際の夜景写真をもとにしたイメージです。</figcaption>
+    <figcaption>実際の写真をもとに、朝・昼・夜を表現したイメージです。</figcaption>
   </figure>;
 }
