@@ -28,5 +28,5 @@ test("profile page provides success, load failure and return navigation", () => 
   const page = read("app/user/profile/page.js");
   assert.match(page, /プロフィールを保存しました/);
   assert.match(page, /プロフィールを読み込めませんでした/);
-  assert.match(page, /href="\/user"/);
+  assert.match(page, /href="\/welcome-user"/);
 });

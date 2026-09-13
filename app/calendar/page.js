@@ -65,10 +65,10 @@ export default async function PublicCalendarPage({ searchParams }) {
                   <li
                     className={`${styles.day} ${styles[availability.className]}`}
                     key={day.date}
+                    aria-label={`${Number(day.date.slice(-2))}日、${availability.label}`}
                     style={day === result.days[0] ? { gridColumnStart: offset + 1 } : undefined}
                   >
                     <time className={styles.dayNumber} dateTime={day.date}>{Number(day.date.slice(-2))}</time>
-                    <span className={styles.dayStatus}>{availability.label}</span>
                   </li>
                 );
               })}

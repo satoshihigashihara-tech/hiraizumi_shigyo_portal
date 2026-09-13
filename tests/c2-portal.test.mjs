@@ -6,14 +6,19 @@ import vm from "node:vm";
 const ROOT = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, ROOT), "utf8");
 
-test("public top is the two-choice landing page and camp content moved to /camp", async () => {
-  const [top, camp, styles] = await Promise.all([
-    read("app/page.js"), read("app/camp/page.js"), read("app/page.module.css"),
+test("public landing links to the two-choice screen moved to /welcome-user", async () => {
+  const [top, welcome, camp, styles] = await Promise.all([
+    read("app/page.js"), read("app/welcome-user/page.js"), read("app/camp/page.js"), read("app/welcome-user/page.module.css"),
   ]);
-  assert.match(top, /スパルタキャンプに参加する方/);
-  assert.match(top, /大学・学生団体でフィールドワークを行う方/);
-  assert.match(top, /href="\/camp"/);
-  assert.match(top, /href="\/user\?mode=fieldwork"/);
+  assert.match(top, />申請を始める<\/Link>/);
+  assert.match(top, /href="\/welcome-user"/);
+  assert.match(top, /<h2 id="service-name">ひらいずみ志業ポータル<\/h2>/);
+  assert.match(top, /平泉町志業シェアハウスの利用申請から審査/);
+  assert.doesNotMatch(top, /参加のかたちに合う入口から|空き状況は、ログイン前に|application-choices|availability-calendar/);
+  assert.match(welcome, /スパルタキャンプに参加する方/);
+  assert.match(welcome, /大学・学生団体でフィールドワークを行う方/);
+  assert.match(welcome, /href="\/camp"/);
+  assert.match(welcome, /href="\/user\?mode=fieldwork"/);
   assert.match(styles, /grid-template-columns: repeat\(2/);
   assert.match(styles, /@media \(max-width: 767px\).*grid-template-columns: 1fr/s);
   assert.match(camp, /audienceMode="camp"/);
@@ -30,11 +35,26 @@ test("common chrome is shared and every screen gets the exact project copyright"
   assert.doesNotMatch(layout, /getSessionUser|getActiveViewer|staff_roles|profiles/);
   assert.match(header, /共通メニュー/);
   assert.match(header, /className=\{styles\.brand\} href="\/"/);
+  assert.match(header, /\["\/welcome-user", "申請を始める"\]/);
   assert.doesNotMatch(header, /\["\/camp", "キャンプ利用"\]/);
   assert.match(footer, /© 2026 ひらいずみ志業ポータル開発チーム/);
   assert.doesNotMatch(footer, /© 2026 平泉町/);
   assert.match(globalStyles, /color-scheme: light/);
   assert.doesNotMatch(globalStyles, /prefers-color-scheme:\s*dark/);
+});
+
+test("user-facing return buttons lead back to the usage selection screen", async () => {
+  const sources = await Promise.all([
+    "app/user/profile/page.js",
+    "app/user/applications/page.js",
+    "app/user/applications/[applicationId]/complete/page.js",
+    "app/invite/[token]/page.js",
+  ].map(read));
+
+  for (const source of sources) {
+    assert.doesNotMatch(source, /<LinkButton href="\/user"/);
+    assert.match(source, /href="\/welcome-user"/);
+  }
 });
 
 test("camp and fieldwork use the simplified home navigation", async () => {

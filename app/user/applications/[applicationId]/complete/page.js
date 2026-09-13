@@ -36,7 +36,7 @@ export default async function CampApplicationCompletePage({ params }) {
           <div><dt>現在の申請状態</dt><dd><StatusBadge value={application.status} showKind /></dd></div>
         </dl>
       </section>
-      <div className={styles.actions}><LinkButton href={`/user/applications/${application.id}`} fullWidthOnMobile>申請詳細を見る</LinkButton><LinkButton href="/user" fullWidthOnMobile>利用者ホームへ戻る</LinkButton></div>
+      <div className={styles.actions}><LinkButton href={`/user/applications/${application.id}`} fullWidthOnMobile>申請詳細を見る</LinkButton><LinkButton href="/welcome-user" fullWidthOnMobile>利用区分を選ぶ</LinkButton></div>
     </PageShell>;
   }
   if (kind.usageType === "community_individual") {
@@ -55,7 +55,7 @@ export default async function CampApplicationCompletePage({ params }) {
           <div><dt>現在の申請状態</dt><dd><StatusBadge value={application.status} showKind /></dd></div>
         </dl>
       </section>
-      <div className={styles.actions}><LinkButton href={`/user/applications/${application.id}`} fullWidthOnMobile>申請詳細を見る</LinkButton><LinkButton href="/user" fullWidthOnMobile>利用者ホームへ戻る</LinkButton></div>
+      <div className={styles.actions}><LinkButton href={`/user/applications/${application.id}`} fullWidthOnMobile>申請詳細を見る</LinkButton><LinkButton href="/welcome-user" fullWidthOnMobile>利用区分を選ぶ</LinkButton></div>
     </PageShell>;
   }
   const { error, application } = await getCampApplicationForComplete(applicationId);
@@ -111,8 +111,8 @@ export default async function CampApplicationCompletePage({ params }) {
         >
           申請詳細を見る
         </LinkButton>
-        <LinkButton href="/user" variant="secondary" fullWidthOnMobile>
-          利用者ホームへ戻る
+        <LinkButton href="/welcome-user" variant="secondary" fullWidthOnMobile>
+          利用区分を選ぶ
         </LinkButton>
       </div>
     </PageShell>

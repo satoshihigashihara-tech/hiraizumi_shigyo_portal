@@ -86,7 +86,7 @@ export default async function InviteDetailPage({ params }) {
 
       <div className={styles.actions}>
         <LinkButton href="/invite" fullWidthOnMobile>別の招待コードを入力する</LinkButton>
-        <LinkButton href="/user" fullWidthOnMobile>利用者ホームへ戻る</LinkButton>
+        <LinkButton href="/welcome-user" fullWidthOnMobile>利用区分を選ぶ</LinkButton>
       </div>
     </PageShell>
   );
