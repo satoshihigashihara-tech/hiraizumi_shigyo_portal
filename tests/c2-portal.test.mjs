@@ -12,6 +12,9 @@ test("public landing links to the two-choice screen moved to /welcome-user", asy
   ]);
   assert.match(top, />申請を始める<\/Link>/);
   assert.match(top, /href="\/welcome-user"/);
+  assert.match(top, /<h2 id="service-name">ひらいずみ志業ポータル<\/h2>/);
+  assert.match(top, /平泉町志業シェアハウスの利用申請から審査/);
+  assert.doesNotMatch(top, /参加のかたちに合う入口から|空き状況は、ログイン前に|application-choices|availability-calendar/);
   assert.match(welcome, /スパルタキャンプに参加する方/);
   assert.match(welcome, /大学・学生団体でフィールドワークを行う方/);
   assert.match(welcome, /href="\/camp"/);

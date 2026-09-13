@@ -90,55 +90,33 @@
   line-height: 1.7;
 }
 
-.introduction,
-.availability {
-  display: grid;
-  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
-  gap: clamp(40px, 7vw, 96px);
-  align-items: center;
+.serviceIntroduction {
   width: min(1120px, calc(100% - 32px));
   margin: 120px auto 0;
+  text-align: center;
 }
 
-.introCopy,
-.availabilityCopy { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; }
-
-.introduction h2,
+.serviceIntroduction h2,
 .journey h2,
-.availability h2,
 .assurance h2 {
   font-size: clamp(30px, 3.4vw, 48px);
   line-height: 1.25;
   letter-spacing: -0.035em;
 }
 
-.introduction p,
-.availability p {
-  max-width: 34em;
+.serviceIntroduction h2 {
+  font-size: clamp(40px, 5.2vw, 72px);
+}
+
+.serviceIntroduction p {
+  max-width: 54em;
+  margin: 28px auto 0;
   color: var(--lp-muted);
-  font-size: 17px;
+  font-size: clamp(17px, 1.6vw, 20px);
   line-height: 1.8;
 }
 
-.textLink {
-  color: var(--lp-accent-dark);
-  font-weight: 700;
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 5px;
-}
-
-.screenFrame,
-.calendarFrame {
-  overflow: hidden;
-  border: 1px solid var(--lp-line);
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 24px 60px rgb(42 75 91 / 0.12);
-}
-
-.screenFrame img,
-.calendarFrame img { display: block; width: 100%; height: auto; }
+.serviceIntroduction p span { display: block; }
 
 .journey {
   width: min(1120px, calc(100% - 32px));
@@ -162,8 +140,6 @@
 .journey h3 { font-size: 20px; line-height: 1.4; }
 .journey p { margin-top: 10px; color: var(--lp-muted); line-height: 1.75; }
 
-.availability { grid-template-columns: minmax(0, 1.16fr) minmax(0, 0.84fr); }
-
 .assurance {
   width: min(1120px, calc(100% - 32px));
   margin: 120px auto;
@@ -180,7 +156,6 @@
 @media (hover: hover) and (pointer: fine) {
   .primaryAction:hover { background: var(--lp-accent-dark); border-color: var(--lp-accent-dark); }
   .secondaryAction:hover { background: #e4eef2; border-color: #91a9b6; }
-  .textLink:hover { color: var(--lp-accent); }
 }
 
 @media (max-width: 900px) {
@@ -197,10 +172,7 @@
   .heroActions { width: 100%; }
   .primaryAction,
   .secondaryAction { width: 100%; }
-  .introduction,
-  .availability { grid-template-columns: 1fr; gap: 36px; margin-top: 88px; }
-  .availabilityCopy { grid-row: 1; }
-  .calendarFrame { grid-row: 2; }
+  .serviceIntroduction { margin-top: 88px; }
   .journey,
   .assurance { margin-top: 88px; }
   .journey { padding: 36px 24px; }
@@ -215,9 +187,8 @@
   .heroCopy { padding: 16px 20px; }
   .hero,
   .prototypeNotice,
-  .introduction,
+  .serviceIntroduction,
   .journey,
-  .availability,
   .assurance { width: calc(100% - 24px); }
 }
 

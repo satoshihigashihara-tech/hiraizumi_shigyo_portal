@@ -8,8 +8,6 @@ export default function ShareHouseHero({ children }) {
   const scene = useRef(null);
   const [ready, setReady] = useState(false);
   const [visible, setVisible] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [finished, setFinished] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -29,23 +27,15 @@ export default function ShareHouseHero({ children }) {
   }, []);
 
   return <figure className={styles.figure}>
-    <div ref={scene} className={styles.scene} data-playing={ready && visible} data-paused={paused} data-finished={finished}>
+    <div ref={scene} className={styles.scene} data-playing={ready && visible}>
       <Image className={styles.night} src="/landing/share-house-night.webp"
         alt="平泉町志業シェアハウスの外観と駐車車両"
         fill unoptimized loading="eager" />
       <Image className={styles.morning} src="/landing/share-house-morning.webp"
-        alt="" aria-hidden="true" fill unoptimized loading="eager" fetchPriority="high"
-        onAnimationEnd={() => setFinished(true)} />
+        alt="" aria-hidden="true" fill unoptimized loading="eager" fetchPriority="high" />
       <Image className={styles.day} src="/landing/share-house-day.webp"
         alt="" aria-hidden="true" fill unoptimized loading="eager" />
       {children}
     </div>
-    <figcaption>
-      <span>実際の写真をもとに、朝・昼・夜を表現したイメージです。</span>
-      <button className={styles.motionControl} type="button" disabled={!ready || finished}
-        onClick={() => setPaused(!paused)} aria-label={finished ? "風景アニメーション再生終了" : paused ? "風景アニメーションを再生" : "風景アニメーションを一時停止"}>
-        {finished ? "再生終了" : paused ? "再生" : "一時停止"}
-      </button>
-    </figcaption>
   </figure>;
 }
