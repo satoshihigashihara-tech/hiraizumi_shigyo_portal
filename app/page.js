@@ -11,16 +11,18 @@ export const metadata = {
 export default function Home() {
   return <div className={styles.page}>
     <section className={styles.hero} aria-labelledby="hero-title">
-      <div className={styles.heroCopy}>
-        <p className={styles.eyebrow}>ひらいずみ志業ポータル</p>
-        <h1 id="hero-title"><span>平泉で始める、</span><span>その一歩を。</span><span className={styles.heroEmphasis}>手続きで止めない。</span></h1>
+      <ShareHouseHero>
+        <div className={styles.heroCopy}>
+          <h1 id="hero-title"><span className={styles.headlineOpening}><span>平泉で始める、</span><span>その一歩を。</span></span><span>手続きで<span className={styles.heroEmphasis}>止めない。</span></span></h1>
+        </div>
+      </ShareHouseHero>
+      <div className={styles.heroDetails}>
         <p className={styles.lead}>志業シェアハウスの申請から審査、部屋、料金の確認までを、ひとつの画面で。</p>
         <div className={styles.heroActions}>
           <Link className={styles.primaryAction} href="/welcome-user">申請を始める</Link>
           <Link className={styles.secondaryAction} href="/calendar">空き状況を見る</Link>
         </div>
       </div>
-      <ShareHouseHero />
     </section>
 
     <p className={styles.prototypeNotice}>このサイトは自主制作の試作版です。平泉町の公式運営サービスではありません。</p>
