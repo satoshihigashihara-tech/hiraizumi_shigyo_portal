@@ -29,6 +29,16 @@
   padding: 56px clamp(32px, 5vw, 72px);
 }
 
+.heroCopy > * {
+  opacity: 0;
+  transform: translateY(18px);
+  animation: hero-reveal 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.heroCopy > :nth-child(2) { animation-delay: 90ms; }
+.heroCopy > :nth-child(3) { animation-delay: 180ms; }
+.heroCopy > :nth-child(4) { animation-delay: 270ms; }
+
 .eyebrow {
   margin-bottom: 20px;
   color: var(--lp-accent);
@@ -81,8 +91,12 @@
 .primaryAction:active,
 .secondaryAction:active { transform: translateY(1px); }
 
-.heroVisual { position: relative; min-height: 100%; }
-.heroVisual img { object-fit: cover; object-position: 56% center; }
+.heroVisual { position: relative; min-height: 100%; overflow: hidden; background: #dbe8ec; }
+.heroVisual img {
+  object-fit: cover;
+  object-position: 56% center;
+  animation: hero-image-settle 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
 .prototypeNotice {
   width: min(1120px, calc(100% - 32px));
@@ -223,6 +237,30 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .heroCopy > *,
+  .heroVisual img {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
   .primaryAction,
   .secondaryAction { transition: none; }
+}
+
+@keyframes hero-reveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-image-settle {
+  from {
+    opacity: 0;
+    transform: scale(1.045);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
