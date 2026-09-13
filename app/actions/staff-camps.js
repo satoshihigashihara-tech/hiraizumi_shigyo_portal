@@ -9,6 +9,12 @@ import {
 } from "@/utils/calendar/validation";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_CAMP_ELIGIBLE_USERS = 15;
+
+function getTexts(formData, name) {
+  const values = typeof formData?.getAll === "function" ? formData.getAll(name) : [];
+  return values.map((value) => typeof value === "string" ? value.trim() : "");
+}
 
 function withQuery(path, values) {
   const searchParams = new URLSearchParams();
@@ -62,7 +68,39 @@ async function runCampAction(formData, operation) {
       camp_application_deadline: deadline,
     });
   }
-  const rpcName = { create: "create_staff_camp", update: "update_staff_camp", delete: "delete_staff_camp" }[operation];
+  if (operation === "create") {
+    const names = getTexts(formData, "eligibleName");
+    const emails = getTexts(formData, "eligibleEmail");
+    const eligibleUsers = Array.from({ length: Math.max(names.length, emails.length) }, (_, index) => ({
+      managementName: names[index] ?? "",
+      email: emails[index] ?? "",
+    }));
+    fields.eligibleUsers = eligibleUsers;
+    const fieldErrors = {};
+    if (eligibleUsers.length < 1) {
+      return calendarFailure("eligible-users-required", fields);
+    }
+    if (eligibleUsers.length > MAX_CAMP_ELIGIBLE_USERS) {
+      return calendarFailure("too-many-eligible-users", fields);
+    }
+    const seenEmails = new Set();
+    eligibleUsers.forEach((eligibleUser, index) => {
+      const normalizedEmail = eligibleUser.email.toLowerCase();
+      const nameError = managementNameError(eligibleUser.managementName);
+      if (nameError) fieldErrors[`eligibleName-${index}`] = nameError;
+      if (!EMAIL_PATTERN.test(normalizedEmail)) fieldErrors[`eligibleEmail-${index}`] = "invalid-email";
+      if (normalizedEmail && seenEmails.has(normalizedEmail)) {
+        fieldErrors[`eligibleEmail-${index}`] = "duplicate-eligible-email";
+      }
+      seenEmails.add(normalizedEmail);
+    });
+    if (Object.keys(fieldErrors).length) return calendarFailure("invalid-fields", fields, fieldErrors);
+    input.eligible_users = eligibleUsers.map((eligibleUser) => ({
+      management_name: eligibleUser.managementName,
+      email: eligibleUser.email.toLowerCase(),
+    }));
+  }
+  const rpcName = { create: "create_staff_camp_with_roster", update: "update_staff_camp", delete: "delete_staff_camp" }[operation];
   const { data, error } = await supabase.rpc(rpcName, input);
   if (error) return calendarFailure(error, fields);
   const result = Array.isArray(data) ? data[0] : null;
@@ -72,7 +110,7 @@ async function runCampAction(formData, operation) {
   }
   revalidateCamp(campId);
   if (operation === "delete") redirect("/staff/camps?updated=deleted");
-  redirect(`/staff/camps/${campId}${operation === "update" ? "?updated=saved" : ""}`);
+  redirect(`/staff/camps/${campId}${operation === "update" ? "?updated=saved" : "?created=roster"}`);
 }
 
 export async function createStaffCamp(formData) {
