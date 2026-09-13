@@ -42,7 +42,7 @@ export function useSiteAudience() {
 }
 
 function audienceLabel(area, mode) {
-  if (area === "staff") return "職員の方へ";
+  if (area === "staff") return "職員用";
   if (mode === "camp") return "スパルタキャンプ参加者の方へ";
   if (mode === "fieldwork") return "フィールドワークを行う方へ";
   if (area === "user") return "一般利用者の方へ";

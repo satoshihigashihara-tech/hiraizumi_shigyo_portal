@@ -32,6 +32,8 @@ test("common chrome is shared and every screen gets the exact project copyright"
   assert.doesNotMatch(layout, /getSessionUser|getActiveViewer|staff_roles|profiles/);
   assert.match(header, /共通メニュー/);
   assert.match(header, /className=\{styles\.brand\} href="\/"/);
+  assert.match(header, /return "職員用"/);
+  assert.doesNotMatch(header, /職員の方へ/);
   assert.match(header, /\["\/welcome-user", "申請を始める"\]/);
   assert.doesNotMatch(header, /\["\/camp", "キャンプ利用"\]/);
   assert.match(footer, /© 2026 ひらいずみ志業ポータル開発チーム/);
