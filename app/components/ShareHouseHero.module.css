@@ -10,13 +10,7 @@
 
 .scene { position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; background: #020713; }
 .scene img { object-fit: contain; }
-.night {
-  opacity: 1;
-  /* Register the generated night to daytime landmarks at 960 × 720:
-     roof, window sills and tires are ~16px too high; eaves ~4px inset.
-     Keep registration fixed throughout the opacity animation and at rest. */
-  transform: translateY(2.222222%) scaleX(1.0125);
-}
+.night { opacity: 1; }
 .morning { opacity: 1; }
 .day { opacity: 0; }
 .scene[data-playing="true"] .morning { animation: morning-to-night 3s ease-in-out forwards; }

@@ -7,11 +7,11 @@ PR #119 (`codex/landing-page`, `2e2277e`) を基準に、`codex/hero-day-night` 
 - 最初は朝。3枚の画像の decode 完了と、画像領域が25%以上画面に入ることを待って再生。
 - 0–0.3秒は朝、0.3–1.29秒で昼へ、1.29–1.59秒は昼、1.59–3秒で夜へ。夜は生成した画像の窓・玄関の明かりが現れ、3秒以降は停止。再スクロールでは再生しない。ページ再訪・再読込では再生する。
 - CSS opacity のみ。GIF、動画、アニメーションライブラリなし。4:3全体を表示して建物と車を切り落とさない。
-- 夜画像の生成時に生じた位置差を、固定の `translateY(2.222222%) scaleX(1.0125)` で補正。960×720換算で下へ16px、左右へ約6px拡大し、昼の屋根・窓・車の位置に合わせる。補正は画面幅に比例し、再生中・停止後・reduce設定で変化しない。下端の草地16px相当のみ枠外となり、上端は夜空と同じ色で補う。
+- 夜は生成済みの朝・昼だけを参照して再生成。元写真・旧夜画像は今回の生成に渡していない。CSSによる位置・横幅補正を削除し、全画像を同じ4:3枠で表示する。
 - 昼が完全に表示されている間に背後の朝を消し、夜への遷移中に朝が重ならないようにする。
 - `prefers-reduced-motion: reduce` は最初から生成した夜景。JavaScript無効時は朝の静止画（reduce設定なら夜）。後続画像の読込失敗時は朝を維持。
 - 小容量のWebPを事前生成し、`next/image` の `unoptimized` で直接配信するため、追加の画像変換待ちがない。全画像eager、朝のみfetchPriority high。
-- 朝・昼・夜すべてimagegenで生成し、960×720のWebPに統一。朝64,552 bytes、昼65,374 bytes、夜36,350 bytes、合計166,276 bytes（約162.4KiB）。
+- 朝・昼・夜すべてimagegenで生成し、960×720のWebPに統一。朝64,552 bytes、昼65,374 bytes、夜32,618 bytes、合計162,544 bytes（約158.7KiB）。
 
 ## 保存ファイル
 
@@ -29,7 +29,7 @@ PR #119 (`codex/landing-page`, `2e2277e`) を基準に、`codex/hero-day-night` 
 
 imagegenスキルのbuilt-inツールを使用。元写真はユーザー指定の
 `/Users/dareka/Pictures/Photos Library.photoslibrary/resources/derivatives/masters/E/E8D5D8B7-91F4-41EE-9EFB-8267B2030A4C_4_5005_c.jpeg`。
-MPOとして判定されたためSharpで画素を変えずPNGへ変換して入力。朝・昼・夜すべてbuilt-in imagegenで生成。夜は生成済みの昼を構図の基準とし、元写真を照明の参照にして生成した。生成後の縮小・圧縮にはSharpを使用。
+MPOとして判定されたためSharpで画素を変えずPNGへ変換して入力。朝・昼・夜すべてbuilt-in imagegenで生成。最新の夜は生成済みの昼を編集対象、朝を補助参照として生成した。元写真と旧夜画像は参照していない。夕方の独立画像は保存されておらず、遷移途中の表示に相当する。生成後の縮小・圧縮にはSharpを使用。
 
 最終昼PNG: `/Users/dareka/.codex/generated_images/01a09841-0750-7cb1-896a-e71f891de9e0/exec-2fd0081f-2a65-4db8-b908-357cab6638e7.png`
 
@@ -45,11 +45,11 @@ MPOとして判定されたためSharpで画素を変えずPNGへ変換して入
 
 初回朝生成は看板文字の変化があったため配信には使用していない。
 
-最終夜PNG: `/Users/dareka/.codex/generated_images/01a09841-0750-7cb1-896a-e71f891de9e0/exec-124f9bf6-68d5-435d-99d1-74c6c1a1f73a.png`
+最終夜PNG: `/Users/dareka/.codex/generated_images/01a09841-0750-7cb1-896a-e71f891de9e0/exec-0d0556ef-f048-4cdb-8a93-bf57b4d81df6.png`
 
-夜の最終プロンプト（入力1:最終昼WebP、入力2:元写真のWebP）:
+夜の最終プロンプト（入力1:最終昼WebP、入力2:最終朝WebP）:
 
-> Use case: lighting-weather. Asset type: final NIGHT keyframe of a 3-second morning-to-day-to-night landing page animation. Image 1 is the exact edit target and alignment truth: generated DAY share-house image. Image 2 is the original NIGHT photo as a lighting reference only. Generate ONE NIGHT version of image 1. Preserve the EXACT camera, 4:3 full framing, building silhouette, roof line, ALL windows and doors, Japanese signs (平泉町志業シェアハウス), ALL vehicles and positions, neighbors, grass and power lines from image 1. Change ONLY illumination and sky. Match the natural night atmosphere of image 2: very deep navy almost black sky, softly visible building facade, warm amber second-floor central window, a cooler lit upstairs right window, bright inviting ground-floor windows and warm entrance illumination spilling onto the pavement. Other upstairs windows remain dark. Keep night readable and rendered with the SAME photographic texture/sharpness/style as image 1, no low-resolution noise. No new light fixtures, moon, stars, people, objects or text. No crop, zoom, rearrangement or architectural redesign. This must align closely with image 1 when crossfaded; make lighting-only changes.
+> Use case: lighting-weather. EDIT TARGET: image 1, the generated DAY frame. Image 2 is the generated MORNING frame, supporting style/alignment reference only. Use ONLY these two generated images. Create one NIGHT frame of exactly this same locked-off shot. This is a strict RELIGHT, not a recreation. All structural edges must stay at the exact same normalized pixel coordinates as image 1: roof apex around y=0.563, left eave x=0.153 y=0.605, right eave x=0.829 y=0.604, ground tire contact y=0.900. Maintain all roof lines, windows, entrance, cars and wheels, signs, neighboring buildings, grass and utility wires without shifting, scaling, warping or redrawing geometry. Preserve full 4:3 framing and lens perspective. Change ONLY daylight illumination into natural nighttime: deep navy sky, dim but legible facade, warm indoor light in the central upstairs window, entrance and ground-floor right windows, other windows mostly dark. Preserve EXACT lettering and all objects. Keep same image style and sharpness as provided frames. No reference to any original source photo or previous night image; derive night entirely from this supplied day frame. No crop, zoom, camera motion, perspective change, new objects, moon, stars or extra fixtures. Output one image, not a collage.
 
 ## 検証（2026-09-13）
 
