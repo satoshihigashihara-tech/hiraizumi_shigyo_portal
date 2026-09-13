@@ -13,28 +13,50 @@
 .night { opacity: 1; }
 .morning { opacity: 1; }
 .day { opacity: 0; }
-.scene[data-playing="true"] .morning { animation: morning-to-night 3s ease-in-out forwards; }
-.scene[data-playing="true"] .day { animation: day-to-night 3s ease-in-out forwards; }
+.scene[data-playing="true"] .morning { animation: morning-cycle 4.5s ease-in-out infinite; }
+.scene[data-playing="true"] .day { animation: day-cycle 4.5s ease-in-out infinite; }
+.scene[data-playing="true"][data-paused="true"] img { animation-play-state: paused; }
 
 .figure figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 12px 16px;
   color: #d2dce1;
   font-size: 11px;
   line-height: 1.6;
 }
 
-/* Three generated, aligned frames: morning → daylight → night, once only. */
-@keyframes morning-to-night {
-  0%, 43% { opacity: 1; }
-  53%, 100% { opacity: 0; }
+.motionControl {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #82949f;
+  border-radius: 6px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
 }
-@keyframes day-to-night {
-  0%, 10% { opacity: 0; }
-  43%, 53% { opacity: 1; }
-  100% { opacity: 0; }
+.motionControl:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.motionControl:disabled { opacity: 0.5; cursor: default; }
+
+/* Preserve the first 3s, then hold night for .3s and fade to morning in 1.2s.
+   Identical start/end opacity keeps the 4.5s loop boundary seamless. */
+@keyframes morning-cycle {
+  0%, 28.666667% { opacity: 1; }
+  35.333333%, 73.333333% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes day-cycle {
+  0%, 6.666667% { opacity: 0; }
+  28.666667%, 35.333333% { opacity: 1; }
+  66.666667%, 100% { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .scene .morning,
   .scene .day { display: none; animation: none; }
+  .motionControl { display: none; }
 }
