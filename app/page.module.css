@@ -20,6 +20,7 @@
 .heroCopy {
   position: absolute;
   inset: 0;
+  text-align: center;
   padding: clamp(24px, 4vw, 56px);
   background: linear-gradient(180deg, rgb(5 20 35 / 0.55), rgb(5 20 35 / 0.18) 43%, transparent 60%);
   pointer-events: none;
