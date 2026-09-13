@@ -39,7 +39,7 @@ export default async function NewApplicationPage({ searchParams }) {
       <section className={styles.available} aria-labelledby="group-application-heading">
         <div className={styles.availableCopy}>
           <h2 className={styles.sectionTitle} id="group-application-heading">
-            地域活動で利用する（団体）
+            学生フィールドワークで利用する
           </h2>
           <p className={styles.description}>
             2人から15人までの団体情報と利用期間を登録し、代表者として申請を始めます。
