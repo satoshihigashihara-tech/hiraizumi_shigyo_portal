@@ -1,7 +1,7 @@
 -- Fictional, local-only fixture shared by A4 single and multi-session tests.
 create schema a4_lifecycle_test;
 create table a4_lifecycle_test.context(staff uuid,owner uuid,camp uuid,eligible uuid,other_eligible uuid,app uuid,room uuid,
- eligible_version timestamptz,app_version timestamptz,roster bigint,plan bigint);
+ eligible_version timestamptz,app_version timestamptz,roster bigint,plan bigint,mapping_created boolean);
 create function a4_lifecycle_test.call_as(actor uuid,command text) returns jsonb language plpgsql as $$
 declare row_value record; rows_value jsonb:='[]'; state_value text; message_value text;
 begin
@@ -18,13 +18,15 @@ end $$;
 create function a4_lifecycle_test.setup(app_status text default 'draft',stay_status text default null,days_ahead integer default 20,assigned boolean default true)
 returns void language plpgsql as $$
 declare staff uuid:=gen_random_uuid(); owner uuid:=gen_random_uuid(); camp uuid:=gen_random_uuid(); eligible uuid:=gen_random_uuid(); other_e uuid:=gen_random_uuid();
- app uuid; room uuid; starts date:=(clock_timestamp() at time zone 'Asia/Tokyo')::date+days_ahead; snap jsonb;
+ app uuid; room uuid; starts date:=(clock_timestamp() at time zone 'Asia/Tokyo')::date+days_ahead; snap jsonb; mapping_created boolean;
 begin
  insert into auth.users(id,email,email_confirmed_at) values(staff,'a4-staff@example.invalid',clock_timestamp()),(owner,'a4-owner@example.invalid',clock_timestamp());
  insert into public.staff_roles(user_id) values(staff);
  select id into room from public.rooms where name='梅';
  insert into public.camp_room_mapping(room_id,source_name,floor,display_name,print_name,assignment_enabled,confirmed_at,confirmation_evidence)
- values(room,'架空資料',2,'架空部屋','架空部屋',true,clock_timestamp(),'fictional local test');
+ values(room,'架空資料',2,'架空部屋','架空部屋',true,clock_timestamp(),'fictional local test')
+ on conflict (room_id) do nothing;
+ mapping_created:=found;
  insert into public.camps(id,name,start_date,end_date,application_deadline,created_by,room_assignment_mode)
  values(camp,'A4 fictional',starts,starts+3,(starts-1)::timestamp at time zone 'Asia/Tokyo',staff,'eligible_roster');
  insert into public.camp_eligible_users(id,camp_id,email_normalized,management_name) values
@@ -50,7 +52,7 @@ begin
   update public.camps set room_plan_version=1,saved_roster_version=roster_version,room_plan_committed_at=clock_timestamp() where id=camp;
  end if;
  insert into a4_lifecycle_test.context select staff,owner,camp,eligible,other_e,app,room,
-   (select updated_at from public.camp_eligible_users where id=eligible),(select updated_at from public.applications where id=app),2,case when assigned then 1 else 0 end;
+   (select updated_at from public.camp_eligible_users where id=eligible),(select updated_at from public.applications where id=app),2,case when assigned then 1 else 0 end,mapping_created;
 end $$;
 create function a4_lifecycle_test.command(action_value text default 'withdraw',confirm_checkout boolean default false) returns text language sql as $$
  select format('select public.end_camp_roster_participation(%L,%L,%L,%L,%L,%L,%L,%L,%L,true,%L)',
@@ -90,7 +92,7 @@ begin
  delete from public.camps where id=x.camp;
  delete from public.account_cleanup_jobs where user_id in(x.staff,x.owner);
  delete from auth.users where id in(x.staff,x.owner);
- delete from public.camp_room_mapping;
+ if x.mapping_created then delete from public.camp_room_mapping where room_id=x.room; end if;
  delete from a4_lifecycle_test.context;
 end $$;
 create function a4_lifecycle_test.seed_retained_records() returns void language plpgsql as $$
