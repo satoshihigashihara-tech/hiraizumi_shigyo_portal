@@ -40,6 +40,7 @@ import styles from "./page.module.css";
  */
 const ERROR_TITLES_BY_CODE = {
   "login-required": "もう一度ログインしてください",
+  "session-timeout": "自動ログアウトしました",
 };
 
 const DEFAULT_ERROR_TITLE = "ログインできませんでした";
