@@ -179,7 +179,6 @@ async function roomPlanConcurrency(observer) {
       if (pending) await pending;
       await b.query('rollback');
       await observer.query(`select ${schema}.cleanup_case()`);
-      await observer.query('delete from public.camp_room_mapping');
     }
   }
   const verified = (await observer.query(`select * from ${schema}.verify()`)).rows;

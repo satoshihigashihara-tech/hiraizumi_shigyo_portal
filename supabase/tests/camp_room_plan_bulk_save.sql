@@ -51,7 +51,10 @@ declare staff uuid:=pg_temp.a3_user('a3-staff@example.invalid',true); viewer uui
  app uuid:=gen_random_uuid(); claim_id uuid; initial_commit timestamptz; v jsonb;
 begin
  select id into room1 from public.rooms where name='梅'; select id into room2 from public.rooms where name='竹';
- perform pg_temp.a3_check((select count(*)=0 from public.camp_room_mapping),'no production rooms automatically enabled');
+ -- SQL 042 confirms production rooms. Isolate this older unconfirmed-room scenario
+ -- inside the test transaction; the final rollback restores those mappings.
+ delete from public.camp_room_mapping;
+ perform pg_temp.a3_check((select count(*)=0 from public.camp_room_mapping),'fixture starts with no confirmed room mapping');
  insert into public.camps(id,name,start_date,end_date,application_deadline,created_by,room_assignment_mode) values
  (c,'A3 roster',current_date+100,current_date+102,clock_timestamp()+interval '90 days',staff,'eligible_roster'),
  (other,'A3 other',current_date+110,current_date+112,clock_timestamp()+interval '90 days',staff,'eligible_roster'),
