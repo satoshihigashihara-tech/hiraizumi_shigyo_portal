@@ -1,0 +1,11 @@
+.notice {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding: var(--sg-space-3, 12px) var(--sg-space-4, 16px);
+  border: 2px solid var(--sg-warning-border, #8a5a00);
+  background: var(--sg-warning-bg, #fdf3e3);
+  color: var(--sg-warning-text, #6b4400);
+  font-weight: 700;
+  line-height: 1.6;
+}

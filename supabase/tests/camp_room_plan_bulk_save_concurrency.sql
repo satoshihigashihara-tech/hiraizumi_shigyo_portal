@@ -19,12 +19,12 @@ begin
  end;
 end $$;
 create function a3_room_plan_concurrency_test.setup() returns void language plpgsql as $$
-declare staff uuid:=gen_random_uuid(); viewer uuid:=gen_random_uuid(); camp uuid:=gen_random_uuid(); eligible uuid:=gen_random_uuid(); room uuid;
+declare staff uuid:=gen_random_uuid(); viewer uuid:=gen_random_uuid(); camp uuid:=gen_random_uuid(); eligible uuid:=gen_random_uuid(); room uuid:=gen_random_uuid();
  starts date:=(clock_timestamp() at time zone 'Asia/Tokyo')::date+20; ends date:=starts+1; r jsonb; app uuid:=gen_random_uuid(); grp uuid:=gen_random_uuid();
 begin
  insert into auth.users(id,email,email_confirmed_at) values(staff,'a3-race-staff@example.invalid',clock_timestamp()),(viewer,'a3-race-user@example.invalid',clock_timestamp());
  insert into public.staff_roles(user_id) values(staff);
- select id into room from public.rooms where name='梅';
+ insert into public.rooms(id,name,capacity) values(room,'A3架空競合室',2);
  insert into public.camp_room_mapping(room_id,source_name,floor,display_name,print_name,assignment_enabled,confirmed_at,confirmation_evidence)
  values(room,'架空資料',2,'架空部屋','架空部屋',true,clock_timestamp(),'fictional local test');
  insert into public.camps(id,name,start_date,end_date,application_deadline,created_by,room_assignment_mode)
@@ -75,6 +75,8 @@ begin
  delete from public.camps where created_by=c.staff;
  delete from public.blocked_periods where created_by=c.staff;
  delete from auth.users where id in(c.staff,c.viewer);
+ delete from public.camp_room_mapping where room_id=c.room;
+ delete from public.rooms where id=c.room;
  delete from a3_room_plan_concurrency_test.context;
 end $$;
 create function a3_room_plan_concurrency_test.verify() returns setof a3_room_plan_concurrency_test.results language sql as $$
