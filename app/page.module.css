@@ -170,6 +170,7 @@
   line-height: 1.8;
   overflow-wrap: anywhere;
 }
+.mapActions { display: flex; flex-wrap: wrap; gap: 12px; }
 .mapLinkNote { margin-left: 4px; font-size: 12px; }
 .access a:focus-visible { outline: 3px solid var(--lp-accent); outline-offset: 4px; }
 
@@ -201,6 +202,7 @@
   .assuranceGrid { grid-template-columns: 1fr; margin-top: 32px; }
   .assurance { margin-bottom: 88px; }
   .access { padding-bottom: 64px; }
+  .mapActions { flex-direction: column; }
   .facilityName { font-size: 20px; }
   .facilityAddress { font-size: 16px; }
 }

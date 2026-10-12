@@ -4,6 +4,7 @@ import styles from "./page.module.css";
 
 const facilityAddress = "岩手県西磐井郡平泉町平泉字志羅山139番地8";
 const facilityMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(facilityAddress)}`;
+const facilityAppleMapUrl = `https://maps.apple.com/search?query=${encodeURIComponent(facilityAddress)}`;
 
 export const metadata = {
   title: "ひらいずみ志業ポータル｜申請から利用までをひとつに",
@@ -63,9 +64,14 @@ export default function Home() {
         <span>〒029-4102</span>
         <span>{facilityAddress}</span>
       </address>
-      <a className={styles.secondaryAction} href={facilityMapUrl} target="_blank" rel="noopener noreferrer">
-        Googleマップで見る<span className={styles.mapLinkNote}>（別タブ）</span>
-      </a>
+      <div className={styles.mapActions}>
+        <a className={styles.secondaryAction} href={facilityAppleMapUrl} target="_blank" rel="noopener noreferrer">
+          Appleマップで見る<span className={styles.mapLinkNote}>（別タブ）</span>
+        </a>
+        <a className={styles.secondaryAction} href={facilityMapUrl} target="_blank" rel="noopener noreferrer">
+          Googleマップで見る<span className={styles.mapLinkNote}>（別タブ）</span>
+        </a>
+      </div>
     </section>
 
   </div>;

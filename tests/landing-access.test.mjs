@@ -24,3 +24,11 @@ test("access section reuses existing colors with wrapping and keyboard focus sty
   assert.match(css, /\.access a:focus-visible/);
   assert.match(css, /\.assurance,\s*\.access \{ width: calc\(100% - 24px\); \}/);
 });
+
+test("Apple Maps uses the same address and appears before Google Maps", () => {
+  assert.match(page, /https:\/\/maps\.apple\.com\/search\?query=\$\{encodeURIComponent\(facilityAddress\)\}/);
+  assert.match(page, /href=\{facilityAppleMapUrl\} target="_blank" rel="noopener noreferrer"/);
+  assert.ok(page.indexOf("Appleマップで見る") < page.indexOf("Googleマップで見る"));
+  assert.match(css, /\.mapActions\s*\{[^}]*display: flex;[^}]*gap: 12px;/);
+  assert.match(css, /@media \(max-width: 767px\)[\s\S]*\.mapActions \{ flex-direction: column; \}/);
+});
