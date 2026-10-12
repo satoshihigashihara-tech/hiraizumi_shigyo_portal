@@ -2,6 +2,9 @@ import Link from "next/link";
 import ShareHouseHero from "./components/ShareHouseHero";
 import styles from "./page.module.css";
 
+const facilityAddress = "岩手県西磐井郡平泉町平泉字志羅山139番地8";
+const facilityMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(facilityAddress)}`;
+
 export const metadata = {
   title: "ひらいずみ志業ポータル｜申請から利用までをひとつに",
   description: "平泉町志業シェアハウスの利用申請、審査状況、部屋、料金を確認できるポータルです。",
@@ -51,6 +54,18 @@ export default function Home() {
         <div><h3>利用する方</h3><p>自分の申請、料金、部屋、手続きの状態を確認できます。</p></div>
         <div><h3>職員</h3><p>権限を確認したうえで、審査から利用管理までを進めます。</p></div>
       </div>
+    </section>
+
+    <section className={styles.access} aria-labelledby="access-title">
+      <h2 id="access-title">アクセス</h2>
+      <p className={styles.facilityName}>平泉町志業シェアハウス</p>
+      <address className={styles.facilityAddress}>
+        <span>〒029-4102</span>
+        <span>{facilityAddress}</span>
+      </address>
+      <a className={styles.secondaryAction} href={facilityMapUrl} target="_blank" rel="noopener noreferrer">
+        Googleマップで見る<span className={styles.mapLinkNote}>（別タブ）</span>
+      </a>
     </section>
 
   </div>;

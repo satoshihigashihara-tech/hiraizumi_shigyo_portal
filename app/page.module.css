@@ -98,7 +98,8 @@
 
 .serviceIntroduction h2,
 .journey h2,
-.assurance h2 {
+.assurance h2,
+.access h2 {
   font-size: clamp(30px, 3.4vw, 48px);
   line-height: 1.25;
   letter-spacing: -0.035em;
@@ -153,6 +154,25 @@
 .assuranceGrid h3 { font-size: 20px; }
 .assuranceGrid p { margin-top: 10px; color: var(--lp-muted); line-height: 1.75; }
 
+.access {
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 0 0 96px;
+}
+.facilityName { margin-top: 32px; font-size: 22px; font-weight: 700; }
+.facilityAddress {
+  display: grid;
+  gap: 4px;
+  margin: 16px 0 24px;
+  color: var(--lp-muted);
+  font-size: 18px;
+  font-style: normal;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.mapLinkNote { margin-left: 4px; font-size: 12px; }
+.access a:focus-visible { outline: 3px solid var(--lp-accent); outline-offset: 4px; }
+
 @media (hover: hover) and (pointer: fine) {
   .primaryAction:hover { background: var(--lp-accent-dark); border-color: var(--lp-accent-dark); }
   .secondaryAction:hover { background: #e4eef2; border-color: #91a9b6; }
@@ -180,6 +200,9 @@
   .assurance { padding: 36px 24px; }
   .assuranceGrid { grid-template-columns: 1fr; margin-top: 32px; }
   .assurance { margin-bottom: 88px; }
+  .access { padding-bottom: 64px; }
+  .facilityName { font-size: 20px; }
+  .facilityAddress { font-size: 16px; }
 }
 
 @media (max-width: 420px) {
@@ -189,7 +212,8 @@
   .prototypeNotice,
   .serviceIntroduction,
   .journey,
-  .assurance { width: calc(100% - 24px); }
+  .assurance,
+  .access { width: calc(100% - 24px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
