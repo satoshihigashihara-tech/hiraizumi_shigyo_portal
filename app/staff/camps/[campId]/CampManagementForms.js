@@ -30,7 +30,7 @@ function ErrorBlock({ state, title, focusRef, conflictId, hrefs = {} }) {
   </div>;
 }
 
-export default function CampManagementForms({ camp, deadlineValue }) {
+export default function CampManagementForms({ camp, deadlineValue, deleteOnly = false }) {
   const [saveState, saveAction, savePending] = useActionState(updateStaffCampState, INITIAL);
   const [deleteState, deleteAction, deletePending] = useActionState(deleteStaffCampState, INITIAL);
   const saveRef = useRef(null); const deleteRef = useRef(null);
@@ -38,7 +38,7 @@ export default function CampManagementForms({ camp, deadlineValue }) {
   useEffect(() => { if (deleteState?.error) deleteRef.current?.focus(); }, [deleteState]);
   const fields = saveState?.fields ?? {};
   return <div className={styles.formStack}>
-    <form className={styles.form} action={saveAction}>
+    {!deleteOnly && <form className={styles.form} action={saveAction}>
       <ErrorBlock state={saveState} title="キャンプを保存できませんでした" focusRef={saveRef} conflictId="save-camp-conflicts" />
       <input type="hidden" name="campId" value={camp.id} /><input type="hidden" name="updatedAt" value={camp.updated_at} />
       <FormField id="campName" name="campName" label="キャンプ名" required maxLength={120} defaultValue={fields.campName ?? camp.name} />
@@ -47,9 +47,9 @@ export default function CampManagementForms({ camp, deadlineValue }) {
       <FormField id="applicationDeadline" name="applicationDeadline" label="申請期限" type="datetime-local" required defaultValue={fields.applicationDeadline ?? deadlineValue} hint="利用開始日より前の日時を指定します。" />
       <FormField id="reason" name="reason" label="変更理由" as="textarea" rows={3} maxLength={2000} defaultValue={fields.reason} hint="内容を変更する場合に入力します。同じ内容の保存では省略できます。" />
       <SubmitButton pending={savePending} pendingLabel="保存中…" fullWidthOnMobile>変更を保存する</SubmitButton>
-    </form>
+    </form>}
     <section className={styles.dangerZone} aria-labelledby="delete-camp-title"><h2 id="delete-camp-title">キャンプを削除</h2>
-      <p>削除すると対象者から見えなくなり、確保していた日程枠を解放します。既存の有効な申請がある場合は削除できません。</p>
+      <p>削除すると対象者から見えなくなり、対象者の参加と下書き申請を終了します。提出済み・審査中・許可済みの申請がある場合は削除できません。申請と変更履歴は保存されます。</p>
       <form className={styles.form} action={deleteAction}>
         <ErrorBlock state={deleteState} title="キャンプを削除できませんでした" focusRef={deleteRef} conflictId="delete-camp-conflicts" hrefs={{ reason: "#delete-reason" }} />
         <input type="hidden" name="campId" value={camp.id} /><input type="hidden" name="updatedAt" value={camp.updated_at} />
