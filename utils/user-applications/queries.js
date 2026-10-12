@@ -30,8 +30,8 @@ function normalize(row) {
     || !nullableTimestamp(row.revision_due_at) || !nullableText(row.decision_reason)
     || !validRelation(camp) || !validRelation(reception) || !validRelation(charge)
     || !validRelation(allocation) || !validRelation(stay) || !validRelation(room)) return null;
-  if ((row.usage_type === "camp" && (!camp || typeof camp.name !== "string" || camp.name.trim() === ""))
-    || (camp && typeof camp.name !== "string")) return null;
+  if ((row.usage_type === "camp" && !camp && !["cancelled", "rejected"].includes(row.status))
+    || (camp && (typeof camp.name !== "string" || camp.name.trim() === ""))) return null;
   if (reception && (typeof reception.display_number !== "string" || !/^SG-\d{4}-\d+$/.test(reception.display_number))) return null;
   if (charge && (!Number.isSafeInteger(charge.total_amount) || charge.total_amount < 0
     || !["unpaid", "paid"].includes(charge.payment_status) || !nullableDate(charge.payment_due_date)
@@ -46,7 +46,7 @@ function normalize(row) {
     status: row.status, start_date: row.start_date, end_date: row.end_date,
     updated_at: row.updated_at, submitted_at: row.submitted_at,
     last_submitted_at: row.last_submitted_at, revision_due_at: row.revision_due_at,
-    decision_reason: row.decision_reason, camp_name: camp?.name ?? null,
+    decision_reason: row.decision_reason, camp_name: camp?.name ?? (row.usage_type === "camp" ? "終了したキャンプ" : null),
     reception_number: reception?.display_number ?? null,
     charge: charge ? { total_amount: charge.total_amount, payment_status: charge.payment_status,
       payment_due_date: charge.payment_due_date, paid_at: charge.paid_at,

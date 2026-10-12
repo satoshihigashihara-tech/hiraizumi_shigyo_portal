@@ -30,8 +30,9 @@ function withQuery(path, values) {
 }
 
 function revalidateCamp(campId) {
-  for (const path of ["/calendar", "/staff/calendar", "/staff", "/staff/camps", "/user", "/user/applications",
-    `/staff/camps/${campId}`, `/staff/camps/${campId}/edit`, `/staff/camps/${campId}/applications`]) {
+  for (const path of ["/calendar", "/staff/calendar", "/staff", "/staff/camps", "/user", "/user/applications", "/user/camp-room",
+    `/staff/camps/${campId}`, `/staff/camps/${campId}/edit`, `/staff/camps/${campId}/applications`,
+    `/staff/camps/${campId}/eligible-users`, `/staff/camps/${campId}/room-plan`]) {
     revalidatePath(path);
   }
   revalidatePath("/user/applications/[applicationId]", "page");
